@@ -1,42 +1,137 @@
-# tinyCPG — Two-Leg Rat Spinal CPG (Debug Workspace)
+# tinyCPG-human — Two-Leg Human Spinal CPG (Debug Workspace)
 
-NEST-based spinal central pattern generator for rat locomotion. Two legs (left/right),
-each with extensor + flexor half-centers, motor pools, muscle proxies, Ia afferents,
-cutaneous afferents, and tonic brainstem drive. Trained with STDP on BS→RG, CUT→RG and
-Ia→RG synapses. Production runs on the MN5 supercomputer; this workspace is for fast local
-iteration before submitting array jobs.
+NEST-based spinal central pattern generator, being adapted from rat to **human**
+locomotion. Two legs (left/right), each with extensor + flexor half-centers, motor pools,
+muscle proxies, Ia afferents, cutaneous afferents, and tonic brainstem drive. Trained with
+STDP on BS→RG, CUT→RG and Ia→RG synapses, with optional tag-and-capture consolidation.
+Production runs on the MN5 supercomputer; this workspace is for fast local iteration
+before submitting array jobs.
+
+This repo was forked on 2026-09-24 from tinyCPG
+(`feature/spinal-tag-capture-consolidation`, remote `tinycpg`). **Everything from "Frozen-weight
+control" down to "Sensory-driven mode" is inherited rat-model tuning history.** Its
+numbers (periods, caps, fatigue τ, `tau_tag_ms`, correlations, MN5 result dates) are
+rat-scale. They are a reference for how the mechanisms behave, not human operating
+points. Read "Human adaptation" below first.
 
 ## Project goal
 
-**Build and demonstrate a bio-plausible rat spinal CPG model, both intact and after
+**Build and demonstrate a bio-plausible human spinal CPG model, both intact and after
 spinal cord injury (SCI), whose gradual rehabilitation dynamics come from bio-plausible
-spinal plasticity.**
+spinal plasticity, and validate it against human data.**
 
 Three parts of that claim, and what each one means here:
 
-1. **Bio-plausible rat spinal CPG.** Parameters stay within rat physiological ranges (see
-   "Bio-plausibility constraints" below). The circuit follows established spinal
-   architecture: asymmetric reciprocal inhibition (Zhang 2022), tonic reticulospinal
-   drive, Ia/cutaneous closed-loop feedback, and L/R commissural coupling. It should
-   produce clean E/F counter-phase and L/R alternation across locomotion modes (slow,
-   medium and fast walk).
-2. **With and without SCI.** Reduced loading/afferent input (toe and air stepping via
+1. **Bio-plausible human spinal CPG.** Parameters stay within human physiological ranges
+   (see "Bio-plausibility constraints (human)" below): human stride and stance/swing
+   timing, human-scale conduction delays, human muscle contraction times. The circuit
+   keeps the established spinal architecture: asymmetric reciprocal inhibition (Zhang
+   2022), tonic reticulospinal drive, Ia/cutaneous closed-loop feedback, and L/R
+   commissural coupling. Evidence for a human lumbar locomotor CPG comes from
+   stimulation-evoked stepping-like EMG in complete SCI (Dimitrijevic et al. 1998). It
+   should produce clean E/F counter-phase and L/R alternation across human walking
+   speeds (slow, comfortable, fast).
+2. **Healthy vs. SCI.** Reduced loading/afferent input (body-weight-supported stepping via
    `--ia-feedback-gain`/`--cut-feedback-gain`) and reduced or frozen descending drive
-   (`--freeze-bs-rg`, the sensory-learning arm) stand in for the injured cord. The intact
-   and injured conditions should be compared under the same circuit.
+   (`--freeze-bs-rg`, the sensory-learning arm) stand in for the injured cord. Epidural
+   electrical stimulation (EES), the main human SCI neuromodulation, is still to be
+   added (see "Human adaptation"). The intact and injured conditions must be compared
+   under the same circuit.
 3. **Gradual rehabilitation through bio-plausible spinal plasticity.** Recovery has to
    emerge from spinal learning over a realistic time course. It should not snap back
-   instantly. Three pathways are plastic: BS→RG, CUT→RG-E and Ia→RG-E/F. Tag-and-capture
-   consolidation (`--consolidate`, grounded in
+   instantly. Human locomotor recovery with EES + training takes weeks to months
+   (Harkema et al. 2011; Angeli et al. 2018; Gill et al. 2018; Wagner et al. 2018). Three
+   pathways are plastic: BS→RG, CUT→RG-E and Ia→RG-E/F. Tag-and-capture consolidation
+   (`--consolidate`, grounded in
    [`spinal_plasticity_as_learning_spec.md`](spinal_plasticity_as_learning_spec.md))
    adds a retention gate and a settling-in period on top of vanilla STDP. Closed-loop
    force-triggered stance/swing (`--cut-trigger force`) makes the gait itself emergent,
    so the learning signal comes from real behavior, not a clock.
 
 Every mechanism, sweep and figure in this workspace should serve one of those three
-parts. Current phase (as of 2026-09-23): confirming the force-trigger + consolidation
-story at production scale on MN5 for all locomotion modes. Air stepping and
-medium+consolidate at production N are still open (see the sections below).
+parts. Current phase (as of 2026-09-24): the rat model is imported unchanged. No
+human-parameter run has been done yet. Next is the human parameter pass described below.
+
+Rat-model state at fork time (2026-09-23): the force-trigger + consolidation story was
+being confirmed at production scale on MN5. Air stepping and medium+consolidate at
+production N were still open.
+
+## Human adaptation (tinyCPG-human)
+
+### What `--species human` does today
+
+Very little. Read this before assuming a run is "human":
+
+- It selects `DELAY_PRESETS["human"]`, but **only with `--delay-model length_velocity`**.
+  The default `--delay-model fixed` ignores species entirely.
+- It selects `FLEXOR_BS_GAIN_BY_SPECIES["human"]`, which is `1.00`, the same as rat.
+- **The human delay preset gives rat-like delays.** Its path lengths are longer (1–5 cm)
+  but its velocities are 6× higher (25–40 m/s), so the resulting delays barely change:
+
+  | Key | rat (ms) | human preset (ms) |
+  |---|---|---|
+  | `cut_to_rg` | 2.00 | 1.67 |
+  | `bs_to_rg` / `base_to_rg` | 3.00 | 2.25 |
+  | `rg_to_m` / `m_to_mus` | 2.00 | 1.67 |
+  | `ia_path` | 2.00 | 2.33 |
+  | `rg_rec` | 1.20 | 1.20 |
+  | `rg_recip` / `motor_e2f` / `motor_f2e` | 1.80 | 1.60 |
+  | `commissural` | 2.20 | 2.33 |
+
+  Intraspinal paths (`rg_rec`, `rg_recip`, `motor_*`, `commissural`) being short is
+  fine. The **peripheral** paths are not: in an adult, the soleus-to-L5/S1 path is
+  roughly 0.8–1 m each way, and the soleus H-reflex latency is about 30 ms (Palmieri
+  et al. 2004). `ia_path`, `m_to_mus` and `cut_to_rg` should each be on the order of
+  10–20 ms, not about 2 ms. Fixing this preset is step 1 of the plan below.
+- The Ia/CUT rates are recomputed from force/length in Python every `--rate-update-ms`
+  (50 ms in `debug.sh`). That update lag is already larger than any synaptic delay.
+  Account for it when matching the ~30 ms reflex latency.
+
+### Rat → human parameter map
+
+Human values are **starting targets, none tested yet**. Rat values are the current
+inherited defaults (production script `run_consolidate_all_modes_production.sh` for
+per-mode timing).
+
+| Parameter | Where | Rat (current) | Human starting target | Basis |
+|---|---|---|---|---|
+| Stride period | `--step-period-ms` | medium 1000, fast 600, slow 1200, toe 730 | comfortable ~1000–1200; fast ~900; slow ~1300–1500 | Perry & Burnfield 2010; cadence ~100–120 steps/min |
+| Stance fraction | `--stance-fraction` | 0.5 | ~0.6 at comfortable speed, falling toward 0.5 as speed rises | Perry & Burnfield 2010 |
+| Walking speed (for reporting) | — | rat trot ~30 cm/s | comfortable ~1.2–1.4 m/s | Bohannon & Andrews 2011 |
+| Failsafe stance/swing cap | `--cut-max-stance-ms` / `--cut-max-swing-ms` | medium 450 | rescale with the new stance/swing durations; must stay above genuine bout length or `frac_at_cap` → 1 | model constraint (see "Force-triggered CUT") |
+| Fatigue onset / recovery τ | `--fatigue-tau-onset-ms` / `--fatigue-tau-recovery-ms` | medium 260 / 600 | rescale with bout duration, then re-sweep; the rat rounds 1–5 showed the τ/off-frac/cap window is narrow | rat history below |
+| Force rise/decay τ | `TAU_FORCE_RISE/DECAY_MS` (80/80 under `--paced-gait`) | rat fast-twitch | slower: human soleus twitch time-to-peak is on the order of 100 ms (verify source) | to verify |
+| Peripheral delays | `DELAY_PRESETS["human"]` `ia_path`, `m_to_mus`, `cut_to_rg` | ~2 ms | ~10–20 ms each, so the full Ia reflex loop lands near ~30 ms | H-reflex latency, Palmieri et al. 2004 |
+| Descending delay | `DELAY_PRESETS["human"]` `bs_to_rg` | 3 ms | brainstem-to-lumbar is ~0.5 m in an adult; tens of ms at reticulospinal velocities (verify) | to verify |
+| Tag decay τ | `--consolidate-tau-tag-ms` | 2000 / 5000 / 20000 (medium/fast/toe) | keep the rat rule (scale with bout length and loading), re-confirm per human mode | rat history below |
+| BS tonic rate | `BS_REGULAR_HZ` | 60 (20 in debug-small) | keep 20–80 Hz; there are no direct human reticulospinal recordings, so this is a cat/rat proxy | flag if changed |
+| CUT peak rate | `CUT_RATE_ON_HZ` | 100 | keep ≤100 Hz until checked against human plantar microneurography (Kennedy & Inglis 2002) | to verify |
+| Reduced loading | `--ia-feedback-gain` / `--cut-feedback-gain` | 1.0 / 0.5 toe / 0.1 air | map onto body-weight-support levels used in human locomotor training | to define |
+| STDP λ | `--stdp-lambda` | 1e-3 | unchanged; 5e-4 to 5e-3 (Bi & Poo 1998; Morrison 2007) are not species-specific | — |
+
+### Work plan (in order)
+
+1. **Human delays.** Rewrite `DELAY_PRESETS["human"]` with real peripheral path lengths
+   and conduction velocities. Check the resulting Ia loop latency against the ~30 ms
+   H-reflex. Run `--dump-connectivity` to confirm the delay arrays.
+2. **Human gait timing.** Add human mode presets (slow / comfortable / fast, plus
+   body-weight-supported stepping) with stride period, stance fraction, caps, fatigue τ
+   and `tau_tag_ms` rescaled together. Put them in a new `run_*_human.sh`, not in the
+   rat scripts.
+3. **Re-confirm the force-trigger operating point** at human timing. Run
+   `scripts/cpg_cutforce_diagnostics.py` on every output; `frac_at_cap` near 1.0 means a
+   disguised clock, exactly as in the rat history.
+4. **Muscle model.** Slow the force τ toward human contraction times and re-check that
+   force still reaches the CUT OFF threshold within a stance bout.
+5. **SCI + EES.** Add a tonic epidural-stimulation afferent drive. Human EES at
+   ~5–15 Hz tends to produce tonic extension and ~25–50 Hz rhythmic stepping-like EMG
+   in complete SCI (Minassian et al. 2004). Compare healthy vs. SCI (frozen/weak BS,
+   reduced loading) vs. SCI + EES + training on the same circuit.
+6. **Validation.** Compare simulated EMG envelopes, stance/swing timing and L/R phase
+   with human healthy and SCI recordings. `validation/emg_data_requests.md` currently
+   lists **rat** datasets only; a human data list is still to be written.
+
+Keep `--species rat` runs working throughout: the rat model is the regression baseline.
 
 ## Original debug-pass goal (historical, superseded by "Project goal" above)
 
@@ -91,6 +186,10 @@ sbatch run.sh
 | `run_consolidate_all_modes_production.sh` | **STAGE 5, prepared 2026-09-17, not yet submitted.** First production-scale (full N, BS=60Hz) test of `--consolidate` at the new uniform descending-arm gain (`0.25`/`0.10`) confirmed at `--debug-small` across medium/fast/toe (see "Fast/toe re-confirmed under the BS→RG write-back fix" below). 8 cells × 3 seeds = 24 tasks: {medium, fast, toe} × {desc, sens} with `--consolidate` at 0.25/0.10 (mode's own `tau_tag_ms`), plus slow × {desc, sens} without `--consolidate` (unchanged control). Deliberately does **not** apply the debug-small tick-de-alignment fix to medium's timing — at production's 100ms tick those constants are already not exact multiples, so the fix's premise may not transfer; see the script's own header for the full reasoning. Fast/toe's *base* timing (not just the gain) is itself still debug-small-only, flagged explicitly in the script. Flag construction dry-run-verified for all 8 cells; not submitted — `sbatch` is the user's call. |
 | `CLAUDE.md` | This file. |
 | `spinal_plasticity_as_learning_spec.md` | Literature-grounded spec for the `--consolidate` tag-and-capture mechanism (see "Tag-and-capture consolidation" below). Spinal-cord-only scope: §1 motor-circuit plasticity timescales, §2 the gating signals (serotonergic, contingency, structural), §3 nociceptive plasticity kept separate, §4 the mapping onto this model's three plastic pathways. All references verified against PubMed and cited by number. |
+
+> **Inherited rat-model history starts here** and runs to "Sensory-driven mode". All
+> timing, cap, fatigue and correlation numbers below are rat-scale (`--species rat`).
+> Use them for mechanism behaviour and failure modes, not as human operating points.
 
 ## Frozen-weight control (`run_frozen.sh`)
 
@@ -1941,6 +2040,8 @@ Cross-leg: L↔R commissural inhibition on RG-F (strong) and RG-E (weak).
 | `N_INF = 40` (debug-small) | line ~792 | Doubled in debug-small to give 12 InF connections per RGE vs 6 at N=20. |
 | `--step-period-ms 1000` | `debug.sh` | Full gait cycle period. HALF_MS=500ms per leg. |
 | `--n-ia-groups 3` | `debug.sh` | Heel/mid/toe sequential Ia-E groups (60/80/100 Hz). Each active 167ms. |
+| `DELAY_PRESETS["human"]` | line ~185 | Human conduction-delay preset, used only with `--delay-model length_velocity --species human`. **Currently gives rat-like ~2 ms delays** — see "What `--species human` does today". |
+| `FLEXOR_BS_GAIN_BY_SPECIES` | line ~123 | Per-species flexor BS gain. `1.00` for both rat and human. |
 
 ## Modification history (grep-friendly)
 
@@ -1974,7 +2075,24 @@ Cross-leg: L↔R commissural inhibition on RG-F (strong) and RG-E (weak).
 | `--static-weight-cv` | **Bio-plausibility (default 0.5):** per-connection lognormal weight heterogeneity on all static synapses (mean/sign preserved). Biological weights are lognormal (Song 2005; Buzsáki & Mizuseki 2014). `0` = legacy delta weights (used by the frozen-weight control). |
 | `--cut-static-w` | **Bio-plausibility (default 0 = dropped):** weight of the fixed CUT→RG-E co-activation pathway. Default leaves a single plastic cutaneous projection; set `14` to restore the legacy bootstrap. |
 
-## Bio-plausibility constraints (rat)
+## Bio-plausibility constraints (human)
+
+| Quantity | Range | Source |
+|---|---|---|
+| Stride period (comfortable walking) | ~1.0–1.2 s (cadence ~100–120 steps/min) | Perry & Burnfield 2010 |
+| Stance / swing split | ~60% / ~40% of the gait cycle; ~10% double support at each end | Perry & Burnfield 2010 |
+| Comfortable walking speed | ~1.2–1.4 m/s | Bohannon & Andrews 2011 |
+| Soleus H-reflex latency | ~30 ms | Palmieri et al. 2004 |
+| Peripheral path (soleus ↔ L5/S1) | ~0.8–1 m each way (adult; scales with height) | anthropometric estimate |
+| EES for stepping-like EMG in complete SCI | ~25–50 Hz (5–15 Hz → tonic extension) | Minassian et al. 2004 |
+| Rehabilitation time course (EES + training) | weeks to months | Harkema et al. 2011; Angeli et al. 2018; Gill et al. 2018; Wagner et al. 2018 |
+| BS reticulospinal | 20–80 Hz (cat/rat proxy; no direct human recordings) | Drew, Rossignol |
+| CUT peak rate | ≤100 Hz until checked against human plantar afferents | Kennedy & Inglis 2002 (to verify) |
+
+Don't push values outside these ranges without flagging it. Rows marked "to verify" or
+"proxy" are provisional: check the source before building a result on them.
+
+### Rat constraints (inherited reference, for `--species rat` regression runs)
 
 | Quantity | Range | Source |
 |---|---|---|
@@ -1983,15 +2101,14 @@ Cross-leg: L↔R commissural inhibition on RG-F (strong) and RG-E (weak).
 | Locomotor cycle | 400–700 ms | Bellardita & Kiehn 2015 |
 | Rat trot speed | ~30 cm/s | Lemieux et al. 2016 |
 
-Don't push values outside these ranges without flagging it.
-
 ## What "good" looks like in debug output
 
 - Clean alternation: RG-E vs RG-F correlation < −0.85
 - Force-E vs Force-F correlation < −0.80
 - Force minima < 2, peaks > 12, both half-centers
 - L vs R legs not perfectly synchronised
-- Cycle period 400–700 ms
+- Cycle period in range for the species: human ~1.0–1.2 s at comfortable speed (stance ~60%);
+  rat 400–700 ms for `--species rat` regression runs
 - Activation reaches 0 cleanly between bursts
 
 ## What "broken" looks like
@@ -2024,5 +2141,7 @@ Each iteration is ~30 s. Don't edit `run.sh` during debug.
 - The asymmetric inhibition ratio (`W_INF2RGE` / `W_INE2RGF` ≈ 6:1) — this is the Zhang 2022 finding
 - The `--enforce-tonic-bs` semantics — bio-plausibility commitment
 - `bs_rates_tonic` — should return identical values for both legs
-- `BS_REGULAR_HZ` upper bound — keep below 80 Hz (rat reticulospinal)
-- `CUT_RATE_ON_HZ` upper bound — keep below 100 Hz (rat Group-II/Aβ)
+- `BS_REGULAR_HZ` upper bound — keep below 80 Hz (reticulospinal; cat/rat proxy, also used for human)
+- `CUT_RATE_ON_HZ` upper bound — keep below 100 Hz (rat Group-II/Aβ; human plantar-afferent range still to verify)
+- `DELAY_PRESETS["rat"]` and the rat mode timing in the inherited `run_*.sh` scripts — the rat model is the regression baseline. Put human changes in the `human` preset and in new `*_human` scripts
+- Default `--species rat`. Switching the default to `human` changes every inherited script's behaviour
