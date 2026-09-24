@@ -424,9 +424,15 @@ second, slower component:
   descending systems. The serotonergic acute/chronic receptor-sensitivity
   axis is a separate, slower mechanism and not a tag/capture story at all.
   Applying consolidation to `BS→RG` for architectural uniformity is still a
-  modeling choice rather than a literature-mandated one — which is why the
-  implementation logs `BS→RG` bookkeeping for measurement symmetry but never
-  writes it back.
+  modeling choice rather than a literature-mandated one. The first
+  implementation therefore only logged `BS→RG` bookkeeping for measurement
+  symmetry and never wrote it back. **Since 2026-09-17 it is written back**,
+  like the other two pathways. This was done at explicit user request: when
+  `BS→RG` is plastic, `--consolidate` now applies the tag/capture retention
+  to it too. `Wmax` (including `WMAX_BS`'s anti-runaway role) is still
+  untouched. Consequences, and the descending-arm results that predate the
+  change and need re-confirmation, are in [CLAUDE.md](CLAUDE.md),
+  "Tag-and-capture consolidation" → "BS→RG write-back fix".
 
 Implementation (state variables, update equations, where in
 `cpg_2legs_fast.py`'s sim loop this would live) is intentionally left to the
