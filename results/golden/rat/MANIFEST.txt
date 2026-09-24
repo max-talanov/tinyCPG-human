@@ -1,0 +1,12 @@
+# Rat golden run for regress.sh (PLAN.md, Phase 0). Written by './regress.sh record'.
+# Digests: scripts/regression_compare.py digest (content only, created_utc excluded).
+recorded_utc=2026-09-24T12:10:43Z
+git_commit=f909513
+threads=4
+nest_version=3.9.0
+python=3.14.2
+numpy=2.4.1
+h5py=3.16.0
+platform=Darwin arm64
+debug=c02a63d49c78576004193d8a990654a0ed3f6d0e39409cfc11f9760926edd55f
+debug_force=d30cccbb6231ca81fd4e573621c9c0db360f90bc1360460ed2a9dccde25db589
