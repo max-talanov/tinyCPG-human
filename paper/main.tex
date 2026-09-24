@@ -1,0 +1,96 @@
+% =============================================================
+%  tinyCPG paper — main LaTeX file
+%
+%  Compile with:  latexmk -pdf main.tex
+%  (or)           pdflatex main && bibtex main && pdflatex main && pdflatex main
+%
+%  Generic preamble suitable for either PLOS Computational Biology
+%  or Frontiers in Computational Neuroscience. Switch to the
+%  publisher's template at submission time by replacing the
+%  `\documentclass` and `\bibliographystyle` lines.
+% =============================================================
+
+\documentclass[11pt,letterpaper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath, amssymb}
+\usepackage{graphicx}
+\graphicspath{{figures/}}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\hypersetup{colorlinks=true, linkcolor=blue!50!black,
+            citecolor=blue!50!black, urlcolor=blue!70!black}
+\usepackage{booktabs}
+\usepackage{caption}
+\captionsetup{font=small, labelfont=bf, format=plain}
+\usepackage{siunitx}        % for SI units in tables
+\usepackage{enumitem}
+\setlist{nosep}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\renewcommand{\algorithmicrequire}{\textbf{Input:}}
+\renewcommand{\algorithmicensure}{\textbf{Output:}}
+
+% TODO / margin-note macros to make scaffold work visible
+\newcommand{\todo}[1]{\textcolor{red}{\textbf{[TODO: #1]}}}
+\newcommand{\xref}[1]{\textcolor{purple}{[\textsc{#1}]}}  % cross-ref placeholders
+
+\title{Self-organisation of a closed-loop spinal locomotor pattern: \\
+       extending a computational model of the spinal CPG with STDP,
+       motoneurons, and Ia sensory feedback}
+
+\author{
+  Maxim Talanov\textsuperscript{1,*} \and
+  Xenia Fainstain\textsuperscript{2} \and
+  Alina Fedorova\textsuperscript{3} \and
+  Alexander Toschev\textsuperscript{3} \and
+  Alexey Leukhin\textsuperscript{3} \and
+  Salvatore Calabr\`o\textsuperscript{1} \and
+  Angelo Quartarone\textsuperscript{1}
+  \\[1em]
+  \textit{\small \textsuperscript{1}IRCCS Neurolesi Centro, Italy} \\
+  \textit{\small \textsuperscript{2}NIMH, Czechia} \\
+  \textit{\small \textsuperscript{3}B-Rain Arc LLC, Emirates} \\
+  \textit{\small \textsuperscript{*}Correspondence: max.talanov@gmail.com}
+}
+
+\date{}
+
+% =============================================================
+\begin{document}
+\maketitle
+
+% NOTE: Abstract is temporarily removed while Methods + Results are finalised.
+% \input{sections/abstract}
+
+\section{Introduction}\label{sec:intro}
+\input{sections/introduction}
+
+\section{Acronyms}\label{sec:acronyms}
+\input{sections/acronyms}
+
+\section{Methods}\label{sec:methods}
+\input{sections/methods}
+
+\section{Results}\label{sec:results}
+\input{sections/results}
+
+\section{Discussion}\label{sec:discussion}
+\input{sections/discussion}
+
+\input{sections/supplementary}
+
+% --- Data, code, reproducibility ---
+\section*{Code and data availability}
+All source code and the raw HDF5 simulation outputs underlying the figures in
+this paper are available at
+\href{https://github.com/max-talanov/tinyCPG}{github.com/max-talanov/tinyCPG}.
+
+% --- Bibliography ---
+\bibliographystyle{unsrt}   % switch to PLOS or Frontiers style at submission
+\bibliography{refs}
+
+\end{document}

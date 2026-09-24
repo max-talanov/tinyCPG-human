@@ -1,0 +1,6 @@
+condition,cycle_mean_ms,cycle_std_ms,n_cycles,peak_force_e,peak_force_f,corr_ef
+baseline,999.60,0.00,19,17.431,17.431,-0.914
+noIa,999.60,0.00,19,17.431,17.431,-0.935
+symInh,999.60,0.00,19,17.431,17.431,-0.993
+noComm,999.60,0.00,19,17.431,17.469,-0.493
+noPaced,392.00,99.68,50,17.466,17.470,-0.160

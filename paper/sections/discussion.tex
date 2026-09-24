@@ -1,0 +1,294 @@
+\subsection{Summary of contributions}
+We extended a computational sCPG model --- a two-legged half-centre
+network in the Hodgkin--Huxley lineage
+running from Rybak 2006 through Shevtsova 2015 and Danner 2017 to
+Zhang 2022~\cite{rybak2006,shevtsova2015,danner2017,zhang2022} --- with four
+mechanisms absent from that lineage: (i)
+STDP that lets the network tune its own
+sensory-to-rhythm-generator synapses rather than have them hand-set; (ii) a
+closed loop from muscle-force feedback (Ia) into the reciprocal-inhibition
+core; (iii) motoneuron pools driving explicit muscle proxies with force and
+length dynamics; and (iv) an externally paced cutaneous drive that emulates
+heel-to-toe pressure transfer during stance. Using this model we asked how a
+spinal CPG's own synaptic weights should be organised to produce a stable
+walking rhythm, and how that self-tuned rhythm degrades as sensory feedback
+is progressively withdrawn --- the central manipulation in rodent and human
+studies of SCI rehabilitation.
+
+Three findings anchor the paper. First, the three plastic synapses --- the
+cutaneous CUT$\to$RG-E projection and the homonymous proprioceptive
+projections Ia-E$\to$RG-E, Ia-F$\to$RG-F --- converge to the same steady
+strength regardless of where they start, of which leg they are in, and of
+walking speed (\autoref{sec:results:weights}); the network organises its own
+descending gain rather than requiring it to be prescribed by the modeller.
+Second, across the full grid of five locomotion modes and five learning
+rates the quality of the alternating gait is not maximised by the fastest
+learning, but peaks at an intermediate rate and falls off at both extremes
+(\autoref{sec:results:comparison}). Third, removing load-dependent sensory
+feedback and removing the cutaneous pacing drive have dissociable effects:
+a model with only the pacing drive intact keeps stepping right through full
+unloading, while a model in which both proprioceptive and cutaneous
+feedback are gated by load collapses --- reproducing, in a spiking
+closed-loop network, the clinical dissociation between unassisted and
+epidurally-stimulated stepping after motor-complete SCI
+(\autoref{sec:results:epidural}).
+
+\subsection{Relation to prior computational and experimental sCPG work}
+Zhang et al.\ (2022)~\cite{zhang2022} name two limitations of their own
+four-rhythm-generator computational sCPG model explicitly: it has no
+biomechanics or sensory feedback, and it has no motoneurons, treating
+rhythm-generator output as a direct stand-in for motor output. Every
+synaptic weight in their model, like its Rybak/Shevtsova/Danner
+predecessors, is hand-tuned. Our model addresses both limitations for a
+single hindlimb pair: the Ia force/length feedback loop supplies the
+missing sensory closed loop, and explicit motoneuron pools driving a
+saturating muscle model supply the missing motor periphery. On top of this
+we add a mechanism none of these models have --- activity-dependent
+plasticity on the afferent synapses --- so that the descending and
+cutaneous gains are discovered by the network rather than fixed by the
+experimenter.
+
+The trade-off is architectural detail. Zhang et al.\ resolve genetically
+identified commissural and long-propriospinal interneuron classes (V0V,
+V0D, V1, V2a, V3, Shox2) across four limbs and reproduce V3-silencing
+experiments quantitatively; our model collapses the commissural pathway to
+two hand-set inhibitory projections between homologous half-centres and
+covers only one limb pair. We also do not reproduce gait-transition
+phenomena (walk $\to$ trot $\to$ gallop $\to$ bound): our gait is
+externally paced rather than emergent from a single tonic-drive parameter.
+The two efforts are complementary rather than competing: theirs
+demonstrates architectural realism at the cost of a closed loop; ours
+demonstrates a closed, self-organising loop at the cost of architectural
+detail. A natural synthesis --- hand-curated interlimb architecture wrapped
+in a plastic, closed sensorimotor loop --- is a direct extension of both.
+
+Our loading manipulation and its epidural-stimulation analogue are drawn
+directly from a second, experimental lineage: the rat and human
+spinal-cord-injury work of Courtine, Lavrov, Edgerton, Gerasimenko and
+colleagues showing that epidural stimulation of the lumbosacral spinal
+cord can recover stepping across a graded series of load-bearing
+conditions, from fully weight-supported walking to hindlimb
+suspension~\cite{lavrov2008,edgerton2008,courtine2009,harkema2011}. That
+literature establishes the phenomenon --- rhythmic electrical stimulation
+of the cord restores stepping when descending drive is lost, in a
+load-dependent manner --- largely from kinematic and electromyographic
+readouts. Our model does not simulate the stimulation itself, but it
+offers a mechanistic, spiking-network account of one candidate route to
+the same phenomenon: a closed sensorimotor loop in which a rhythmic
+afferent volley, held constant across loading, substitutes for the
+load-gated sensory drive that unassisted stepping loses
+(\autoref{sec:results:epidural}). In that sense the model is positioned to
+connect the computational sCPG lineage above with this experimental
+SCI-rehabilitation lineage, and we return to that connection in the
+Clinical implications below.
+
+\subsection{A shared mechanism underlies the learning-rate and loading
+optima}
+Two of our findings share the same underlying mechanism, which is worth
+making explicit before turning to its clinical reading. Learning only
+improves the gait once it has had time to organise the cutaneous weight
+appropriately, and only within a specific range of final weight: at the
+fastest rate ($\lambda=10^{-2}$) the descending weight overshoots useful
+values and the alternation becomes slightly noisier, while at the slower
+rates ($\lambda=10^{-5}, 10^{-6}$) the weight never gets there at all, so
+the comparison across learning rates (\autoref{sec:results:comparison})
+shows a broad optimum around $\lambda=10^{-3}$--$10^{-4}$ rather than a
+monotonic benefit of faster learning. The same logic explains the
+non-monotonic recovery we observe from toe to air stepping at slow learning
+rates: an intermediate, partially-developed weight is poorly enough timed
+to \emph{interfere} with the paced core's own alternation, whereas a fully
+withdrawn afferent drive (air stepping) simply leaves the paced core to run
+on its own, unperturbed floor. In both the learning-rate axis and the
+loading axis, then, \emph{some} plastic drive organised correctly is better
+than none, but a large, poorly-organised drive can be worse than either
+extreme.
+
+\subsection{Clinical implications}
+The present computational approach yields several insights for the
+clinical rehabilitation of individuals with SCI. Apart from recapitulating
+locomotor behaviour, the proposed computational framework provides a
+mechanistic account of how sensorimotor interactions and activity-dependent
+plasticity might enable functional recovery. First, sensory inputs are
+critical for facilitating locomotor rehabilitation, not as a replacement
+for lost supraspinal descending input, but as a catalyst for plastic
+adaptation in the spinal cord sensorimotor networks.
+
+Our simulation results show that, when appropriately controlled through
+load and/or activity, such sensorimotor input drives spinal adaptation and
+subsequently restores coordinated locomotor outputs
+(\autoref{sec:results:weights}).
+
+Weight-bearing conditions fostered increasing potentiation of cutaneous
+input and stabilisation of locomotor output, whereas reduced support
+reduced sensory amplification and led to a more disorganised gait
+(\autoref{sec:results:comparison}). These findings parallel clinical
+observations that repetitive task-specific locomotor rehabilitation ---
+body-weight-support treadmill walking, robot- and manually-assisted
+stepping --- restores stepping in individuals with motor-incomplete SCI by
+engaging residual plasticity in the spinal sensorimotor circuitry rather
+than by regenerating damaged descending
+pathways~\cite{wernigMuller1992,dietz1998,behrmanHarkema2000}. The model
+provides a biologically plausible hypothesis for the benefits of epidural
+stimulation in SCI. Reduced proprioceptive and exteroceptive inputs from
+unloaded conditions resulted in poor locomotor performance.
+
+The rhythmic input was, however, continuously driven by externally
+delivered rhythmic cutaneous input, and these effects resulted in restored
+alternating activity between flexors and extensors
+(\autoref{sec:results:epidural}), a phenomenon observed in experiments in
+animal models as well as in patients undergoing epidural stimulation of
+the spinal cord~\cite{lavrov2008,edgerton2008,courtine2009,harkema2011}.
+
+\paragraph{Which injury this model corresponds to.}
+The two experimental manipulations map onto different points on the
+clinical severity spectrum. The plasticity-driven weight-bearing arm
+(\autoref{sec:results:weights}--\autoref{sec:results:comparison}) leaves
+the brainstem-to-rhythm-generator (BS$\to$RG) drive tonic and non-zero
+throughout, so it structurally represents a state in which some
+supraspinal descending input survives the lesion --- clinically,
+motor-incomplete SCI (ASIA Impairment Scale grades C/D), the population in
+which BWSTT and robot- or manually-assisted training reliably restore
+stepping~\cite{wernigMuller1992,dietz1998,behrmanHarkema2000}. Notably, the
+synapses that are plastic in this arm, CUT$\to$RG-E and Ia$\to$RG, are not
+the projections a thoracic or cervical lesion actually damages: those
+afferent-to-interneuron connections are intraspinal and caudal to the
+lesion, and do not cross it. What STDP models here is therefore not repair
+of a severed pathway, but activity-dependent strengthening of an intact,
+underused sensorimotor loop that compensates for reduced descending drive
+--- the mechanism BWSTT and related therapies are thought to exploit. The
+unloading/ESCS arm (\autoref{sec:results:epidural}), by contrast, models a
+more severe injury in which even that residual drive is functionally
+inadequate and an externally imposed rhythmic afferent volley substitutes
+for it outright; this is closer to the regime in which epidural
+stimulation is used clinically, often in motor-complete or near-complete
+SCI where descending drive is minimal or absent~\cite{harkema2011}.
+
+From this perspective, ESCS could function not just by increasing spinal
+excitability, but by restoring or amplifying sensory signals necessary for
+engaging the central pattern generators of the spinal cord to control
+locomotion. Therefore, neuromodulation in SCI might be more efficient if it
+is part of an integrated approach which includes not only electrical
+stimulation, but also functionally relevant sensory stimuli. An additional
+clinically relevant observation from our work is that the effectiveness of
+recovery depends on the degree of plasticity.
+
+Simulations reveal that intermediate levels of plasticity can produce more
+robust, functional gait than very low or very high values ---
+a range in which functional rehabilitation appears optimal, not maximised
+(\autoref{sec:results:comparison}). The optimal levels of learning rate
+would thus correspond to those that enable spinal cord motor networks to
+adapt while avoiding extreme rewiring, and provide a useful heuristic guide
+for determining appropriate intensities for rehabilitation and for
+managing the effects of pharmacological or electrical neuromodulation
+therapies on spinal adaptation. The optimal range of plasticity should be
+dynamically adapted to each patient's neurophysiological state and
+clinical characteristics.
+
+\paragraph{Interpreting the learning-rate axis as plasticity capacity.}
+One natural reading of the $\lambda$ axis is developmental. The capacity
+for activity-dependent synaptic change is not fixed across the lifespan:
+it is greatest during early postnatal critical periods and declines with
+maturity, and correspondingly, neonatal and juvenile rodents recover
+locomotor function after spinal injury considerably better than adults.
+It is therefore tempting to read our fastest learning rates as
+``younger'' and our slowest as ``older'' animals.\todo{cite developmental
+critical-period / age-related decline in spinal plasticity and
+age-dependent locomotor recovery after SCI} We suggest this analogy
+should be treated as a qualitative ordering rather than a calibration:
+$\lambda$ is a phenomenological STDP rate constant, it was not fitted to
+any measurement of plasticity in animals of a given age, and age is only
+one of several determinants of plasticity capacity --- time since injury,
+prior activity history, and pharmacological or electrical neuromodulation
+all modulate the same underlying quantity. Read this way, the $\lambda$
+axis is better described as spanning \emph{plasticity capacity}, of which
+age is one contributor.
+
+With that caveat, the interpretation yields a concrete and testable
+prediction. Because gait quality in our sweep peaks at intermediate
+$\lambda$ rather than increasing monotonically
+(\autoref{sec:results:comparison}), the model predicts that maximal
+plasticity capacity is not automatically optimal for functional outcome
+--- that a system rewiring too readily can be as poorly coordinated as one
+that barely rewires at all. This resonates with the clinical picture in
+which excessive or misdirected plasticity after SCI manifests as
+maladaptive outcomes such as spasticity, aberrant sprouting and
+neuropathic pain rather than improved locomotion.\todo{cite maladaptive
+plasticity after SCI} The prediction is directly testable by running the
+same rehabilitation protocol across age groups and asking whether
+intermediate-age animals show the best coordination recovery, which would
+be a stronger validation of the learning-rate axis than any of the
+comparisons we are currently able to make.
+
+Furthermore, the present computational framework might serve as a useful
+tool for designing, optimising, and validating interventions before their
+clinical application.
+
+It is feasible to investigate, via simulation studies, various clinical
+rehabilitation interventions (e.g., robot-assisted walking at various
+assistance levels and weight-supported environments, ESCS at different
+locations and frequencies, combination therapies) to identify the most
+effective, non-invasive treatments. Finally, integrating this framework
+with individual patient-specific data might pave the way for the
+development of virtual-twin approaches that could predict, simulate, and
+optimise patient outcomes after specific rehabilitation therapies in a
+highly personalised fashion.
+
+\subsection{Limitations}
+In addition to the positive implications outlined above, it is important
+to note some limitations of the proposed model. To simplify the biological
+complexity of the spinal locomotor system, a level of abstraction was used
+in defining sensorimotor pathways, interneurons and motor outputs. The
+model does not include an adaptive supraspinal control mechanism (the
+brainstem drive is a tonic input), detailed muscle-tendon
+biomechanics beyond the saturating force/activation model used here,
+fatigue, or other aspects of longer-term structural plasticity.
+
+It also omits features of SCI such as chronic damage to the dorsal and
+ventral roots, glial scarring, or the diversity of human SCI.
+
+It should also be highlighted that the model was not calibrated on any
+experimental data collected from actual individuals with SCI. Hence the
+values of the STDP parameters can only be viewed as computational
+representations of plasticity rather than direct measures of spinal
+learning capacity. Consequently, the present model should be interpreted
+as hypothesis-generating rather than predictive in nature, and further
+studies incorporating more detailed muscle dynamics, more realistic
+sensory transduction, supraspinal inputs, and patient-specific data will
+be required to establish greater biological realism.
+
+These conceptual limitations are compounded by several specific modelling
+choices worth stating explicitly:
+
+\begin{enumerate}
+  \item \textbf{Interneuron and interlimb detail.} We resolve two hand-set
+        commissural projections rather than the genetically identified
+        V0/V1/V2a/V3 interneuron classes, and we model one hindlimb pair
+        rather than fore--hindlimb coordination~\cite{zhang2022}; we
+        likewise do not reproduce gait-transition phenomena
+        (walk $\to$ trot $\to$ gallop $\to$ bound).
+  \item \textbf{No stochastic replication.} Results are deterministic,
+        fixed-seed point estimates; the ten-point initial-weight sweep
+        (\autoref{sec:results:weights}) substitutes for repeated stochastic
+        trials in establishing that a result is not an artefact of a
+        particular initialisation.
+\end{enumerate}
+
+\subsection{Concluding remark}
+A computational sCPG half-centre oscillator, closed in the loop with
+motoneurons, muscle proxies, and load-dependent sensory feedback, tunes its
+own descending gain through spike-timing-dependent plasticity to a stable
+locomotor attractor --- one that is largely independent of how the network
+starts, robust across the rat locomotor speed range, and best expressed at
+an intermediate degree of plasticity rather than the maximum
+achievable. Withdrawing load-dependent sensory feedback degrades that gait,
+and restoring a rhythmic, load-independent afferent volley --- the model's
+analogue of epidural stimulation --- rescues it, reproducing a central
+dissociation in the SCI rehabilitation literature within a single
+mechanistic, closed-loop model. Beyond the specific findings, the model
+demonstrates that a spinal CPG's descending and sensory gains need not be
+prescribed by the modeller: given a plastic synapse, appropriately timed
+sensory drive, and enough time, the network finds them on its own. That
+property, together with the model's explicit and inspectable parameters,
+is what makes it a plausible substrate for exploring --- and eventually,
+with patient-specific calibration, for helping to design --- sensorimotor
+rehabilitation strategies after spinal cord injury.

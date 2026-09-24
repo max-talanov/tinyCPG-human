@@ -1,0 +1,7 @@
+loading,condition,corr_ef,period_sd_ms
+baseline,stim,-0.939,0.00
+baseline,natural,-0.960,0.00
+toe,stim,-0.900,0.00
+toe,natural,-0.730,0.00
+air,stim,-0.975,0.00
+air,natural,-0.409,139.75

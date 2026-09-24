@@ -1,0 +1,52 @@
+# tinyCPG dependencies
+#   pip install -r requirements.txt
+#
+# All packages below ship prebuilt wheels for macOS (x86_64 + arm64) and
+# manylinux, so a plain pip install should succeed on a normal workstation.
+# Two platform caveats are noted inline.
+
+# ---------------------------------------------------------------------------
+# Core runtime — model simulation + HDF5 output
+# ---------------------------------------------------------------------------
+numpy>=1.24
+h5py>=3.8
+
+# ---------------------------------------------------------------------------
+# Figure generation (scripts/*.py -> paper/figures/)
+# ---------------------------------------------------------------------------
+matplotlib>=3.6
+
+# ---------------------------------------------------------------------------
+# Spiking simulators
+# ---------------------------------------------------------------------------
+# NEST — runs the reduced (Izhikevich) model in cpg_2legs_fast.py.
+# NOTE the distribution name is `nest-simulator`, NOT `nest`: the PyPI
+# package called `nest` is an unrelated network-testing tool ("NeST:
+# Network Stack Tester") and will not provide `import nest`.
+# NOTE on clusters (e.g. MN5) NEST is normally provided by a modulefile or
+# conda environment — prefer that over pip there, to avoid shadowing it.
+# Model tested on NEST 3.9.0.
+nest-simulator>=3.9
+
+# NEURON — runs the conductance-based (Hodgkin–Huxley) cross-check
+# implementation described in Methods. That model code lives in the separate
+# memCPG/CPG_STDP/py repository; NEURON is listed here so a single
+# environment can run both halves of the project.
+neuron>=8.2
+
+# MPI bindings — optional, only for parallel NEURON runs
+# (mpiexec -n N nrniv -mpi -python ...). Requires a working system MPI
+# (e.g. OpenMPI or MPICH) to be present at runtime.
+mpi4py>=3.1
+
+# Brian2 — used only by 2_stdp_izhi_brian2_memcpg.py, an early standalone
+# Colab-exported prototype kept for reference. Not part of the current
+# pipeline; the file carries its own inline `!pip install brian2`.
+brian2>=2.5
+
+# ---------------------------------------------------------------------------
+# Slide-deck export (scripts/build_deck.py only) — not needed to run the
+# model or to regenerate any paper figure.
+# ---------------------------------------------------------------------------
+python-pptx>=0.6.21
+Pillow>=9.0

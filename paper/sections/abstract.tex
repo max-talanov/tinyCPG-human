@@ -1,0 +1,36 @@
+% Abstract — write last. Target 200-250 words for PLOS Comp Bio,
+% up to 350 for Frontiers in Comp Neuro.
+
+\begin{abstract}
+\noindent
+\todo{Write last. Suggested structure:}
+\begin{itemize}
+  \item[(1)] \textbf{Context.} Computational spinal CPG models in the
+        Rybak/Danner/Zhang lineage capture central interlimb coordination
+        in fine detail but, by the authors' own account, omit motoneurons,
+        muscle dynamics, sensory feedback, and synaptic plasticity.
+  \item[(2)] \textbf{Question.} Can a computational sCPG self-organise its
+        descending and cutaneous afferent weights through STDP while
+        being closed-loop with biomechanical output?
+  \item[(3)] \textbf{Approach.} Two-leg NEST model of a rat spinal CPG
+        with Izhikevich neurons, STDP on BS$\to$RG and CUT$\to$RG synapses,
+        closed-loop Ia$\to$reciprocal-inhibition feedback, motoneuron pools,
+        Hill-like force/length proxies, and externally paced heel$\to$toe
+        Ia activation.
+  \item[(4)] \textbf{Results.} Stable counter-phase locomotion for
+        \SI{120}{\second} (120 cycles), peak force 17.4\,a.u., E/F
+        correlation $-0.91$. Cycle period tracks commanded step period
+        across \SIrange{600}{1400}{\milli\second} (rat walk$\to$trot range)
+        with $<\SI{0.5}{\milli\second}$ error. Ablation reveals that
+        commissural inhibition and paced descending drive are necessary;
+        the Ia loop and asymmetric reciprocal inhibition are redundant
+        under paced drive.
+  \item[(5)] \textbf{Implications.} Locomotor patterns can self-organise
+        from STDP given paced sensory drive, extending the Rybak central
+        architecture below the rhythm generator and into the closed loop.
+\end{itemize}
+\end{abstract}
+
+\noindent\textbf{Keywords:} spinal central pattern generator, STDP,
+locomotion, sensory feedback, Ia afferent, NEST simulator, computational
+neuroscience.

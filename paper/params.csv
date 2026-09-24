@@ -1,0 +1,63 @@
+category,parameter,value,units,description,source
+Populations,N_RG_E,N_RG_TOTAL // 2,neurons,Rhythm-generator extensor half-centre size,Rybak et al. 2015
+Populations,N_RG_F,N_RG_TOTAL - N_RG_E,neurons,Rhythm-generator flexor half-centre size,Rybak et al. 2015
+Populations,N_MOTOR_E,100,neurons,Extensor motor pool size,McCrea & Rybak 2008
+Populations,N_MOTOR_F,100,neurons,Flexor motor pool size,McCrea & Rybak 2008
+Populations,N_MUS_E,100,relays,Extensor muscle proxy parrot count,—
+Populations,N_MUS_F,100,relays,Flexor muscle proxy parrot count,—
+Populations,N_IA_E,100,neurons,Extensor Ia afferent Poisson generators,Loeb 1981; Prochazka 1999
+Populations,N_IA_F,100,neurons,Flexor Ia afferent Poisson generators,Loeb 1981; Prochazka 1999
+Populations,N_IA_INT,50,neurons,Ia inhibitory interneurons (antagonist),Jankowska 1992
+Populations,N_INE,50,neurons,RG-E → InE → RG-F suppressing INs,Zhang et al. 2022
+Populations,N_INF,50,neurons,RG-F → InF → RG-E suppressing INs,Zhang et al. 2022
+Populations,N_CUT,100,neurons,Cutaneous/Group-II afferent generators,Pearson 1995; Rossignol 2006
+Populations,N_BS,100,neurons,Brainstem reticulospinal drive generators,Drew & Rossignol 1986
+Reciprocal inhibition (Zhang 2022 asymmetry),W_INF2RGE,-48,pA,InF → RG-E synaptic weight (STRONG),Zhang et al. 2022
+Reciprocal inhibition (Zhang 2022 asymmetry),W_INE2RGF,-8,pA,InE → RG-F synaptic weight (WEAK),Zhang et al. 2022
+Reciprocal inhibition (Zhang 2022 asymmetry),W_RG2INE,12,pA,RG-E → InE excitatory drive,Rybak et al. 2015
+Reciprocal inhibition (Zhang 2022 asymmetry),W_RG2INF,18,pA,RG-F → InF excitatory drive,Rybak et al. 2015
+Reciprocal inhibition (Zhang 2022 asymmetry),P_RG_RECIP_F,0.30,prob,F→InF→E pathway connection probability,Zhang et al. 2022
+Reciprocal inhibition (Zhang 2022 asymmetry),P_RG_RECIP_E,0.15,prob,E→InE→F pathway connection probability,Zhang et al. 2022
+Closed-loop Ia feedback (NEW),W_IA2IN,6,pA,Ia afferent → reciprocal IN (closed-loop),THIS WORK
+Closed-loop Ia feedback (NEW),P_IA2IN,0.25,prob,Ia → IN connection probability,THIS WORK
+Closed-loop Ia feedback (NEW),W_IA_IN2INT,6,pA,Ia parrot → Ia inhibitory IN,Jankowska 1992
+Closed-loop Ia feedback (NEW),W_IA_INT2ANT,-10,pA,Ia inhibitory IN → antagonist motor pool,Jankowska 1992
+Cutaneous reflex,CUT_RATE_ON_HZ,100,Hz,Cutaneous afferent peak firing rate,Loeb 1981; Pearson 1995
+Cutaneous reflex,CUT_RATE_OFF_HZ,0,Hz,Cutaneous baseline (off-phase),—
+Commissural L↔R,W_COMM_F_INH,-20,pA,Flexor commissural inhibition (L↔R),Kiehn 2016; Talpalar 2013
+Commissural L↔R,P_COMM_F,0.22,prob,Flexor commissural connection probability,Kiehn 2016
+Commissural L↔R,W_COMM_E_INH,-8,pA,Extensor commissural inhibition (weak),Kiehn 2016
+Commissural L↔R,P_COMM_E,0.10,prob,Extensor commissural connection probability,Kiehn 2016
+Brainstem drive,BS_REGULAR_HZ,60,Hz,Tonic reticulospinal drive rate (20–80 Hz bio),Drew & Rossignol 1986
+Brainstem drive,BS_RATE_BASE_HZ,0,Hz,Baseline BS rate before STDP shaping,—
+Brainstem drive,BS_NOISE_STD_HZ,0,Hz,Gaussian noise on tonic BS,—
+Izhikevich neurons,RGF_A,0.02,—,RG-F Izhikevich a (intrinsic-bursting set),Izhikevich 2003 (IB)
+Izhikevich neurons,RGF_B,0.2,—,RG-F Izhikevich b,Izhikevich 2003 (IB)
+Izhikevich neurons,RGF_C,-55,mV,RG-F Izhikevich c (post-spike reset),Izhikevich 2003 (IB)
+Izhikevich neurons,RGF_D,4,—,RG-F Izhikevich d (recovery jump),Izhikevich 2003 (IB)
+Izhikevich neurons,I_E_RGE,1,pA,Extensor tonic input current,—
+Izhikevich neurons,I_E_RGF,0.9,pA,Flexor tonic input current,—
+STDP plasticity,TAU_PLUS,20,ms,STDP positive time constant,Bi & Poo 1998
+STDP plasticity,LAMBDA,0.001,—,STDP learning rate,Morrison et al. 2007
+STDP plasticity,ALPHA,0.95,—,STDP asymmetry (LTD / LTP ratio),Bi & Poo 1998
+STDP plasticity,MU_PLUS,0.4,—,STDP positive nonlinearity exponent,Morrison et al. 2007
+STDP plasticity,MU_MINUS,0.4,—,STDP negative nonlinearity exponent,Morrison et al. 2007
+STDP plasticity,WMAX,120,pA,STDP weight ceiling (CUT→RG),—
+STDP plasticity,WMAX_BS,30,pA,STDP weight ceiling (BS→RG),THIS WORK
+Activation + force (Hill-like proxies),TAU_ACT_RISE_MS,20,ms,Activation rise time constant,Zajac 1989; Winters 1995
+Activation + force (Hill-like proxies),TAU_ACT_DECAY_MS,20,ms,Activation decay time constant,Zajac 1989
+Activation + force (Hill-like proxies),ACT_SAT_K,0.02,—,Activation saturation slope,Winters 1995
+Activation + force (Hill-like proxies),ACT_GATE_POWER,2,—,RG-rate gate exponent,THIS WORK
+Activation + force (Hill-like proxies),ACT_MAX,1.2,a.u.,Activation ceiling,—
+Activation + force (Hill-like proxies),TAU_FORCE_RISE_MS,30,ms,Force rise time constant,Zajac 1989
+Activation + force (Hill-like proxies),TAU_FORCE_DECAY_MS,30,ms,Force decay (relaxation) time constant,Zajac 1989
+Activation + force (Hill-like proxies),FORCE_MAX,25,a.u.,Force ceiling,—
+Activation + force (Hill-like proxies),FORCE_SAT_K,1,—,Force saturation slope,—
+Activation + force (Hill-like proxies),TAU_LENGTH_MS,260,ms,Muscle length filter time constant,—
+Activation + force (Hill-like proxies),L0,1,a.u.,Resting muscle length,—
+Activation + force (Hill-like proxies),SHORTEN_GAIN,0.010,—,Force → shortening coefficient,—
+Activation + force (Hill-like proxies),STRETCH_GAIN,0.35,—,CUT → extensor stretch coefficient,—
+Ia spindle rate-coding (NEW),IA_BASE_HZ,10,Hz,Ia baseline firing rate,Prochazka 1999
+Ia spindle rate-coding (NEW),IA_K_FORCE,6,Hz/F,Ia → force sensitivity,Prochazka 1999
+Ia spindle rate-coding (NEW),IA_K_STRETCH,250,Hz/L,Ia → stretch sensitivity,Prochazka 1999
+Ia spindle rate-coding (NEW),IA_RATE_MAX_HZ,500,Hz,Ia ceiling rate,Prochazka 1999

@@ -1,0 +1,370 @@
+% Methods — see paper/methods_skeleton.md for the long-form outline.
+% Target 1500-2000 words for PLOS Comp Bio. Each subsection below maps to
+% a markdown subsection in methods_skeleton.md.
+
+\subsection{Model overview}\label{sec:methods:overview}
+The two-leg spinal CPG presented here extends a canonical computational
+sCPG model~\cite{rybak2006,shevtsova2015} with four
+mechanisms not present in the Zhang 2022 reference model~\cite{zhang2022}:
+(i) STDP-driven self-organisation of descending and cutaneous afferent
+synapses onto the rhythm generator;
+(ii) a closed-loop Ia feedback pathway to the reciprocal-inhibition
+interneurons;
+(iii) motoneuron pools driving Hill-like muscle proxies with force and
+length dynamics;
+(iv) externally paced sequential Ia activation simulating heel-to-toe
+weight transfer during stance.
+The model is implemented in NEST~3.9~\cite{nest2002} and is publicly
+available at \href{https://github.com/max-talanov/tinyCPG}{github.com/max-talanov/tinyCPG}.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.8\textwidth]{fig1_schematic.png}
+  \caption{\textbf{Architecture of the two-leg spinal CPG.}
+    Each leg contains a flexor (F)
+    and extensor (E) rhythm-generator half-centre coupled by asymmetric
+    reciprocal inhibition via InE and InF interneurons (Zhang 2022 6:1
+    ratio). Sensory afferents (Ia, cutaneous) feed into the
+    reciprocal-inhibition interneurons; motor pools (M-E, M-F) drive
+    muscle proxies whose force and length signals close the Ia loop.
+    L\,$\leftrightarrow$\,R commissural inhibition (V0-like) is mediated by
+    flexor- and extensor-targeted projections.}
+  \label{fig:schematic}
+\end{figure}
+
+\subsection{Single-neuron model}\label{sec:methods:neuron}
+The network is implemented at two complementary levels of biophysical
+detail, using the same architecture, the same plastic projections and the
+same experimental protocol in both cases.
+
+\paragraph{Reduced (Izhikevich) implementation.}
+In the NEST implementation, all spiking neurons are modelled as Izhikevich
+quadratic-integrate-fire units~\cite{izhikevich2003}. Each neuron obeys
+\begin{align}
+  \frac{dv}{dt} &= 0.04v^2 + 5v + 140 - u + I, \\
+  \frac{du}{dt} &= a\,(bv - u),
+\end{align}
+with the after-spike reset $v \leftarrow c$, $u \leftarrow u + d$ applied
+whenever $v \geq 30$\,mV. Excitatory extensor RG-E neurons use the
+regular-spiking set ($a=0.02, b=0.2, c=-65, d=8$). Flexor RG-F neurons use
+the intrinsically-bursting set ($a=0.02, b=0.2, c=-55, d=4$), which
+approximates persistent-sodium-driven ($I_\text{NaP}$) bursting
+phenomenologically rather than deriving it from channel kinetics.
+Inhibitory interneurons (InE, InF, Ia-INT) use a fast-spiking set
+($d=2$). This formulation reproduces the spiking and bursting regimes
+required by the rhythm generator at a small fraction of the computational
+cost of a conductance-based model, which is what makes the large
+mode\,$\times$\,learning-rate parameter sweeps reported here tractable.
+
+\paragraph{Conductance-based (Hodgkin--Huxley) implementation.}
+Because the reduced model represents bursting phenomenologically, we also
+implemented the same circuit with conductance-based neurons in
+NEURON~\cite{hines1997}, following the Hodgkin--Huxley
+formalism~\cite{hodgkinHuxley1952}. Membrane potential evolves as
+\begin{equation}
+  C_m \frac{dV}{dt} = -\!\sum_i g_i\, m_i^{p}h_i^{q}\,(V - E_i) - I_\text{leak} + I_\text{syn},
+  \label{eq:hh}
+\end{equation}
+where each active conductance $g_i$ is gated by activation ($m_i$) and
+inactivation ($h_i$) variables obeying first-order kinetics
+$\dot{x} = (x_\infty(V) - x)/\tau_x(V)$. Rhythm-generator neurons include
+fast sodium, delayed-rectifier potassium and leak conductances together
+with an explicit persistent sodium current ($I_\text{NaP}$), so that
+bursting arises from channel kinetics rather than from a reset rule.
+Motoneurons and interneurons are multi-compartment cells with somatic and
+dendritic sections. This implementation resolves the sub-threshold and
+channel-level dynamics that the Izhikevich formulation abstracts away, at
+substantially higher computational cost; it therefore serves as a
+biophysical cross-check on the reduced model rather than as the vehicle
+for the full parameter sweep.%
+\todo{The NEURON/HH results are not yet included in Results. Until they
+are, this subsection describes an implementation the paper does not yet
+report on, and the Limitations no longer flag the absence of a
+conductance-based model --- add the HH results (or re-scope this
+paragraph) before circulating.}
+
+Synaptic delays in both implementations are drawn from a rat
+\texttt{length\_velocity} preset (Table~\ref{tab:delays}) with
+$\sigma=0.2$\,ms Gaussian jitter.
+
+\subsection{Network architecture}\label{sec:methods:network}
+
+\paragraph{Asymmetric reciprocal inhibition (Zhang 2022).}
+The F$\to$InF$\to$E pathway is strong ($W_{\text{InF}\to\text{RG-E}}=-48$\,pA,
+$P=0.30$); the E$\to$InE$\to$F pathway is weak
+($W_{\text{InE}\to\text{RG-F}}=-8$\,pA, $P=0.15$).
+The 6:1 ratio preserves the flexor's role as the rhythm-leading
+half-centre~\cite{zhang2022,talpalar2013}.
+
+\paragraph{Closed-loop Ia$\to$reciprocal-IN pathway (this work).}
+Ia-E parrots project to InE ($W=6$\,pA, $P=0.25$) and Ia-F parrots to
+InF, providing closed-loop sensory drive into the reciprocal-inhibition
+core. This pathway compensates the loss of strong tonic descending drive
+characteristic of deafferented fictive locomotion~\cite{pearson1995,
+rossignol2006,hultborn2006}.
+
+\paragraph{Cutaneous reflex.}
+Cutaneous parrots project to RG-E (STDP-plastic) and to InE
+($W=6$\,pA, $P=0.30$), implementing the stance-phase cutaneous-reflex
+gating of extensor activity~\cite{forssberg1980,pearson1995}.
+
+\paragraph{Commissural inhibition.}
+L$\leftrightarrow$R flexor RG inhibition is strong
+($W=-20$\,pA, $P=0.22$); extensor inhibition is weak
+($W=-8$\,pA, $P=0.10$). This V0-mediated commissural inhibition
+enforces left--right alternation~\cite{kiehn2016,talpalar2013}.
+
+\paragraph{Motor pool, muscle relay.}
+Each motor neuron projects to $N_{\text{mus}}=100$ muscle-parrot relays
+($P_{\text{M}\to\text{mus}}=0.8$). Motor pool reciprocal inhibition
+($W=-22$\,pA, $P=0.25$) enforces antagonist suppression at the motor
+level~\cite{mccreaRybak2008}.
+
+\paragraph{Connectivity specification.}
+The full per-connection weight and delay distributions of every
+projection were obtained by querying NEST directly after network
+construction. Table~\ref{tab:delays}
+lists all projections grouped by the functional blocks of the
+architecture (Fig.~\ref{fig:schematic}): descending/supraspinal drive,
+the sensory afferent$\to$RG projections, the rhythm-generator reciprocal
+core, the Ia proprioceptive interneuron pathway, motor output, and the
+commissural (interlimb) projections. Static projections are
+heterogeneous: their per-connection weights are drawn from a lognormal
+distribution about the design value (coefficient of variation $0.5$, mean
+and sign preserved), since biological synaptic weights are lognormally
+distributed rather than uniform~\cite{song2005,buzsaki2014}. The mean
+preserves the designed balance---in particular the asymmetric reciprocal
+inhibition (InF$\to$RG-E $=-48$\,pA, InE$\to$RG-F $=-8$\,pA) reproduces the
+Zhang~6:1 ratio exactly. The plastic projections (CUT$\to$RG-E in both
+arms, BS$\to$RG in the descending arm, Ia$\to$RG in the sensory arm) carry
+lognormal weight distributions from STDP: the table reports their
+\emph{converged} mean$\pm$s.d.\ (CUT$\to$RG-E and Ia$\to$RG at their
+learned load set-points, BS$\to$RG frozen at weak init in the sensory
+arm). The cutaneous input to RG-E is a single plastic projection. Conduction delays follow the rat
+\texttt{length\_velocity} preset (brainstem pathways $\approx 3.0$\,ms,
+reciprocal and motor pathways $\approx 1.8$\,ms, commissural
+$\approx 2.2$\,ms) with $0.2$\,ms across-connection jitter. The
+muscle$\to$Ia spindle/GTO feedback is implemented as a rate-coded
+transduction (force and length $\to$ Ia firing rate), not a synaptic
+projection, and so has no weight/delay entry.
+Figure~\ref{fig:connectivity} shows the weight and delay distributions.
+
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.8\textwidth]{fig_connectivity.png}
+  \caption{Distribution of synaptic weights and conduction delays along
+  every projection (sensory-arm configuration: frozen BS$\to$RG, plastic
+  Ia$\to$RG). \textbf{(a)} Weight histograms for the plastic / learned
+  projections (STDP + lognormal init). \textbf{(b)} Synaptic weight per
+  projection (mean $\pm$ per-connection s.d.; green excitatory, red
+  inhibitory) --- all projections are heterogeneous (lognormal, CV$\approx
+  0.5$), with the asymmetric reciprocal inhibition InF$\to$RG-E $=-48$\,pA
+  versus InE$\to$RG-F $=-8$\,pA preserving the Zhang~6:1 ratio in the mean.
+  \textbf{(c)} Conduction~+~synaptic delay per projection (mean $\pm$
+  across-connection s.d.), following the rat \texttt{length\_velocity}
+  preset with $0.2$\,ms jitter.}
+  \label{fig:connectivity}
+\end{figure}
+
+\subsection{Brainstem drive}\label{sec:methods:bs}
+Reticulospinal input is modelled as a tonic Poisson process at
+$BS_{\text{regular}}=60$\,Hz with $\sigma=0.25$\,Hz noise, identical for
+both legs. The 60\,Hz value sits in the
+middle of the rat reticulospinal range
+(20--80\,Hz)~\cite{drew1986,brocard2010}. In contrast to~\cite{zhang2022},
+who vary tonic drive $\alpha$ to vary gait speed, we hold BS tonic and
+pace the rhythm via sensory feedback (see \autoref{sec:methods:paced}).
+
+\subsection{Spike-timing-dependent plasticity}\label{sec:methods:stdp}
+Two projections --- cutaneous CUT$\to$RG-E and brainstem
+BS$\to$RG-\{E,F\} --- carry multiplicative STDP synapses (NEST
+\verb|stdp_synapse|; $\tau_+=20$\,ms, default $\lambda=10^{-3}$,
+$\alpha=0.95$, $\mu_+=\mu_-=0.4$, $w_{\max}=120$\,pA for CUT and
+$w_{\max}=30$\,pA for BS)~\cite{biPoo1998,morrison2007}. Initial
+weights are drawn from a lognormal distribution with mean $\mu$ and
+coefficient of variation CV. We swept $(\mu,\text{CV})$ across ten
+diagnostic points (the ten $(\mu,\mathrm{CV})$ initialisation points) spanning four orders of
+magnitude to verify that the post-training weight distribution
+converges to the same plateau regardless of initialisation (see
+Section~\ref{sec:results:weights}).
+
+\paragraph{Extensor-biased plasticity and stance/swing asymmetry.}
+The plastic and paced drives are deliberately extensor-weighted, mirroring
+the stance/swing organisation of locomotor control. The cutaneous
+afferent --- the only projection with the large ($w_{\max}=120$\,pA)
+plasticity ceiling --- targets the extensor (CUT$\to$RG-E) and has no
+flexor counterpart, reflecting that paw-contact cutaneous feedback fires
+during weight-bearing stance and reinforces the load-bearing
+extensor~\cite{pearson1995,rossignol2006}. Likewise the paced
+heel$\to$toe Ia-E ramp clocks the extensor during stance, whereas the
+flexor receives no external pacing and is generated intrinsically ---
+by the persistent-sodium-like bursting of the RG-F units and by release
+from reciprocal inhibition during swing. As a consequence the extensor
+half-centre is sensory-driven and tightly clocked while the flexor is
+centrally generated and intrinsically more variable; and because the
+dominant plastic projection is extensor-only, increasing $\lambda$
+strengthens the descending drive asymmetrically, in favour of the
+extensor (analysed in Section~\ref{sec:results:force}).
+
+\paragraph{Learning-rate variation.}
+For the speed-by-STDP and graded-ablation matrices
+(\autoref{sec:methods:protocols}), the STDP learning rate $\lambda$ was
+varied across three values spanning two decades at and below the
+cortical bio-plausible STDP rate~\cite{biPoo1998,morrison2007}:
+$\lambda \in \{1{\times}10^{-5},\,1{\times}10^{-4},\,1{\times}10^{-3}\}$.
+We refer to these as \emph{slow}, \emph{intermediate}, and
+\emph{baseline} STDP, respectively. With a 120\,s run the slow rate does
+not fully converge (time constant $\approx 250$\,s), which lets us probe
+the regime of weak, still-developing descending weights. The parameter
+is recorded to the simulation output for every run.
+
+\subsection{Sensory feedback and Ia rate coding}\label{sec:methods:ia}
+Ia afferent firing rate $r_{\text{Ia}}$ is updated every 100\,ms as a
+linear combination of muscle force $F$ and stretch $\Delta\ell$:
+\begin{equation}
+  r_{\text{Ia}} = r_0 + k_F \cdot F + k_S \cdot \max(0, \ell - L_0),
+  \quad \text{clamped to } [0, r_{\max}],
+  \label{eq:ia}
+\end{equation}
+with $r_0=10$\,Hz, $k_F=6$\,Hz/F, $k_S=250$\,Hz/L,
+$r_{\max}=500$\,Hz~\cite{loeb1981,prochazka1999}. This rate drives the
+classical Ia-INT$\to$antagonist motor-pool
+pathway~\cite{jankowska1992} and the closed-loop Ia$\to$recip-IN pathway
+introduced in this work.
+
+\paragraph{Graded sensory ablation (Courtine/Lavrov paradigm).}
+To emulate the partial-weight-bearing and limb-unloaded preparations
+used in rat SCI rehabilitation
+experiments~\cite{lavrov2008,courtine2009,edgerton2008}, we expose a
+multiplicative Ia-feedback gain $G_{\text{Ia}} \in [0, 1]$, applied
+after Eq.~\ref{eq:ia}:
+$\tilde{r}_{\text{Ia}} = G_{\text{Ia}}\cdot r_{\text{Ia}}$. The three
+operating regimes used in Section~\ref{sec:results:epidural} are:
+$G_{\text{Ia}}=1.0$ (\emph{baseline}, full weight-bearing);
+$G_{\text{Ia}}=0.5$ (\emph{toe stepping}, partial weight); and
+$G_{\text{Ia}}=0.1$ (\emph{air stepping}, limb unloaded, residual
+spindle background only). The classical Ia-INT$\to$antagonist pathway
+inherits the same gain, so the manipulation reduces \emph{all} Ia
+output uniformly.
+
+\subsection{Activation and force dynamics}\label{sec:methods:muscle}
+The muscle relay rate $r_{\text{mus}}$ is mapped to activation $a$
+through a saturating nonlinearity gated by RG-rate. The gate is a smooth
+logistic (sigmoid) of the normalised RG population rate --- a
+bio-plausible soft saturation in place of a hard clip:
+\begin{align}
+  a_{\text{raw}} &= a_{\max} \, \bigl(1 - \exp(-k_a \, r_{\text{mus}})\bigr), \label{eq:araw}\\
+  d &= \sigma\!\Bigl(k_g\bigl(r_{\text{RG}}/r_{\text{ref}} - x_0\bigr)\Bigr),
+       \qquad \sigma(z)=\frac{1}{1+e^{-z}}, \label{eq:gate}\\
+  a_{\text{tgt}} &= a_{\text{raw}} \cdot d, \label{eq:atgt}\\
+  a(t+\Delta t) &= a(t) + \bigl(1 - e^{-\Delta t/\tau_a}\bigr)\bigl(a_{\text{tgt}} - a(t)\bigr).
+  \label{eq:alp}
+\end{align}
+with gate steepness $k_g=8$ and mid-point $x_0=0.6$. The logistic
+saturates smoothly at $1$ and suppresses the inter-burst trough
+($d\approx0.06$ at $r_{\text{RG}}/r_{\text{ref}}\approx0.25$ versus
+$d\approx0.83$ at a burst peak), so the gated target $a_{\text{tgt}}$ is
+bounded in $[0,a_{\max})$ by construction --- without the hard clip used
+in earlier versions of the model.
+Force follows an identical first-order low-pass driven by a saturating
+function of activation:
+\begin{align}
+  F_{\text{tgt}} &= F_{\max} \, \bigl(1 - \exp(-k_F \, a)\bigr),\\
+  F(t+\Delta t) &= F(t) + \bigl(1 - e^{-\Delta t/\tau_F}\bigr)\bigl(F_{\text{tgt}} - F(t)\bigr).
+\end{align}
+Under the paced-gait protocol (\autoref{sec:methods:paced}) the time
+constants are overridden: $\tau_a=40$\,ms, $\tau_F=80$\,ms. The latter
+sits within the rat fast-twitch fibre rise-time
+range~\cite{zajac1989,winters1995}.
+
+\paragraph{Force units and SI calibration.}
+Force is reported in arbitrary units (a.u.). The dimensionless ceiling
+$F_{\max}=25$\,a.u.\ in Eq.~(6) was chosen so the activation--force
+cascade operates in a numerically convenient range; absolute Newton
+calibration is not intrinsic to the present model and is conventional
+in CPG-modelling reports~\cite{rybak2006,danner2017,zhang2022}. A
+first-order linear rescaling maps a.u.\ to Newtons by anchoring on
+\emph{in vivo} rat hindlimb data: the peak isometric tetanic force of
+rat medial gastrocnemius is approximately
+$5$--$7$\,N~\cite{roy1991,burkholderLieber2001}. Treating our reported
+peak Force-E of $17.4$\,a.u.\ as representing peak ankle-extensor
+tetanic force gives a conversion of $1$\,a.u.\ $\approx$
+$0.30$--$0.40$\,N. Nothing in the model dynamics depends on this
+choice of units; we use a.u.\ throughout for transparency.
+
+\subsection{Paced gait protocol}\label{sec:methods:paced}
+Each step period (default 1000\,ms) is divided
+into two 500\,ms half-cycles. During the stance half of leg L, the L
+cutaneous generator fires at $CUT_{\text{on}}=100$\,Hz, and three
+sequential Ia-E sub-groups fire at 60, 80, and 100\,Hz over consecutive
+$\sim$167\,ms windows, emulating heel$\to$mid$\to$toe pressure transfer
+during stance~\cite{loebDuysens2018}. During swing, all CUT and Ia-E
+drive is silenced. The contralateral leg R follows the 180\,$^{\circ}$
+mirror schedule (trot pattern). Reciprocal inhibition and the RGF
+intrinsic-bursting dynamics maintain the swing-leg flexor burst without
+external pacing.
+
+\subsection{Simulation setup}\label{sec:methods:sim}
+All simulations were performed with NEST~3.9~\cite{nest2002} using a
+kernel resolution of 0.2\,ms, simulation chunks of 100\,ms, and 64
+OpenMP threads per task on a single AMD EPYC node (MN5 system,
+Barcelona Supercomputing Center). Initial-weight sweeps were run as
+10-task SLURM job arrays; ablation and speed-sweep experiments used
+5-task arrays. A 30\,s simulation completes in $\sim$30\,min wall-clock;
+a 120\,s simulation in $\sim$2\,h.
+
+\subsection{Experimental protocols}\label{sec:methods:protocols}
+Three classes of in-silico experiments are reported in this paper. Each
+is encoded as a stand-alone shell script that submits a single
+multi-task SLURM array and writes one HDF5 file per array task.
+Pseudocode for all three is given in the Supplementary material (Algorithms~\ref{alg:main}--\ref{alg:ablgrad}).
+
+\paragraph{Main experiment: long-term self-organisation.}
+A 10-point sweep over the initial-weight distribution $(\mu,\mathrm{CV})$
+for the STDP synapses, run as a SLURM job array. Each task simulates
+\SI{120}{\second} of paced locomotion at $\mu, \mathrm{CV}$ drawn from
+the ten $(\mu,\mathrm{CV})$ initialisation points. Used in Section~\ref{sec:results:weights}.
+
+
+\paragraph{Phase A --- speed-by-STDP matrix.}
+Nine 120\,s runs spanning three walking speeds (rat locomotor range,
+\cite{lavrov2008,courtine2009}) crossed with three bio-plausible STDP
+learning rates. Used in Section~\ref{sec:results:force}.
+
+
+\paragraph{Phase B --- graded sensory ablation by STDP matrix
+(Courtine/Lavrov SCI paradigm).}
+Nine 120\,s runs at the medium-walk anchor ($P=520$\,ms) crossing three
+Ia feedback gains with three STDP rates. Used in
+Section~\ref{sec:results:epidural}.
+
+
+\paragraph{Legacy ablation experiment (supplementary).}
+For completeness we retain the earlier 5-condition ablation experiment
+(\emph{baseline}, \emph{noIa}, \emph{symInh}, \emph{noComm},
+\emph{noPaced}) that demonstrated which architectural components are
+load-bearing. The Phase B graded ablation is the principal ablation
+result of the paper; the binary ablation is reported in supplementary
+Fig.~S1.
+
+\noindent All three scripts (\texttt{run.sh}, \texttt{run\_ablation.sh},
+\texttt{run\_speed.sh}) are publicly available in the repository. Each
+single 30\,s task runs in $\sim$30\,min wall-clock on a 64-thread MN5
+node; the 120\,s task takes $\sim$2\,h. Total compute for all three
+experiments: $\sim$60 core-hours.
+
+\subsection{Data analysis}\label{sec:methods:analysis}
+Cycle period was computed as the Force-E peak-to-peak interval over the
+last 20\,s, using a 5\,a.u.\ minimum peak height and a 300\,ms minimum
+inter-peak gap. Counter-phase strength was reported as Pearson's
+correlation between Force-E and Force-F over the same window. Peak
+force amplitude was reported as the 95th percentile to avoid outlier
+sensitivity. STDP convergence was reported as the per-projection mean
+$\pm$ standard deviation of synaptic weights sampled every 1\,s. No
+formal statistical tests are reported: simulations are deterministic with
+a fixed seed (12345 + 10007$\times$idx for sweep tasks); reproducibility
+is therefore exact, and uncertainty is captured by the $(\mu,\text{CV})$
+initialisation sweep rather than by stochastic repetition.
+
+% --- Parameter tables go in supplementary ---

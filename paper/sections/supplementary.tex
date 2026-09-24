@@ -1,0 +1,74 @@
+% Supplementary material — delays table + algorithm pseudocode.
+\clearpage
+\section*{Supplementary material}
+
+\subsection*{Supplementary Table: connectivity}
+\input{connectivity_table}
+
+\subsection*{Supplementary Algorithms: experimental protocols}
+
+\begin{algorithm}[h]
+\caption{Main experiment --- long-term self-organisation sweep over
+$(\mu,\mathrm{CV})$.}\label{alg:main}
+\begin{algorithmic}[1]
+\Require Ten $(\mu_i,\mathrm{CV}_i)$ pairs from the ten $(\mu,\mathrm{CV})$ initialisation points; base seed $S_0=12345$
+\Ensure Ten HDF5 files \texttt{cpg\_bursting\_paced\_120s\_idx<i>\_*.h5}
+\For{$i \in \{0, 1, \dots, 9\}$ \textbf{in parallel} (SLURM array task $i$)}
+  \State $\text{seed} \gets S_0 + 10007 \cdot i$
+  \State Initialise STDP weights $w_{\text{init}} \sim \mathrm{Lognormal}(\mu_i, \mathrm{CV}_i)$
+  \State Configure BS$=60$\,Hz tonic, paced gait
+         (\verb|--step-period-ms 1000|, \verb|--n-ia-groups 3|, \verb|--ia-ext-hz 60 80 100|)
+  \For{half-cycle $h = 0, 1, \dots, 239$ \Comment{$120$\,s / $500$\,ms}}
+    \State $L \gets$ stance leg, $R \gets$ swing leg (alternates each $h$)
+    \For{Ia sub-group $g \in \{0, 1, 2\}$} \Comment{heel, mid, toe}
+      \State Set Ia-E rate of leg $L$, group $g$ to $\{60, 80, 100\}$\,Hz
+      \State Simulate $167$\,ms; update activation, force, length, $r_{\text{Ia}}$ (Eq.~\ref{eq:ia})
+      \State Sample STDP weights every $1000$\,ms; record force/RG-rate every $100$\,ms
+    \EndFor
+  \EndFor
+  \State Write HDF5 with rates, weights, attrs (sim\_ms, $\mu_i$, $\mathrm{CV}_i$, seed, paced\_gait)
+\EndFor
+\end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[h]
+\caption{Phase A --- speed $\times$ STDP learning rate matrix.}\label{alg:speed_stdp}
+\begin{algorithmic}[1]
+\Require Operating point $(\mu, \mathrm{CV}) = (3.5, 0.30)$, $\mathrm{seed} = 12345$
+\Ensure Nine HDF5 files \texttt{cpg\_speed\_stdp\_<spd>\_<lam>\_*.h5}
+\For{$i \in \{0, 1, \dots, 8\}$ \textbf{in parallel} (SLURM array task $i$)}
+  \State $\mathrm{speed\_idx} \gets \lfloor i / 3 \rfloor$;\ \ $\mathrm{lambda\_idx} \gets i \bmod 3$
+  \State $P \gets \{1200,\ 520,\ 350\}[\mathrm{speed\_idx}]$ \Comment{ms; $\approx$ 6 / 13.5 / 21 cm/s}
+  \State $\lambda \gets \{1{\times}10^{-5},\ 1{\times}10^{-4},\ 1{\times}10^{-3}\}[\mathrm{lambda\_idx}]$
+  \State Configure paced gait with \verb|--step-period-ms|$=P$,
+         \verb|--stdp-lambda|$=\lambda$
+  \State Simulate $120$\,s at BS$=60$\,Hz with the standard 3-group Ia
+         ramp (60, 80, 100\,Hz)
+  \State Write HDF5 with \texttt{step\_period\_ms}=$P$, \texttt{stdp\_lambda}=$\lambda$
+\EndFor
+\State Report metrics over the last 20\,s of each cell: measured cycle
+       period, peak Force-E, $\mathrm{corr}(F_E, F_F)$
+\end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[h]
+\caption{Phase B --- graded Ia ablation $\times$ STDP learning rate
+matrix (SCI-rehab paradigm).}\label{alg:ablgrad}
+\begin{algorithmic}[1]
+\Require Operating point $(\mu, \mathrm{CV}) = (3.5, 0.30)$,
+$P=520$\,ms, $\mathrm{seed} = 12345$
+\Ensure Nine HDF5 files \texttt{cpg\_ablgrad\_<gain>\_<lam>\_*.h5}
+\For{$i \in \{0, 1, \dots, 8\}$ \textbf{in parallel} (SLURM array task $i$)}
+  \State $\mathrm{gain\_idx} \gets \lfloor i / 3 \rfloor$;\ \ $\mathrm{lambda\_idx} \gets i \bmod 3$
+  \State $G_{\text{Ia}} \gets \{1.0,\ 0.5,\ 0.1\}[\mathrm{gain\_idx}]$
+         \Comment{baseline / toe step / air step}
+  \State $\lambda \gets \{1{\times}10^{-5},\ 1{\times}10^{-4},\ 1{\times}10^{-3}\}[\mathrm{lambda\_idx}]$
+  \State Configure paced gait with \verb|--step-period-ms|$=520$,
+         \verb|--ia-feedback-gain|$=G_{\text{Ia}}$, \verb|--stdp-lambda|$=\lambda$
+  \State Simulate $120$\,s; write HDF5 with the two new attrs
+\EndFor
+\State Report metrics over the last 20\,s of each cell: cycle period
+       (mean $\pm$ s.d.), peak Force-E, $\mathrm{corr}(F_E, F_F)$
+\end{algorithmic}
+\end{algorithm}
+
