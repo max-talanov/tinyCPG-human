@@ -229,6 +229,27 @@ give identical output.
 **Risk:** NEST results depend on the thread count, so the golden files must
 record `--threads`.
 
+**Status: done (2026-09-24, local, 4 threads).**
+
+- P0 found two reproducibility bugs in the rat model, B11 and B12 (§7). Both
+  are fixed, with your approval, because a regression baseline is meaningless
+  without them.
+- The fixes change rat output once. The new output is statistically
+  equivalent: same connection statistics, with seeds now actually honoured.
+- The golden run was recorded after the fixes. Its digests are in
+  `results/golden/rat/MANIFEST.txt` (NEST 3.9.0, Darwin arm64, `threads=4`).
+- Verified:
+  - two consecutive `./regress.sh` checks pass at 4 threads, and at 1 thread;
+  - a `--consolidate` run repeats exactly at 4 threads;
+  - `--seed 12345` and `--seed 22222` now give different NEST-drawn initial
+    weights and dynamics;
+  - a negative control catches a change of 0.01 in one weight (`W_RG_REC_E`)
+    on both configs;
+  - sorting costs about 2 s once, at network build, at production size
+    (123k static synapses).
+- New issue, not fixed: B13, consolidation acts only on a subset of synapses
+  at production scale (§7). It needs your decision.
+
 ### Phase 1 — Species configuration in YAML (M)
 
 **Goal:** one place for all species-dependent values, **with delays tied to
@@ -625,4 +646,7 @@ applies to the human motor-unit and pool-size data needed for Phase 9.
 | B7 | No epidural-stimulation (EES) input | — | The key human SCI intervention cannot be modelled. |
 | B8 | No weight save → restore between runs (`--save-weights` writes only) | ~L479 | Multi-session rehabilitation protocols are not possible. |
 | B9 | No test or regression harness in the repo | — | Nothing checks that rat is unchanged. |
+| B11 | **FIXED 2026-09-24.** Not reproducible with >1 NEST thread (found in P0). NEST builds identical connections, but `GetConnections` returns them in a different order each run. The static-weight heterogeneity (`--static-weight-cv`, 0.5 by default) assigned its seeded numpy lognormal factors in that order. The `--max-weight-conns` subset and the consolidation baselines are positional too. | `sorted_connections()`; static heterogeneity, plastic `conns_cache`, `--dump-connectivity` | Before the fix, the same seed gave a differently wired network on every multi-thread run, including on MN5. **Rat results produced before 2026-09-24 cannot be reproduced bit-for-bit.** They remain statistically valid samples. |
+| B12 | **FIXED 2026-09-24.** NEST `rng_seed` was never set, so `--seed` only seeded numpy, and numpy was seeded only in sweep mode | kernel setup (`NEST_RNG_SEED`), `np.random.seed` now in every mode | Before the fix, every run used NEST's default seed (143202461). Poisson afferent noise, NEST-drawn weight init and delay jitter were identical across "different seeds". Multi-seed sweeps (for example the 3 seeds in `run_consolidate_all_modes_production.sh`) varied only the numpy-drawn parts. Now `rng_seed` = run seed; recorded as the `nest_rng_seed` attribute. |
+| B13 | **Open, needs decision.** Consolidation acts only on the `--max-weight-conns` subset. `conns_cache` is cut down to that subset "for weight stats", but the consolidation baselines and write-back use the same cache. | `cpg_2legs_fast.py` `conns_cache` downsampling and `MOD_CONSOLIDATE` | Production scripts pass `--max-weight-conns 2000`, but each plastic pathway has ~5,000 synapses per leg (100 × 100 × p = 0.5). So **only ~40% of synapses are consolidated**; the rest are vanilla STDP. Since B11 it is at least the same 40% every run. Debug-small is unaffected (all pathways are under 1,000 synapses). Possible fix: consolidation always uses the full collection, and only the stats use the subset. This changes production behaviour, and consolidate results at production N would need re-running. |
 | B10 | All per-mode timing is hard-coded in rat scripts (`run_*.sh`, `debug*.sh`), and constants are hard-coded in `cpg_2legs_fast.py` | scripts, model | Human modes need their own configuration. Resolved by D1 / Phase 1 (YAML) and Phase 5 (human scripts). |

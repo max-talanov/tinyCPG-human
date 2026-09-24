@@ -174,6 +174,8 @@ sbatch run.sh
 | `run_ablation_graded.sh` | Phase B: 3 Ia gains × 3 λ, 120 s. |
 | `run_frozen.sh` | Frozen-weight control: STDP off, air stepping, (mean,CV) sweep. |
 | `debug.sh` | Local single-config run with `--debug-small`. |
+| `regress.sh` | **Rat regression check (PLAN.md P0). Run after every model change; it must print `ALL PASS`.** Re-runs `debug.sh` and `debug_force.sh` unmodified in a scratch directory and compares content digests against `results/golden/rat/MANIFEST.txt`. The golden `.h5` files are local and git-ignored. Runs at 4 threads; runs are reproducible since the B11/B12 fix. `./regress.sh record` re-records the golden run; do that only on purpose. |
+| `scripts/regression_compare.py` | `compare A.h5 B.h5` gives a per-array diff of two outputs. `digest F.h5` gives a content hash that skips `created_utc`. |
 | `debug_force.sh` | Local single-config run with `--debug-small --cut-trigger force` (closed-loop, force-triggered CUT — see below). |
 | `run_cutforce_sweep.sh` | EXPLORATORY MN5 sweep round 1 (9 tasks): fatigue-onset-τ {200,400,600} × cap {500,800,1100}. Superseded by round 2 — its apparent "best" result turned out 100% cap-dominated on re-diagnosis, see "Force-triggered CUT" below. |
 | `run_cutforce_sweep2.sh` | EXPLORATORY MN5 sweep round 2 (9 tasks): fatigue-onset-τ {400,600,800} × tighter, bio-plausible cap {300,450,600}. Superseded — 100% cap-dominated on all 9 configs, see "Force-triggered CUT" below. |
@@ -2047,6 +2049,7 @@ Cross-leg: L↔R commissural inhibition on RG-F (strong) and RG-E (weak).
 
 | Tag | What it does |
 |---|---|
+| `MOD_DETERMINISM` | **2026-09-24 (PLAN.md §7, B11/B12).** `sorted_connections()` puts every connection list used positionally in a fixed order: the static-weight heterogeneity factors, the plastic `conns_cache` (the `--max-weight-conns` subset and consolidation baselines) and `--dump-connectivity`. NEST `rng_seed` is set from the run seed (`nest_rng_seed` HDF5 attribute). numpy is seeded in every mode, not only in sweep mode. Runs are now bit-reproducible for a given seed and thread count. Rat outputs from before this change are not reproducible bit-for-bit, and before it "different seeds" shared all NEST randomness. **Always use `sorted_connections()` when pairing connections with numpy arrays.** |
 | `MOD_TONIC_BS` | BS is constant-rate, identical for both legs (not phase-gated). |
 | `MOD_COACT` | BS subthreshold alone; CUT co-activates RG via static pathway. |
 | `MOD_ZHANG_ASYM` | F→E inhibition 6× stronger than E→F (W_INF2RGE=-48, W_INE2RGF=-8). |

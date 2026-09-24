@@ -430,6 +430,31 @@ def sample_w(model_name: str) -> np.ndarray:
     return np.asarray(nest.GetStatus(conns, "weight"), dtype=float)
 
 
+def sorted_connections(conns):
+    """Return `conns` in a deterministic order: by (source, target, synapse_id, delay, weight).
+
+    With more than one NEST thread, GetConnections returns the same connections in a
+    run-to-run varying order (PLAN.md §7, B11). Anything that pairs connections with
+    positional numpy arrays -- per-connection random factors, the --max-weight-conns
+    subset, consolidation baselines -- must use a collection from here, or the same
+    seed wires a different network on every multi-thread run.
+    """
+    if conns is None or len(conns) < 2:
+        return conns
+    try:
+        src = np.asarray(nest.GetStatus(conns, "source"), dtype=np.int64)
+        tgt = np.asarray(nest.GetStatus(conns, "target"), dtype=np.int64)
+        sid = np.asarray(nest.GetStatus(conns, "synapse_id"), dtype=np.int64)
+        dly = np.asarray(nest.GetStatus(conns, "delay"), dtype=float)
+        wgt = np.asarray(nest.GetStatus(conns, "weight"), dtype=float)
+        perm = np.lexsort((wgt, dly, sid, tgt, src))
+        return nest.SynapseCollection([conns._datum[int(i)] for i in perm])
+    except Exception as e:
+        print(f"[WARN] sorted_connections failed ({e}); connection order is NOT deterministic "
+              f"with >1 thread -- results will not be reproducible (PLAN.md §7, B11).")
+        return conns
+
+
 def main():
     global BS_RATE_BASE_HZ, BS_NOISE_STD_HZ, BS_DRIVE_NORM_HZ, ENFORCE_TONIC_BS
     global TAU_ACT_RISE_MS, TAU_ACT_DECAY_MS, TAU_FORCE_RISE_MS, TAU_FORCE_DECAY_MS
@@ -921,7 +946,6 @@ def main():
 
         # Deterministic per-index seed offset (reduces accidental correlations across tasks)
         run_seed = int(getattr(args, "seed", 12345)) + int(sweep_idx) * 10007
-        np.random.seed(run_seed)
 
         # Auto-name output unless user explicitly set --out to something other than the default
         outdir = str(getattr(args, "outdir", "."))
@@ -958,6 +982,11 @@ def main():
             args.stdp_winit_dist = "lognormal_cv"
             args.stdp_winit_mean = float(sweep_mu)
             args.stdp_winit_std = float(sweep_cv)
+
+    # B12 (PLAN.md §7): seed numpy in every mode. Previously only sweep mode seeded it,
+    # so non-sweep runs (e.g. run_frozen.sh) drew BS spike offsets/jitter unseeded.
+    # Sweep mode is unchanged: same seed value, same point in the RNG stream.
+    np.random.seed(run_seed)
     # --- STDP randomized initial weights helper ---
     def make_stdp_init_weight_param(dist: str, mean_w: float, std_w: float, wmin: float, wmax: float):
         """Return either a scalar or a NEST Parameter for per-connection initial weights.
@@ -1126,8 +1155,14 @@ def main():
         TAU_FORCE_DECAY_MS = 80.0
 
     nest.ResetKernel()
+    # B12 (PLAN.md §7): --seed must reach NEST. Before this, rng_seed was never set,
+    # so every run used NEST's default (143202461) and "different seeds" shared the
+    # same Poisson noise, NEST-drawn weight init and delay jitter. NEST's valid range
+    # is [1, 2**32 - 1].
+    NEST_RNG_SEED = int(run_seed) % (2**32 - 1) or 1
     nest.SetKernelStatus(
-        {"resolution": float(args.resolution_ms), "local_num_threads": int(args.threads), "print_time": False})
+        {"resolution": float(args.resolution_ms), "local_num_threads": int(args.threads), "print_time": False,
+         "rng_seed": NEST_RNG_SEED})
 
     # ---- delay parameters (must be created AFTER kernel config) ----
     delay_model = str(getattr(args, "delay_model", "fixed"))
@@ -1610,7 +1645,8 @@ def main():
     static_cv = float(getattr(args, "static_weight_cv", 0.0) or 0.0)
     if static_cv > 0.0:
         try:
-            sconns = nest.GetConnections(synapse_model="static_synapse")
+            # Sorted so the seeded factors land on the same synapses every run (B11).
+            sconns = sorted_connections(nest.GetConnections(synapse_model="static_synapse"))
             if sconns is not None and len(sconns) > 0:
                 w = np.asarray(nest.GetStatus(sconns, "weight"), dtype=float)
                 sigma = float(np.sqrt(np.log(1.0 + static_cv * static_cv)))
@@ -1681,6 +1717,7 @@ def main():
                             conns = nest.GetConnections(source=src, target=tgt, synapse_model=syn_model)
                         else:
                             conns = nest.GetConnections(source=src, target=tgt)
+                        conns = sorted_connections(conns)  # deterministic dump order (B11)
                         if conns is None or len(conns) == 0:
                             continue
                         w = np.asarray(nest.GetStatus(conns, "weight"), dtype=np.float32)
@@ -1732,10 +1769,13 @@ def main():
     conns_cache = {side: {} for side in LEGS}
     for side in LEGS:
         L = leg[side]
-        # Plastic (STDP) connections cached by synapse model
+        # Plastic (STDP) connections cached by synapse model. Sorted (B11): the
+        # --max-weight-conns subset below and the consolidation baselines are
+        # positional, so the order must be the same on every run.
         for key in plastic_keys:
             try:
-                conns_cache[side][key] = nest.GetConnections(synapse_model=_stdp_model(key, side))
+                conns_cache[side][key] = sorted_connections(
+                    nest.GetConnections(synapse_model=_stdp_model(key, side)))
             except Exception:
                 conns_cache[side][key] = []
 
@@ -2490,6 +2530,7 @@ def main():
     with h5py.File(args.out, "w") as h5:
         h5.attrs["created_utc"] = datetime.utcnow().isoformat() + "Z"
         h5.attrs["nest_version"] = str(nest.__version__)
+        h5.attrs["nest_rng_seed"] = int(NEST_RNG_SEED)  # B12: always recorded
         h5.attrs["sim_ms"] = SIM_MS
         h5.attrs["dt_ms"] = CHUNK_MS
         h5.attrs["inner_dt_ms"] = DT_MS
