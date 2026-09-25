@@ -2049,9 +2049,17 @@ def main():
                     wfull[side][key].append(w)
 
     def new_spikes(rec, last_n):
-        # Fast, constant-memory spike counting
+        # Spikes since the last read; then CLEAR the recorder (MOD_RECORDER_CLEAR,
+        # 2026-09-25). Reading a spike_recorder's status in NEST costs O(stored events)
+        # (the whole status dict, incl. `events`, is built even for "n_events"), so
+        # without clearing, every read grew with elapsed time and a run grew ~ sim_ms^2.
+        # tinyCPG MN5 Round 6: ~135 s in NEST vs ~17,000 s in this Python bookkeeping.
+        # Only these per-chunk counts use the recorders. The returned "last" is 0, so the
+        # call sites' last_* bookkeeping keeps working unchanged.
         cur = int(nest.GetStatus(rec, "n_events")[0])
-        return cur - last_n, cur
+        if cur:
+            nest.SetStatus(rec, {"n_events": 0})
+        return cur - last_n, 0
 
     def update_leg(side: str, t_ms: float, dt_ms_actual: float, cut_active_frac: float, do_rate_update: bool):
         dt_s = float(dt_ms_actual) / 1000.0

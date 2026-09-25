@@ -5,6 +5,9 @@ as a **comparison and regression baseline**. These are the rat run scripts
 inherited from tinyCPG that are still needed for that. They run the model with
 `--species rat`.
 
+The SLURM scripts request the **CPU partition** (`gp_bsccs`, 2 h; 4 h for
+consolidation). They used the GPU partition `acc` before 2026-09-25.
+
 **Run them from the repository root.** They call `cpg_2legs_fast.py` and write
 `results/` relative to the current directory:
 

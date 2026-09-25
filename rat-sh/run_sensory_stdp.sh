@@ -6,8 +6,8 @@
 #SBATCH --ntasks=1
 #SBATCH --array=0-14
 #SBATCH --cpus-per-task=64
-#SBATCH --time=10:00:00
-#SBATCH --partition=acc
+#SBATCH --time=02:00:00
+#SBATCH --partition=gp_bsccs
 #
 # SENSORY-LEARNING arm — frozen descending drive, plastic proprioception.
 # Identical matrix to run_speed_stdp.sh (3 speeds × 3 STDP λ, 120 s, paced

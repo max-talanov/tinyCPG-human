@@ -6,8 +6,8 @@
 #SBATCH --ntasks=1
 #SBATCH --array=0-9
 #SBATCH --cpus-per-task=64
-#SBATCH --time=03:00:00
-#SBATCH --partition=acc
+#SBATCH --time=02:00:00
+#SBATCH --partition=gp_bsccs
 #
 # Frozen-weight control — does the descending-weight DISTRIBUTION (mean +
 # spread), held fixed with plasticity OFF, reproduce the clean plastic

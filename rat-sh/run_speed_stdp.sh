@@ -6,8 +6,8 @@
 #SBATCH --ntasks=1
 #SBATCH --array=0-8
 #SBATCH --cpus-per-task=64
-#SBATCH --time=10:00:00
-#SBATCH --partition=acc
+#SBATCH --time=02:00:00
+#SBATCH --partition=gp_bsccs
 #
 # Phase A — speed × STDP learning rate matrix.
 # 3 walking speeds (Courtine/Lavrov rat treadmill, step length ≈ 7 cm)

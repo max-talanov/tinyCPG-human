@@ -542,19 +542,35 @@ real size. Debug-small uses ~30 neurons per population and BS at 20 Hz;
 production uses N = 100 and BS at 60 Hz.
 
 **Changes**
-- A `run_modes_human.sh` SLURM array (1 node, 1 task, 64 threads, like the rat
-  production scripts): the five modes × `--species human`, 120 s, λ = 1e-4,
-  sensory-learning model.
-  - It uses the Phase 3 scheduler: human stance fraction and double support
-    where the mode allows it.
-  - Figures come from `scripts/cpg_modes_stages.py`.
-- Same array with `--species rat` as the reference.
+- `run_modes_mn5.sh`: one SLURM array for both species, 10 tasks. Tasks 0–4
+  are the human five modes, tasks 5–9 the rat reference.
+  - 1 node, 1 task, 64 threads, CPU partition `gp_bsccs`, 1 h limit.
+  - 120 s, λ = 1e-4, sensory-learning model.
+  - Stance fraction and scheduler come from the species config: human 0.60
+    with double support, rat 0.5 halfcycle.
+  - A preflight check (NEST, PyYAML, species configs) fails the task in
+    seconds instead of after queueing.
+  - Output: `results/modes_mn5/<species>/`. Figures come from
+    `scripts/cpg_modes_stages.py --indir results/modes_mn5/<species>`.
 
 **Acceptance:** the runs complete. Compare against the local five-mode
 results in the Phase 2 status. In particular, does fast/medium degradation
 through CUT→RG-E over-potentiation persist at N = 100?
 
-**Cost:** 10 tasks × ~1 node-hour or less.
+**Cost:** 10 tasks, each a few minutes of NEST time.
+
+**Status: prepared 2026-09-25, not submitted** (`sbatch run_modes_mn5.sh` from
+the repo root is your call).
+
+- Smoke-tested locally at production size, 10 s, 4 threads: human slow
+  (phase scheduler) and rat fast (halfcycle) both complete.
+- 10 simulated seconds = 13 s NEST + 3.4 s bookkeeping, and bookkeeping is
+  now linear.
+
+Two fixes were made first:
+
+- **B14:** recorder bookkeeping was quadratic in simulated time.
+- **B15:** the SLURM scripts requested the GPU partition.
 
 ### Phase 4 — Muscle and afferent model (M)
 
@@ -882,4 +898,6 @@ applies to the human motor-unit and pool-size data needed for Phase 9.
 | B11 | **FIXED 2026-09-24.** Not reproducible with >1 NEST thread (found in P0). NEST builds identical connections, but `GetConnections` returns them in a different order each run. The static-weight heterogeneity (`--static-weight-cv`, 0.5 by default) assigned its seeded numpy lognormal factors in that order. The `--max-weight-conns` subset and the consolidation baselines are positional too. | `sorted_connections()`; static heterogeneity, plastic `conns_cache`, `--dump-connectivity` | Before the fix, the same seed gave a differently wired network on every multi-thread run, including on MN5. **Rat results produced before 2026-09-24 cannot be reproduced bit-for-bit.** They remain statistically valid samples. |
 | B12 | **FIXED 2026-09-24.** NEST `rng_seed` was never set, so `--seed` only seeded numpy, and numpy was seeded only in sweep mode | kernel setup (`NEST_RNG_SEED`), `np.random.seed` now in every mode | Before the fix, every run used NEST's default seed (143202461). Poisson afferent noise, NEST-drawn weight init and delay jitter were identical across "different seeds". Multi-seed sweeps (for example the 3 seeds in `rat-sh/run_consolidate_all_modes_production.sh`) varied only the numpy-drawn parts. Now `rng_seed` = run seed; recorded as the `nest_rng_seed` attribute. |
 | B13 | **Open, needs decision.** Consolidation acts only on the `--max-weight-conns` subset. `conns_cache` is cut down to that subset "for weight stats", but the consolidation baselines and write-back use the same cache. | `cpg_2legs_fast.py` `conns_cache` downsampling and `MOD_CONSOLIDATE` | Production scripts pass `--max-weight-conns 2000`, but each plastic pathway has ~5,000 synapses per leg (100 × 100 × p = 0.5). So **only ~40% of synapses are consolidated**; the rest are vanilla STDP. Since B11 it is at least the same 40% every run. Debug-small is unaffected (all pathways are under 1,000 synapses). Possible fix: consolidation always uses the full collection, and only the stats use the subset. This changes production behaviour, and consolidate results at production N would need re-running. |
+| B14 | **FIXED 2026-09-25 (MOD_RECORDER_CLEAR).** Python bookkeeping grew with the square of simulated time. The model counted spikes by reading `n_events` from spike recorders that were never cleared. A NEST status read costs O(stored events), about 0.9 ms per million on this machine, and 16 reads happen per chunk. | `new_spikes()` in `cpg_2legs_fast.py` | tinyCPG MN5 Round 6: ~135 s in NEST vs ~17,000 s in bookkeeping per task, which forced 12 h limits. Now the recorder is cleared after each read. Measured locally, 60 s human medium: bookkeeping 17.2 s → 4.6 s, linear (20 s: 1.5 s). Spike counts are unchanged, so outputs are byte-identical (`./regress.sh` passes). |
+| B15 | **FIXED 2026-09-25.** Every SLURM script asked for the GPU partition (`--partition=acc`, 64 cores, 10–12 h), although no GPU is used; jobs sat pending. | `rat-sh/*.sh`, `mpi_test.sh` | Now `--partition=gp_bsccs` (the CPU partition, as in tinyHippo). Limits are 2 h (4 h for consolidation) and 10 min for `mpi_test.sh`. |
 | B10 | (Rat scripts moved to `rat-sh/` on 2026-09-25; superseded ones deleted.) All per-mode timing is hard-coded in rat scripts (`run_*.sh`, `debug*.sh`), and constants are hard-coded in `cpg_2legs_fast.py` | scripts, model | Human modes need their own configuration. Resolved by D1 / Phase 1 (YAML) and Phase 5 (human scripts). |

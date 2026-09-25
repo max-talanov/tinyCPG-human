@@ -6,8 +6,8 @@
 #SBATCH --ntasks=1
 #SBATCH --array=0-8
 #SBATCH --cpus-per-task=64
-#SBATCH --time=10:00:00
-#SBATCH --partition=acc
+#SBATCH --time=02:00:00
+#SBATCH --partition=gp_bsccs
 #
 # Phase B — STIM-ASSISTED arm of the epidural-stimulation contrast.
 # Identical to run_ablation_graded.sh EXCEPT the cutaneous (CUT) drive is

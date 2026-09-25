@@ -6,8 +6,8 @@
 #SBATCH --ntasks=1
 #SBATCH --array=0-23
 #SBATCH --cpus-per-task=64
-#SBATCH --time=12:00:00
-#SBATCH --partition=acc
+#SBATCH --time=04:00:00
+#SBATCH --partition=gp_bsccs
 #
 # STAGE 5 -- first production-scale (full N, BS=60Hz) test of --consolidate
 # across medium/fast/toe with a single, uniform descending-arm gain
@@ -77,9 +77,12 @@
 # 120s sim, matching this project's established precedent for a
 # confirmatory (not exploratory) production submission.
 #
-# TIME BUDGET: 12h precedent, unchanged from run_consolidate_speed_arm_loading.sh
-# (force-trigger + muscle-fatigue + consolidate bookkeeping is measurably
-# slower per simulated second than the timer-only path).
+# TIME BUDGET: 4h (was 12h, 2026-09-25). The old 12h absorbed the recorder bug
+# fixed in cpg_2legs_fast.py (MOD_RECORDER_CLEAR): spike recorders were never
+# cleared, so Python bookkeeping grew with the square of simulated time
+# (Round 6: ~135 s NEST vs ~17,000 s bookkeeping). Force-trigger + fatigue +
+# consolidate bookkeeping is still slower per simulated second than the
+# timer-only path, but now linear.
 #
 # After completion, run on every output:
 #   python3 scripts/cpg_cutforce_diagnostics.py --steady-from-ms 30000 results/cpg_consol_all_*.h5

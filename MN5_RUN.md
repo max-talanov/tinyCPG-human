@@ -4,8 +4,18 @@
 > rat run scripts now live in `rat-sh/` and are submitted from the repo root
 > (`sbatch rat-sh/<script>.sh`). The superseded force-trigger sweeps described
 > below (`run_cutforce_sweep*.sh`, `run_cutforce_sensory_unload.sh`) were deleted.
-> Restore one with `git show c047f24:<name>.sh` (see `rat-sh/README.md`). Human
-> production scripts arrive in PLAN.md Phase 9.
+> Restore one with `git show c047f24:<name>.sh` (see `rat-sh/README.md`).
+>
+> **2026-09-25:**
+> - All scripts now use the CPU partition, `--partition=gp_bsccs`. They used
+>   to request `acc`, the GPU partition, although no GPU is used, and sat
+>   pending.
+> - Time limits are 2 h (4 h for consolidation).
+> - The 10–12 h limits mentioned below were forced by a model bug, now fixed
+>   (PLAN.md §7 B14): recorder bookkeeping grew with the square of simulated
+>   time.
+> - Mentions of "partition acc" below are historical.
+> - Human production: `sbatch run_modes_mn5.sh` (MN5 check A).
 
 What to upload to MN5, what to submit, and what to bring back for local plotting.
 Plotting is done **locally** (after `scp`-ing results back), not on MN5.
