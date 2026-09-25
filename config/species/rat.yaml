@@ -5,8 +5,8 @@
 #
 # Keys:
 #   species         name recorded in the output (HDF5 attr `species`)
-#   delays          REQUIRED (decision D2): delay file for this species,
-#                   relative to this file. A species cannot run without it.
+#   delays          REQUIRED (decision D2): this species' conduction delays.
+#                   Always in this file, so it cannot mix with another species'.
 #   neuron_profile  abstract | adult (decision D6; `adult` = species-fitted,
 #                   MN5 production only, Phase 9)
 #   body            anthropometry used to derive path lengths (Phase 2)
@@ -16,7 +16,6 @@
 
 species: rat
 description: Two-leg rat spinal CPG (tinyCPG baseline; regression reference).
-delays: ../delays/rat.yaml
 neuron_profile: abstract
 body: {}
 
@@ -59,3 +58,26 @@ cli_defaults:
   consolidate_tau_tag_ms: 2000.0
   ia_feedback_gain: 1.0
   cut_feedback_gain: 1.0
+
+# Delays (decision D2: part of the species file, never a separate file).
+#   delay_ms = syn_delay_ms + (length_m / velocity_mps) * 1000 + jitter,
+#   scaled by --delay-scale, clipped to >= the kernel resolution.
+#   model: length_velocity (per-path table) or fixed (legacy DELAY_MS, ... in code).
+#   jitter_ms: default for --delay-jitter-ms (Gaussian SD per connection).
+# Values equal the pre-P1 DELAY_PRESETS["rat"].
+delays:
+  model: length_velocity
+  jitter_ms: 0.2
+
+  paths:
+    cut_to_rg:   {syn_delay_ms: 1.0, length_m: 0.005, velocity_mps: 5.0}
+    bs_to_rg:    {syn_delay_ms: 1.0, length_m: 0.010, velocity_mps: 5.0}
+    base_to_rg:  {syn_delay_ms: 1.0, length_m: 0.010, velocity_mps: 5.0}
+    rg_to_m:     {syn_delay_ms: 1.0, length_m: 0.005, velocity_mps: 5.0}
+    m_to_mus:    {syn_delay_ms: 1.0, length_m: 0.005, velocity_mps: 5.0}
+    ia_path:     {syn_delay_ms: 1.0, length_m: 0.010, velocity_mps: 10.0}
+    rg_rec:      {syn_delay_ms: 0.8, length_m: 0.002, velocity_mps: 5.0}
+    rg_recip:    {syn_delay_ms: 1.0, length_m: 0.004, velocity_mps: 5.0}
+    motor_e2f:   {syn_delay_ms: 1.0, length_m: 0.004, velocity_mps: 5.0}
+    motor_f2e:   {syn_delay_ms: 1.0, length_m: 0.004, velocity_mps: 5.0}
+    commissural: {syn_delay_ms: 1.0, length_m: 0.006, velocity_mps: 5.0}

@@ -6,15 +6,17 @@ D6, D7). Used by cpg_2legs_fast.py; also runnable on its own to inspect or
 validate the configs.
 
 Layout (relative to this file):
-  config/species/<name>.yaml   one per species / profile (--species <name>)
-  config/delays/<name>.yaml    conduction + synaptic delays
+  config/species/<name>.yaml   one file per species / profile (--species <name>),
+                               including its conduction + synaptic delays
 
 Rules:
-  * A species file MUST name its delay file (`delays:`, relative to the file
-    that declares it). There is no way to run a species without its delays
-    (D2); --delay-model on the CLI is only accepted if it matches.
+  * A species file MUST contain its `delays:` section (model, jitter_ms, the
+    full per-path table). Delays live in the same file as the species, so a
+    species can never be combined with another species' delays (D2);
+    --delay-model on the CLI is only accepted if it matches.
   * `extends: <other>.yaml` inherits another species file; mappings are merged
-    recursively, the child wins. Intended for human_adult.yaml (D6, Phase 9).
+    recursively, the child wins -- a profile can override single delay paths.
+    Intended for human_adult.yaml (D6, Phase 9).
   * `constants` groups UPPERCASE model constants; the groups are only for
     readability and are flattened. A name may appear once.
   * `cli_defaults` holds argparse defaults (dest names); explicit flags win.
@@ -45,6 +47,26 @@ class ConfigError(ValueError):
     pass
 
 
+class _StrictLoader(yaml.SafeLoader):
+    """SafeLoader that refuses duplicate keys. Plain YAML silently keeps the last
+    one, so a stray second `model:` or path entry would override the real value
+    without any error."""
+
+
+def _no_duplicates(loader, node, deep=False):
+    seen = set()
+    for key_node, _ in node.value:
+        key = loader.construct_object(key_node, deep=deep)
+        if key in seen:
+            raise yaml.constructor.ConstructorError(
+                None, None, f"duplicate key `{key}`", key_node.start_mark)
+        seen.add(key)
+    return loader.construct_mapping(node, deep=deep)
+
+
+_StrictLoader.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _no_duplicates)
+
+
 def available_species():
     if not os.path.isdir(SPECIES_DIR):
         return []
@@ -54,7 +76,7 @@ def available_species():
 def _read_yaml(path):
     try:
         with open(path) as fh:
-            data = yaml.safe_load(fh)
+            data = yaml.load(fh, Loader=_StrictLoader)
     except FileNotFoundError:
         raise ConfigError(f"config file not found: {path}")
     except yaml.YAMLError as e:
@@ -75,15 +97,17 @@ def _merge(base, over):
 
 
 def _load_chain(path, seen=()):
-    """Load a species file and its `extends` parents; relative paths are made
-    absolute against the file that declares them, before merging."""
+    """Load a species file and its `extends` parents (an `extends` path is
+    relative to the file that declares it); parents are merged under children."""
     path = os.path.realpath(path)
     if path in seen:
         raise ConfigError(f"circular `extends`: {' -> '.join(seen + (path,))}")
     data = _read_yaml(path)
     base_dir = os.path.dirname(path)
-    if "delays" in data:
-        data["delays"] = os.path.realpath(os.path.join(base_dir, str(data["delays"])))
+    if "delays" in data and not isinstance(data["delays"], dict):
+        raise ConfigError(f"{path}: `delays` must be the delay section itself (model, jitter_ms, "
+                          f"paths), not a link to another file -- delays belong to the species file "
+                          f"(PLAN.md D2)")
     chain = [path]
     parent = data.pop("extends", None)
     if parent is not None:
@@ -93,8 +117,8 @@ def _load_chain(path, seen=()):
     return data, chain
 
 
-def _load_delays(path):
-    d = _read_yaml(path)
+def _load_delays(d, path):
+    """Validate the `delays:` section of the species file `path`."""
     model = d.get("model")
     if model not in DELAY_MODELS:
         raise ConfigError(f"{path}: `model` must be one of {DELAY_MODELS}, got {model!r}")
@@ -115,8 +139,7 @@ def _load_delays(path):
             if p["velocity_mps"] <= 0:
                 raise ConfigError(f"{path}: {k}.velocity_mps must be > 0")
     return {"model": model, "jitter_ms": float(d.get("jitter_ms", 0.2)),
-            "paths": {k: {f: float(v[f]) for f in DELAY_FIELDS} for k, v in paths.items()},
-            "file": path}
+            "paths": {k: {f: float(v[f]) for f in DELAY_FIELDS} for k, v in paths.items()}}
 
 
 def _flatten_constants(groups, source):
@@ -148,8 +171,8 @@ def load_species(name=None, path=None):
     if not data.get("species"):
         raise ConfigError(f"{src}: `species` is required")
     if not data.get("delays"):
-        raise ConfigError(f"{src}: `delays` is required -- a species cannot run without its "
-                          f"delay file (PLAN.md decision D2)")
+        raise ConfigError(f"{src}: a `delays:` section is required -- a species cannot run without "
+                          f"its own delays (PLAN.md decision D2)")
     profile = data.get("neuron_profile", "abstract")
     if profile not in NEURON_PROFILES:
         raise ConfigError(f"{src}: neuron_profile must be one of {NEURON_PROFILES}")
@@ -163,8 +186,8 @@ def load_species(name=None, path=None):
         "body": dict(data.get("body") or {}),
         "constants": _flatten_constants(data.get("constants"), src),
         "cli_defaults": dict(cli),
-        "delays": _load_delays(data["delays"]),
-        "files": {"species": src, "chain": chain, "delays": data["delays"]},
+        "delays": _load_delays(data["delays"], src),
+        "files": {"species": src, "chain": chain},
     }
 
 
@@ -174,9 +197,7 @@ def to_yaml(cfg):
         return os.path.relpath(p, HERE)
     out = copy.deepcopy(cfg)
     out["files"] = {"species": rel(cfg["files"]["species"]),
-                    "chain": [rel(p) for p in cfg["files"]["chain"]],
-                    "delays": rel(cfg["files"]["delays"])}
-    out["delays"]["file"] = rel(cfg["delays"]["file"])
+                    "chain": [rel(p) for p in cfg["files"]["chain"]]}
     return yaml.safe_dump(out, sort_keys=False, default_flow_style=None)
 
 
@@ -191,8 +212,8 @@ def main():
         for name in available_species():
             try:
                 cfg = load_species(name)
-                print(f"OK    {name}: delays={os.path.relpath(cfg['delays']['file'], HERE)} "
-                      f"({cfg['delays']['model']}), {len(cfg['constants'])} constants, "
+                print(f"OK    {name}: delays={cfg['delays']['model']} "
+                      f"({len(cfg['delays']['paths'])} paths), {len(cfg['constants'])} constants, "
                       f"{len(cfg['cli_defaults'])} cli defaults")
             except ConfigError as e:
                 ok = False

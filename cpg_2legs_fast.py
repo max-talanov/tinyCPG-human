@@ -170,8 +170,8 @@ LEFT_RIGHT_BIAS_IE = 0.12
 #  - `length_velocity` uses coarse, tunable presets.
 #  - Delays are clipped to at least the kernel resolution.
 # PLAN.md P1 / decision D2: the per-path presets (syn_delay_ms, length_m, velocity_mps)
-# now live in config/delays/<name>.yaml and are selected by the species config, never
-# independently of it. `fixed` still falls back to DELAY_MS / DELAY_RECIP_MS / ... below.
+# now live in the `delays:` section of config/species/<name>.yaml, so they can never be
+# combined with another species. `fixed` still falls back to DELAY_MS / DELAY_RECIP_MS / ... below.
 
 
 def _delay_ms_from_preset(preset: dict, delay_scale: float) -> float:
@@ -459,7 +459,6 @@ def write_species_provenance(h5obj, cfg: dict, out_path: str = None):
     text = to_yaml(cfg)
     h5obj.attrs["config_species_yaml"] = text
     h5obj.attrs["config_species_file"] = os.path.relpath(cfg["files"]["species"], os.path.dirname(os.path.realpath(__file__)))
-    h5obj.attrs["config_delays_file"] = os.path.relpath(cfg["files"]["delays"], os.path.dirname(os.path.realpath(__file__)))
     h5obj.attrs["config_neuron_profile"] = str(cfg["neuron_profile"])
     if "height_m" in cfg["body"]:
         h5obj.attrs["config_body_height_m"] = float(cfg["body"]["height_m"])
@@ -505,15 +504,15 @@ def main():
     # ---- species configuration (PLAN.md P1: YAML, decisions D1/D2) ----
     ap.add_argument("--species", type=str, default="rat",
                     help="Species configuration: loads config/species/<name>.yaml (constants, CLI defaults "
-                         "and its delay file). Default rat = the tinyCPG baseline. See species_config.py.")
+                         "and delays). Default rat = the tinyCPG baseline. See species_config.py.")
     ap.add_argument("--species-config", type=str, default=None,
                     help="Explicit species YAML path (overrides --species).")
     ap.add_argument("--delay-model", type=str, default=None, choices=["fixed", "length_velocity"],
                     help="DEPRECATED (PLAN.md D2): the delay model is part of the species config. Accepted "
-                         "only if it matches the species' delay file; otherwise the run stops.")
+                         "only if it matches the species' `delays: model`; otherwise the run stops.")
     ap.add_argument("--delay-jitter-ms", type=float, default=0.2,
                     help="Std-dev (ms) for per-connection delay jitter when using length_velocity. Set 0 to "
-                         "disable. Default comes from the species' delay file.")
+                         "disable. Default comes from the species' `delays: jitter_ms`.")
     ap.add_argument("--delay-scale", type=float, default=1.0,
                     help="Global multiplier on computed delays (useful for quick calibration).")
 
@@ -860,9 +859,9 @@ def main():
     args.species = SPECIES_CFG["species"]
     _cfg_model = SPECIES_CFG["delays"]["model"]
     if args.delay_model is not None and args.delay_model != _cfg_model:
-        ap.error(f"--delay-model {args.delay_model} contradicts species `{args.species}`, whose delay file "
-                 f"{SPECIES_CFG['delays']['file']} uses `{_cfg_model}` (PLAN.md D2). Drop the flag or "
-                 f"use a species config with that delay model.")
+        ap.error(f"--delay-model {args.delay_model} contradicts species `{args.species}` "
+                 f"({SPECIES_CFG['files']['species']}), whose delays use `{_cfg_model}` (PLAN.md D2). "
+                 f"Drop the flag or use a species config with that delay model.")
     args.delay_model = _cfg_model
     # PLAN.md §7 B1/B2: the sequential half-cycle scheduler computes swing as
     # half_stride - stance, which goes negative above 0.5. Refuse instead of running

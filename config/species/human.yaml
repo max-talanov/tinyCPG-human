@@ -1,6 +1,6 @@
 # Human species configuration (PLAN.md P1). Selected with --species human.
 #
-# STATUS (P1): infrastructure only. Apart from the human delay file and the
+# STATUS (P1): infrastructure only. Apart from the delays section and the
 # body height, every value is still the rat value; each block names the phase
 # that replaces it with a human one (see PLAN.md §2 and CLAUDE.md "Rat → human
 # parameter map"). Local/debug profile: neuron parameters stay abstract (D6).
@@ -9,7 +9,6 @@
 
 species: human
 description: Two-leg human spinal CPG, abstract (local/debug) profile.
-delays: ../delays/human.yaml   # D2: human delays are part of the species
 neuron_profile: abstract       # D6: `adult` (species-fitted) only in human_adult.yaml, Phase 9
 body:
   height_m: 1.74               # D7: reference adult; path lengths derive from it in Phase 2
@@ -53,3 +52,25 @@ cli_defaults:                  # Phases 3/5: human stride, stance ~0.60, rescale
   consolidate_tau_tag_ms: 2000.0
   ia_feedback_gain: 1.0
   cut_feedback_gain: 1.0
+
+# Delays (decision D2: part of the species file). Formula: see rat.yaml.
+# STATUS: pre-P1 DELAY_PRESETS["human"], moved unchanged -- still rat-like
+# ~1.7-2.3 ms (PLAN.md §1.3, §7 B3). Phase 2 derives the peripheral paths
+# (ia_path, m_to_mus, cut_to_rg) from body.height_m and calibrates them against
+# the ~30 ms soleus H-reflex latency. Do not treat these as human delays.
+delays:
+  model: length_velocity
+  jitter_ms: 0.2
+
+  paths:
+    cut_to_rg:   {syn_delay_ms: 1.0, length_m: 0.020, velocity_mps: 30.0}
+    bs_to_rg:    {syn_delay_ms: 1.0, length_m: 0.050, velocity_mps: 40.0}
+    base_to_rg:  {syn_delay_ms: 1.0, length_m: 0.050, velocity_mps: 40.0}
+    rg_to_m:     {syn_delay_ms: 1.0, length_m: 0.020, velocity_mps: 30.0}
+    m_to_mus:    {syn_delay_ms: 1.0, length_m: 0.020, velocity_mps: 30.0}
+    ia_path:     {syn_delay_ms: 1.0, length_m: 0.040, velocity_mps: 30.0}
+    rg_rec:      {syn_delay_ms: 0.8, length_m: 0.010, velocity_mps: 25.0}
+    rg_recip:    {syn_delay_ms: 1.0, length_m: 0.015, velocity_mps: 25.0}
+    motor_e2f:   {syn_delay_ms: 1.0, length_m: 0.015, velocity_mps: 25.0}
+    motor_f2e:   {syn_delay_ms: 1.0, length_m: 0.015, velocity_mps: 25.0}
+    commissural: {syn_delay_ms: 1.0, length_m: 0.040, velocity_mps: 30.0}

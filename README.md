@@ -79,8 +79,8 @@ The model inherits these mechanisms from tinyCPG:
   required failsafe timeout. `--muscle-fatigue` lets force decay within a
   stance bout.
 - **Species-aware conduction delays**
-  (`--species human`, which loads `config/species/human.yaml` and its delay file
-  `config/delays/human.yaml`). Each delay is computed as
+  (`--species human`, which loads `config/species/human.yaml`, including its
+  `delays:` section). Each delay is computed as
   `syn_delay + path_length / conduction_velocity`, using the species' path
   lengths and velocities.
 
@@ -90,7 +90,7 @@ The model inherits these mechanisms from tinyCPG:
 |---|---|
 | Rat tinyCPG model, STDP and consolidation imported | done |
 | YAML species configs with delays tied to species (`config/`, `species_config.py`) | done (P1) |
-| Human conduction/synaptic delay values (`config/delays/human.yaml`) | present; still rat-like, replaced in Phase 2 |
+| Human conduction/synaptic delay values (`delays:` in `config/species/human.yaml`) | present; still rat-like, replaced in Phase 2 |
 | Species-dependent flexor BS gain (`FLEXOR_BS_GAIN` in the species YAML) | present, currently 1.0 for both species |
 | Human gait timing: stride period, stance fraction, cadence per mode | to do |
 | Human bio-plausibility constraint table, replacing the rat table in `CLAUDE.md` | to do |
@@ -124,7 +124,7 @@ The main rat-to-human changes:
 | `paper/` | LaTeX manuscript of the rat model (`main.tex`, `sections/`, `figures/`) |
 | `validation/` | Literature-validation notes and EMG data requests |
 | `spinal_plasticity_as_learning_spec.md` | Literature spec for spinal plasticity timescales and gating, and for tag-and-capture |
-| `config/`, `species_config.py` | YAML species configs (constants, CLI defaults, delay file) and their loader |
+| `config/species/`, `species_config.py` | YAML species configs (constants, CLI defaults, delays) and their loader |
 | `regress.sh` | Rat regression check; must pass after every model change |
 | `CLAUDE.md` | Detailed model internals, tuning history, key constants and "do not touch" list |
 | `MN5_RUN.md` | Workflow for MN5 runs: upload, submit, retrieve, plot |

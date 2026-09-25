@@ -123,7 +123,7 @@ is measured with the reflex-latency probe in Phase 2. Peripheral path lengths
 are stored as fractions of `height_m`, so the whole table rescales with body
 size.
 
-**Current state (§7, B3):** the existing human delay file (`config/delays/human.yaml`, moved unchanged from `DELAY_PRESETS["human"]` in P1) gives
+**Current state (§7, B3):** the existing human delays (the `delays:` section of `config/species/human.yaml`, moved unchanged from `DELAY_PRESETS["human"]` in P1) give
 rat-like delays of about 1.7–2.3 ms. The peripheral paths are about 10× too
 short. Since Phase 1, delays are part of the species YAML and can no longer be
 detached from the species. Phase 2 sets and calibrates the values above.
@@ -262,33 +262,34 @@ the species**. No behaviour change yet. Implements D1, D2 and D7.
   ```
   config/
     species/
-      rat.yaml            # species: rat;   delays: ../delays/rat.yaml
-      human.yaml          # species: human; delays: ../delays/human.yaml;
-                          #   body: {height_m: 1.74}; profile: abstract
+      rat.yaml            # species: rat; constants; cli_defaults;
+                          #   delays: {model, jitter_ms, paths}   <- in the same file
+      human.yaml          # species: human; body: {height_m: 1.74}; profile: abstract;
+                          #   delays: peripheral paths from body height (Phase 2)
       human_adult.yaml    # extends: human.yaml; profile: adult  (Phase 9, MN5)
-    delays/
-      rat.yaml            # model: length_velocity; per-path syn/length/velocity
-      human.yaml          # model: length_velocity; peripheral paths as fractions
-                          #   of body height; intraspinal paths absolute
     modes/
       rat.yaml            # (optional) rat per-mode timing, mirrors the rat scripts
       human.yaml          # slow / comfortable / fast / BWS timing (Phase 5)
     plasticity.yaml       # species-agnostic STDP + consolidation defaults
   ```
 
-- **Every species file must name its delay file** (`delays:` key). The loader
-  refuses a species file without one. Per D2, there is no way to run a
-  species without its delays.
+- **Every species file contains its own `delays:` section** (model,
+  jitter_ms, per-path table). The loader refuses a species file without one,
+  and refuses a `delays:` that is a link to another file. Per D2, there is no
+  way to run a species without its delays, or with another species' delays.
+  (Revised 2026-09-25: P1 first shipped delays as separate
+  `config/delays/*.yaml` files referenced from the species file. That allowed
+  a species to point at the wrong species' delays, so they were merged in.)
 - `--species rat|human|human_adult` loads `config/species/<name>.yaml`.
   `--species-config <path>` loads a custom file. The old `--delay-model` flag
-  is **deprecated**: it is accepted only if it matches the model declared in
-  the species' delay file, and fails otherwise.
+  is **deprecated**: it is accepted only if it matches the species'
+  `delays: model`, and fails otherwise.
 - All existing rat scripts already pass `--delay-model length_velocity`, so
   they keep working without edits. The legacy `fixed` model is not reachable
   through any species file. It could be kept as an explicit
-  `delays/rat_fixed.yaml` if you ever need it.
-- `rat.yaml` and `delays/rat.yaml` hold exactly today's constants and today's
-  rat `DELAY_PRESETS`.
+  `species/rat_fixed.yaml` (`delays: {model: fixed}`) if you ever need it.
+- `rat.yaml` holds exactly today's constants and today's rat
+  `DELAY_PRESETS`.
 - `human.yaml` holds `body.height_m: 1.74` (D7). Peripheral path lengths are
   computed as `fraction × height_m`, using segment-length ratios
   (Winter 2009, to verify), so a different height is a one-line change.
@@ -305,7 +306,7 @@ the species**. No behaviour change yet. Implements D1, D2 and D7.
 
 **Status: done (2026-09-24, local).**
 
-- `config/species/{rat,human}.yaml`, `config/delays/{rat,human}.yaml` and
+- `config/species/{rat,human}.yaml`, each with its own `delays:` section, and
   `species_config.py` (loader; `python3 species_config.py --check` validates
   all configs).
 - The model reads constants, CLI defaults and delays from the species YAML.
@@ -320,7 +321,10 @@ the species**. No behaviour change yet. Implements D1, D2 and D7.
   - a human run records `species=human`, `height_m=1.74`, the human delay
     table and a sidecar;
   - the loader refuses:
-    - a species file without `delays:`;
+    - a species file without a `delays:` section, or with `delays:` pointing
+      at another file;
+    - duplicate keys anywhere in a species file (plain YAML would silently
+      keep the last one);
     - a contradicting `--delay-model`;
     - an unknown constant, an unknown CLI default and an unknown species;
   - negative controls: an unmodified copy of `rat.yaml` reproduces the golden
@@ -349,7 +353,7 @@ Departures from the design above, each deferred to where it is first needed:
 ~30 ms (fixes B3).
 
 **Changes**
-- In `config/delays/human.yaml`, split the paths into **peripheral**
+- In the `delays:` section of `config/species/human.yaml`, split the paths into **peripheral**
   (`ia_path`, `cut_to_rg`, `m_to_mus`) and **intraspinal** (`rg_rec`,
   `rg_recip`, `motor_*`, `commissural`, which stay at about 1–2 ms).
 - Peripheral path lengths come from the reference adult (1.74 m; soleus ↔
@@ -560,7 +564,7 @@ humans**. The local/debug model stays abstract.
   - **population sizes:** motor pools and afferent groups scaled toward human
     soleus and TA pool sizes (sources to be collected), within the MN5 compute
     budget;
-  - **delays and body size:** the full human delay file at `height_m: 1.74`;
+  - **delays and body size:** the human `delays:` section (inherited from `human.yaml`) at `height_m: 1.74`;
   - **muscles:** the fitted soleus/TA muscle model from Phase 4.
 - Re-confirm the Phase 5 operating points under `human_adult`. Fitting can
   move them, just as production N moved the rat operating points relative to
@@ -603,7 +607,7 @@ reflex latencies at 1.74 m, checked by the probe.
 | # | Decision | Outcome |
 |---|---|---|
 | D1 | Where species profiles live | **YAML files** under `config/` (Phase 1) |
-| D2 | Species vs. delay model | **The species determines its delays.** Each species YAML must reference its delay YAML. Running a species without its delays is impossible, and `--delay-model` is deprecated (Phase 1) |
+| D2 | Species vs. delay model | **The species determines its delays.** Each species YAML contains its own `delays:` section (revised 2026-09-25 from a separate, referenced delay file, which could be mixed up). Running a species without its delays is impossible, and `--delay-model` is deprecated (Phase 1) |
 | D3 | Muscle identity of the pools | **Extensor = soleus, flexor = tibialis anterior** (Phase 4) |
 | D4 | Human-only commissural change if double support needs it | **Allowed** in the human configuration only, flagged in the commit and in CLAUDE.md (Phase 3) |
 | D5 | Condition order | **Healthy → incomplete SCI → complete SCI** (Phases 7a–7c, 8) |

@@ -62,8 +62,9 @@ production N were still open.
 
 **Since PLAN.md P1 (2026-09-24):** `--species <name>` loads `config/species/<name>.yaml`
 (loader: `species_config.py`). The species file sets model constants, CLI defaults and,
-**mandatorily, its delay file** (`config/delays/<name>.yaml`); a species cannot run
-without its delays (D2), and `--delay-model` is deprecated (accepted only if it
+**mandatorily, its own `delays:` section** (delay model, jitter, per-path table) in
+the same file, so a species cannot run without its delays or with another
+species' delays (D2); duplicate YAML keys are refused, and `--delay-model` is deprecated (accepted only if it
 matches). Every output records the resolved config (`config_*` HDF5 attrs and a
 `<out>.config.yaml` sidecar). Check a config with `python3 species_config.py human`
 or validate all with `python3 species_config.py --check`.
@@ -71,11 +72,11 @@ or validate all with `python3 species_config.py --check`.
 What the human config contains is still mostly rat. Read this before assuming a
 run is "human":
 
-- Apart from the delay file and `body.height_m: 1.74`, every value in
+- Apart from the `delays:` section and `body.height_m: 1.74`, every value in
   `config/species/human.yaml` is still the rat value. Each block names the phase
   that replaces it.
 - `FLEXOR_BS_GAIN` is `1.00`, the same as rat.
-- **The human delay file gives rat-like delays** (Phase 2 fixes this). Its path lengths are longer (1–5 cm)
+- **The human `delays:` section gives rat-like delays** (Phase 2 fixes this). Its path lengths are longer (1–5 cm)
   but its velocities are 6× higher (25–40 m/s), so the resulting delays barely change:
 
   | Key | rat (ms) | human preset (ms) |
@@ -111,8 +112,8 @@ per-mode timing).
 | Failsafe stance/swing cap | `--cut-max-stance-ms` / `--cut-max-swing-ms` | medium 450 | rescale with the new stance/swing durations; must stay above genuine bout length or `frac_at_cap` → 1 | model constraint (see "Force-triggered CUT") |
 | Fatigue onset / recovery τ | `--fatigue-tau-onset-ms` / `--fatigue-tau-recovery-ms` | medium 260 / 600 | rescale with bout duration, then re-sweep; the rat rounds 1–5 showed the τ/off-frac/cap window is narrow | rat history below |
 | Force rise/decay τ | `TAU_FORCE_RISE/DECAY_MS` (80/80 under `--paced-gait`) | rat fast-twitch | slower: human soleus twitch time-to-peak is on the order of 100 ms (verify source) | to verify |
-| Peripheral delays | `config/delays/human.yaml` `ia_path`, `m_to_mus`, `cut_to_rg` | ~2 ms | ~10–20 ms each, so the full Ia reflex loop lands near ~30 ms | H-reflex latency, Palmieri et al. 2004 |
-| Descending delay | `config/delays/human.yaml` `bs_to_rg` | 3 ms | brainstem-to-lumbar is ~0.5 m in an adult; tens of ms at reticulospinal velocities (verify) | to verify |
+| Peripheral delays | `config/species/human.yaml` `delays.paths`: `ia_path`, `m_to_mus`, `cut_to_rg` | ~2 ms | ~10–20 ms each, so the full Ia reflex loop lands near ~30 ms | H-reflex latency, Palmieri et al. 2004 |
+| Descending delay | `config/species/human.yaml` `delays.paths.bs_to_rg` | 3 ms | brainstem-to-lumbar is ~0.5 m in an adult; tens of ms at reticulospinal velocities (verify) | to verify |
 | Tag decay τ | `--consolidate-tau-tag-ms` | 2000 / 5000 / 20000 (medium/fast/toe) | keep the rat rule (scale with bout length and loading), re-confirm per human mode | rat history below |
 | BS tonic rate | `BS_REGULAR_HZ` | 60 (20 in debug-small) | keep 20–80 Hz; there are no direct human reticulospinal recordings, so this is a cat/rat proxy | flag if changed |
 | CUT peak rate | `CUT_RATE_ON_HZ` | 100 | keep ≤100 Hz until checked against human plantar microneurography (Kennedy & Inglis 2002) | to verify |
@@ -121,7 +122,7 @@ per-mode timing).
 
 ### Work plan (in order)
 
-1. **Human delays.** Rewrite `config/delays/human.yaml` with real peripheral path lengths
+1. **Human delays.** Rewrite the `delays:` section of `config/species/human.yaml` with real peripheral path lengths
    and conduction velocities. Check the resulting Ia loop latency against the ~30 ms
    H-reflex. Run `--dump-connectivity` to confirm the delay arrays.
 2. **Human gait timing.** Add human mode presets (slow / comfortable / fast, plus
@@ -187,7 +188,7 @@ sbatch run.sh
 | `regress.sh` | **Rat regression check (PLAN.md P0). Run after every model change; it must print `ALL PASS`.** Re-runs `debug.sh` and `debug_force.sh` unmodified in a scratch directory and compares content digests against `results/golden/rat/MANIFEST.txt`. The golden `.h5` files are local and git-ignored. Runs at 4 threads; runs are reproducible since the B11/B12 fix. `./regress.sh record` re-records the golden run; do that only on purpose. |
 | `scripts/regression_compare.py` | `compare A.h5 B.h5` gives a per-array diff of two outputs. `digest F.h5` gives a content hash that skips `created_utc`. |
 | `species_config.py` | YAML species-config loader (PLAN.md P1). `python3 species_config.py <name>` prints the resolved config; `--check` validates all of `config/species/`. |
-| `config/` | `species/<name>.yaml` (constants, CLI defaults, delay-file link, body, neuron profile) and `delays/<name>.yaml` (delay model + per-path table). Rat values equal the pre-P1 code. |
+| `config/species/<name>.yaml` | One file per species: constants, CLI defaults, body, neuron profile and the `delays:` section (delay model + per-path table). Rat values equal the pre-P1 code. |
 | `scripts/cpg_force_weights_panel.py` | Force + plastic weights over a whole run, both legs, extensor and flexor. |
 | `scripts/cpg_force_weights_stages.py` | Force + weights at beginning / middle / end of a run, both legs. |
 | `debug_force.sh` | Local single-config run with `--debug-small --cut-trigger force` (closed-loop, force-triggered CUT — see below). |
@@ -2056,7 +2057,7 @@ Cross-leg: L↔R commissural inhibition on RG-F (strong) and RG-E (weak).
 | `N_INF = 40` (debug-small) | line ~792 | Doubled in debug-small to give 12 InF connections per RGE vs 6 at N=20. |
 | `--step-period-ms 1000` | `debug.sh` | Full gait cycle period. HALF_MS=500ms per leg. |
 | `--n-ia-groups 3` | `debug.sh` | Heel/mid/toe sequential Ia-E groups (60/80/100 Hz). Each active 167ms. |
-| `config/species/*.yaml`, `config/delays/*.yaml` | — | **Species configuration (PLAN.md P1).** Species-dependent constants (drive, afferents, muscle τ incl. `PACED_TAU_*`), CLI defaults and the per-path delay table. Loaded by `species_config.py`, applied by `apply_species_constants()` before anything else runs. Only existing numeric constants can be set, so a typo fails. `config/delays/human.yaml` **still gives rat-like ~2 ms delays** until Phase 2. |
+| `config/species/*.yaml` | — | **Species configuration (PLAN.md P1).** Species-dependent constants (drive, afferents, muscle τ incl. `PACED_TAU_*`), CLI defaults and the per-path delay table. Loaded by `species_config.py`, applied by `apply_species_constants()` before anything else runs. Only existing numeric constants can be set, so a typo fails. The human `delays:` section **still gives rat-like ~2 ms delays** until Phase 2. |
 | `FLEXOR_BS_GAIN` | line ~128 | Flexor BS gain, set per species (`constants.drive`). `1.00` for both rat and human. |
 
 ## Modification history (grep-friendly)
@@ -2160,5 +2161,5 @@ Each iteration is ~30 s. Don't edit `run.sh` during debug.
 - `bs_rates_tonic` — should return identical values for both legs
 - `BS_REGULAR_HZ` upper bound — keep below 80 Hz (reticulospinal; cat/rat proxy, also used for human)
 - `CUT_RATE_ON_HZ` upper bound — keep below 100 Hz (rat Group-II/Aβ; human plantar-afferent range still to verify)
-- `config/species/rat.yaml`, `config/delays/rat.yaml` and the rat mode timing in the inherited `run_*.sh` scripts — the rat model is the regression baseline. Put human changes in the `human` preset and in new `*_human` scripts
+- `config/species/rat.yaml` and the rat mode timing in the inherited `run_*.sh` scripts — the rat model is the regression baseline. Put human changes in the `human` preset and in new `*_human` scripts
 - Default `--species rat`. Switching the default to `human` changes every inherited script's behaviour
