@@ -606,6 +606,12 @@ def main():
     ap.add_argument("--step-period-ms", type=float, default=1000.0,
                     help="Full stride period (ms) for --paced-gait: one stance+swing cycle per "
                          "leg, L and R offset by half a stride. Default from the species config.")
+    ap.add_argument("--gait-scheduler", type=str, default="halfcycle", choices=["halfcycle", "phase"],
+                    help="Timer (--paced-gait) stance/swing scheduler. halfcycle = the original rat "
+                         "scheduler: legs take turns, one half-stride each, so stance <= 0.5 (no double "
+                         "support). phase = PLAN.md P3 per-leg phase schedule: each leg is in stance for "
+                         "stance_fraction x stride, the right leg offset by half a stride; >0.5 gives "
+                         "double support. Default from the species config (rat: halfcycle, human: phase).")
     ap.add_argument("--stance-fraction", type=float, default=0.5,
                     help="Fraction of the FULL stride (--step-period-ms) each leg spends in "
                          "stance (CUT on, sequential Ia-E groups active): stance_ms = step_period "
@@ -871,10 +877,13 @@ def main():
     args.delay_model = _cfg_model
     # PLAN.md §7 B1/B2: the sequential half-cycle scheduler computes swing as
     # half_stride - stance, which goes negative above 0.5. Refuse instead of running
-    # a broken schedule; Phase 3 replaces the scheduler to allow human double support.
-    if getattr(args, "paced_gait", False) and float(args.stance_fraction) > 0.5:
-        ap.error(f"--stance-fraction {args.stance_fraction} > 0.5 is not supported by the current "
-                 f"paced-gait scheduler (no double support yet; PLAN.md Phase 3)")
+    # a broken schedule; the P3 phase scheduler (--gait-scheduler phase) allows it.
+    if not 0.0 < float(args.stance_fraction) < 1.0:
+        ap.error(f"--stance-fraction must be in (0, 1), got {args.stance_fraction}")
+    if (getattr(args, "paced_gait", False) and args.gait_scheduler == "halfcycle"
+            and float(args.stance_fraction) > 0.5):
+        ap.error(f"--stance-fraction {args.stance_fraction} > 0.5 needs --gait-scheduler phase "
+                 f"(the halfcycle scheduler has no double support; PLAN.md Phase 3)")
     try:
         apply_species_constants(SPECIES_CFG["constants"])
     except ConfigError as e:
@@ -914,6 +923,7 @@ def main():
     BS_DRIVE_NORM_HZ = max(BS_RATE_BASE_HZ, 1e-9)
     ENFORCE_TONIC_BS = bool(args.enforce_tonic_bs)
     PACED_GAIT = bool(getattr(args, "paced_gait", False))
+    GAIT_SCHEDULER = str(getattr(args, "gait_scheduler", "halfcycle"))  # PLAN.md P3
     # MOD_CUT_FORCE_TRIGGER: closed-loop force-threshold stance detection, replacing
     # the paced-gait clock. Reuses paced-gait's per-leg CUT/Ia-E-group/flexor-afferent
     # wiring, so it can only run on top of --paced-gait.
@@ -1338,7 +1348,11 @@ def main():
             f"std={float(args.stdp_winit_std)*float(getattr(args,'stdp_winit_bs_std_mul',1.0))}) "
             f"min={args.stdp_winit_min} max={min(float(args.stdp_winit_max), float(WMAX))}"
         )
-        if PACED_GAIT:
+        if PACED_GAIT and GAIT_SCHEDULER == "phase" and CUT_TRIGGER != "force":
+            print(f"[PHASE-GAIT] stride={STEP_PERIOD_MS:.0f}ms  stance={STEP_PERIOD_MS * STANCE_FRAC:.0f}ms "
+                  f"({STANCE_FRAC:.2f})  double support={max(0.0, 2.0 * STANCE_FRAC - 1.0) * 100:.0f}% of stride  "
+                  f"n_ia_groups={N_IA_GROUPS_PACED}  ia_ext_hz={IA_EXT_HZ}")
+        elif PACED_GAIT:
             print(f"[PACED-GAIT] step_period={STEP_PERIOD_MS:.0f}ms  half={HALF_MS:.0f}ms  "
                   f"stance={STANCE_MS:.0f}ms  swing={SWING_MS:.0f}ms  "
                   f"n_ia_groups={N_IA_GROUPS_PACED}  sub_stance={SUB_STANCE_MS:.1f}ms  "
@@ -2251,8 +2265,12 @@ def main():
     sim_accum = 0.0
     book_accum = 0.0
 
-    def run_window(window_ms: float, cut_active_frac: float):
-        """Simulate window_ms of NEST time in CHUNK_MS steps, updating logs and rates."""
+    def run_window(window_ms: float, cut_active_frac, log_cut_on=None):
+        """Simulate window_ms of NEST time in CHUNK_MS steps, updating logs and rates.
+
+        cut_active_frac: one value for both legs (halfcycle scheduler, unchanged) or a
+        per-leg dict (P3 phase scheduler). log_cut_on: optional per-leg 0/1 stance
+        state appended to logs[side]["cut_on"] for every chunk."""
         nonlocal done_steps, t_ms, sim_accum, book_accum
         n_c = int(window_ms // CHUNK_MS)
         tail = q_ms(window_ms - n_c * CHUNK_MS)
@@ -2269,7 +2287,10 @@ def main():
             t_book0 = time.perf_counter()
             do_rate_update = (done_steps % rate_every == 0)
             for side in LEGS:
-                update_leg(side, t_ms, cur, cut_active_frac, do_rate_update)
+                _frac = cut_active_frac[side] if isinstance(cut_active_frac, dict) else cut_active_frac
+                update_leg(side, t_ms, cur, _frac, do_rate_update)
+                if log_cut_on is not None:
+                    logs[side]["cut_on"].append(float(log_cut_on[side]))
             if ENFORCE_TONIC_BS:
                 l_be = float(logs["L"]["bs_e"][-1]); r_be = float(logs["R"]["bs_e"][-1])
                 l_bf = float(logs["L"]["bs_f"][-1]); r_bf = float(logs["R"]["bs_f"][-1])
@@ -2489,6 +2510,57 @@ def main():
                       f"R={'stance' if cut_state['R'] else 'swing'} "
                       f"peak_e=({peak_e_est['L']:.1f},{peak_e_est['R']:.1f})")
 
+    elif PACED_GAIT and GAIT_SCHEDULER == "phase":
+        # PLAN.md P3 (MOD_PHASE_GAIT): per-leg phase schedule. Each leg is in stance for
+        # PH_STANCE_MS = stance_fraction x stride, starting at its own touch-down phase
+        # (L at 0, R at half a stride). stance_fraction > 0.5 overlaps the two stance
+        # windows = double support (human walking ~0.60 -> ~10% of the stride at each
+        # L/R transition); < 0.5 leaves a flight phase. Stance leg: CUT on (loading-
+        # scaled) and the heel->mid->toe Ia-E groups stepping through ITS stance; swing
+        # leg: CUT off, flexor swing afferent on. Unlike the halfcycle scheduler, the
+        # CUT-driven extensor stretch is applied per leg, and cut_on is logged per leg.
+        PH_T = STEP_PERIOD_MS
+        PH_STANCE_MS = q_ms(PH_T * STANCE_FRAC)
+        PH_SUB_MS = PH_STANCE_MS / max(1, N_IA_GROUPS_PACED)
+        PH_OFFSET = {"L": 0.0, "R": q_ms(PH_T / 2.0)}
+
+        def _phase_state(side, t):
+            ph = (t - PH_OFFSET[side]) % PH_T
+            if ph < PH_STANCE_MS - 1e-9:
+                return (True, min(N_IA_GROUPS_PACED - 1, int(ph // PH_SUB_MS)))
+            return (False, -1)
+
+        _per_stride = {0.0}
+        for side in LEGS:
+            for k in range(N_IA_GROUPS_PACED + 1):
+                _per_stride.add((PH_OFFSET[side] + k * PH_SUB_MS) % PH_T)
+        _events = sorted({min(SIM_MS, q_ms(k * PH_T + e))
+                          for k in range(int(np.ceil(SIM_MS / PH_T)) + 1) for e in _per_stride} | {SIM_MS})
+        _applied = {side: None for side in LEGS}
+        _stride_printed = -1
+        for a, b in zip(_events[:-1], _events[1:]):
+            if b - a <= 1e-9 or t_ms >= SIM_MS:
+                continue
+            ph_state = {side: _phase_state(side, 0.5 * (a + b)) for side in LEGS}
+            for side in LEGS:
+                if ph_state[side] == _applied[side]:
+                    continue
+                in_stance, g_idx = ph_state[side]
+                nest.SetStatus(leg[side]["cut_pg"],
+                               {"rate": CUT_FEEDBACK_GAIN * CUT_RATE_ON_HZ if in_stance else CUT_RATE_OFF_HZ})
+                for gi, g in enumerate(leg[side]["ia_ext_pg_e"]):
+                    nest.SetStatus(g, {"rate": IA_EXT_HZ[gi] if gi == g_idx else 0.0})
+                if leg[side]["ia_ext_pg_f"] is not None:
+                    nest.SetStatus(leg[side]["ia_ext_pg_f"], {"rate": 0.0 if in_stance else IA_EXT_F_HZ})
+                _applied[side] = ph_state[side]
+            on = {side: 1.0 if ph_state[side][0] else 0.0 for side in LEGS}
+            run_window(min(b - a, SIM_MS - t_ms), cut_active_frac=on, log_cut_on=on)
+            _stride = int(t_ms // PH_T)
+            if rank == 0 and _stride != _stride_printed and (_stride % max(1, int(args.print_every)) == 0):
+                _stride_printed = _stride
+                print(f"[Phase] stride {_stride} t={t_ms:.0f}/{SIM_MS:.0f} ms "
+                      f"L={'stance' if on['L'] else 'swing'} R={'stance' if on['R'] else 'swing'}")
+
     elif PACED_GAIT:
         # MOD_PACED_GAIT: explicit trot-pattern gait cycle.
         # Each half-cycle = HALF_MS (500 ms). L and R legs alternate 180°.
@@ -2634,6 +2706,11 @@ def main():
             h5.attrs["half_ms"] = float(HALF_MS)
             h5.attrs["n_ia_groups"] = int(N_IA_GROUPS_PACED)
             h5.attrs["ia_ext_f_hz"] = float(IA_EXT_F_HZ)
+            if GAIT_SCHEDULER == "phase" and CUT_TRIGGER != "force":  # PLAN.md P3; halfcycle keeps old attrs
+                h5.attrs["gait_scheduler"] = "phase"
+                h5.attrs["stance_fraction"] = float(STANCE_FRAC)
+                h5.attrs["stance_ms"] = float(PH_STANCE_MS)
+                h5.attrs["double_support_frac_nominal"] = float(max(0.0, 2.0 * STANCE_FRAC - 1.0))
         h5.attrs["cut_trigger"] = str(CUT_TRIGGER)
         if CUT_TRIGGER == "force":
             h5.attrs["cut_force_on_frac"] = float(CUT_FORCE_ON_FRAC)

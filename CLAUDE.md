@@ -204,6 +204,8 @@ sbatch rat-sh/run.sh
 | `scripts/cpg_force_weights_panel.py` | Force + plastic weights over a whole run, both legs, extensor and flexor. |
 | `scripts/cpg_force_weights_stages.py` | Force + weights at beginning / middle / end of a run, both legs. |
 | `scripts/probe_reflex_latency.py` | PLAN.md P2 reflex-latency probe: shortest causal Ia → RG-E / M-E / muscle latency for a species (control vs. volley runs). |
+| `scripts/cpg_gait_phase_metrics.py` | PLAN.md P3 gait-phase metrics from `cut_on` and force: stance fraction, double support, flight, measured stride, r(E,F), r(E_L,E_R), extensor activity and "neural double support". |
+| `scripts/cpg_gait_phase_figure.py` | PLAN.md P3 figure: per-leg stance bars with double support shaded, and both legs' Force-E. |
 | `run_modes_local.sh` | The five canonical locomotion modes (slow/medium/fast walk, toe/air stepping; sensory-learning model) locally at `--debug-small`, for one species → `results/modes/<species>/`. |
 | `scripts/cpg_modes_stages.py` | Force + weights at three stages for all five modes of one species (overview figure). |
 | `rat-sh/debug_force.sh` | Local single-config run with `--debug-small --cut-trigger force` (closed-loop, force-triggered CUT — see below). |
@@ -2075,6 +2077,7 @@ Cross-leg: L↔R commissural inhibition on RG-F (strong) and RG-E (weak).
 
 | Tag | What it does |
 |---|---|
+| `MOD_PHASE_GAIT` | **2026-09-25 (PLAN.md P3).** `--gait-scheduler phase`, the human default via the species config. It is a per-leg timer schedule:<br>• each leg is in stance for `stance_fraction × stride`, the right leg offset by half a stride;<br>• `stance_fraction > 0.5` gives double support, `< 0.5` gives flight;<br>• the heel→toe Ia-E groups step through each leg's own stance;<br>• the flexor swing afferent is on during that leg's swing;<br>• the CUT stretch term is per leg, and `cut_on` is logged per leg.<br>`halfcycle` (the rat default, the original `MOD_PACED_GAIT` loop) is unchanged. It passes one CUT fraction to both legs (legacy quirk). Force-trigger mode ignores the flag. Metrics: `scripts/cpg_gait_phase_metrics.py`; figure: `scripts/cpg_gait_phase_figure.py`. |
 | `MOD_DETERMINISM` | **2026-09-24 (PLAN.md §7, B11/B12).** `sorted_connections()` puts every connection list used positionally in a fixed order: the static-weight heterogeneity factors, the plastic `conns_cache` (the `--max-weight-conns` subset and consolidation baselines) and `--dump-connectivity`. NEST `rng_seed` is set from the run seed (`nest_rng_seed` HDF5 attribute). numpy is seeded in every mode, not only in sweep mode. Runs are now bit-reproducible for a given seed and thread count. Rat outputs from before this change are not reproducible bit-for-bit, and before it "different seeds" shared all NEST randomness. **Always use `sorted_connections()` when pairing connections with numpy arrays.** |
 | `MOD_TONIC_BS` | BS is constant-rate, identical for both legs (not phase-gated). |
 | `MOD_COACT` | BS subthreshold alone; CUT co-activates RG via static pathway. |

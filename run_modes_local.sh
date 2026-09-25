@@ -15,8 +15,10 @@
 #   toe     520          0.5              toe stepping (partial unloading)
 #   air     520          0.1              air stepping (no paw contact)
 #
-# NOTE (human): only the delays are human so far (PLAN.md P2). Stride periods
-# are still the rat ones -- human gait timing is Phases 3/5.
+# Stance fraction and scheduler come from the species config: rat 0.5 with the
+# halfcycle scheduler (as in the paper); human 0.60 with the P3 phase scheduler
+# (double support). NOTE (human): stride periods are still the rat ones --
+# human strides per mode are Phase 5.
 #
 # Usage:  ./run_modes_local.sh [species] [sim_ms] [lambda] [modes...]
 #   e.g.  ./run_modes_local.sh human 120000 1e-4
@@ -72,7 +74,6 @@ for MODE in "${MODES[@]}"; do
     --enforce-tonic-bs \
     --paced-gait \
     --step-period-ms "$PERIOD" \
-    --stance-fraction 0.5 \
     --n-ia-groups 3 \
     --ia-ext-hz 60 80 100 \
     --ia-ext-f-hz 80 \

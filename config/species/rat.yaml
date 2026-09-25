@@ -49,6 +49,7 @@ constants:
     PACED_TAU_FORCE_DECAY_MS: 80.0
 
 cli_defaults:
+  gait_scheduler: halfcycle    # original rat scheduler: legs alternate half-strides, no double support
   step_period_ms: 1000.0
   stance_fraction: 0.5
   cut_max_stance_ms: 600.0

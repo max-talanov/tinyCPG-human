@@ -42,9 +42,10 @@ constants:
     PACED_TAU_FORCE_RISE_MS: 80.0
     PACED_TAU_FORCE_DECAY_MS: 80.0
 
-cli_defaults:                  # Phases 3/5: human stride, stance ~0.60, rescaled caps/τ
-  step_period_ms: 1000.0
-  stance_fraction: 0.5
+cli_defaults:                  # P3: phase scheduler + stance 0.60; P5: human strides, rescaled caps/τ
+  gait_scheduler: phase        # P3: per-leg phase schedule (double support when stance > 0.5)
+  step_period_ms: 1000.0       # P5 sets human strides per mode
+  stance_fraction: 0.60        # comfortable human walking: ~60% stance, ~10% double support per transition
   cut_max_stance_ms: 600.0
   cut_max_swing_ms: 600.0
   fatigue_tau_onset_ms: 400.0

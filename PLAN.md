@@ -2,8 +2,9 @@
 
 Status: **in progress** (2026-09-24). Decisions D1–D7 are agreed (§4).
 **Done:** Phase 0 (rat regression harness; B11/B12 reproducibility fixes) and
-Phase 1 (YAML species configs, delays tied to species) and Phase 2 (human
-conduction delays, reflex probe at 30 ms). **Next:** Phase 3.
+Phase 1 (YAML species configs, delays tied to species), Phase 2 (human
+conduction delays, reflex probe at 30 ms) and Phase 3 (phase scheduler, human
+stance 0.60 with double support). **Next:** MN5 check A, then Phase 4.
 
 This plan moves `cpg_2legs_fast.py` from rat to human parameters. The circuit,
 plasticity and consolidation mechanisms stay the same. What changes is timing,
@@ -467,6 +468,94 @@ double support. **Per D4 (agreed):** if needed, weaken `W_COMM_E_INH` in the
 human configuration only. The change is flagged in the commit and in
 CLAUDE.md; the rat value is untouched.
 
+**Status: done (2026-09-25, local).**
+
+- **Implementation:** an opt-in scheduler instead of a rewrite. New flag
+  `--gait-scheduler {halfcycle, phase}`, selected by the species config:
+  - rat keeps `halfcycle`, the old code path, so rat stays byte-identical by
+    construction;
+  - human uses `phase` with stance 0.60.
+- **The `phase` scheduler (`MOD_PHASE_GAIT`):**
+  - each leg is in stance for `stance_fraction × stride`, the right leg offset
+    by half a stride;
+  - the heel→mid→toe Ia-E groups step through each leg's own stance;
+  - the flexor swing afferent is on in that leg's swing only;
+  - the CUT stretch term is applied per leg;
+  - per-leg `cut_on` is logged.
+- **Legacy quirk left untouched in the rat path:** `halfcycle` passes one CUT
+  fraction to both legs, so the swing leg's extensor also gets the
+  stance-leg stretch term.
+- **`--stance-fraction`:** means the fraction of the full stride. Values above
+  0.5 are refused only under `halfcycle`.
+- **Results** (`scripts/cpg_gait_phase_metrics.py`; `rat-sh/debug.sh`
+  configuration, 1000 ms stride, 30 s, from 5 s; figure
+  `plots/p3/human_gait_phase.png`):
+
+  | run | stance L/R | double support | r(E,F) L/R | r(E_L,E_R) | ext. active in stance |
+  |---|---|---|---|---|---|
+  | human halfcycle 0.50 | — | — | −0.90/−0.90 | −0.94 | — |
+  | human phase 0.50 | 0.500 | 0 | −0.90/−0.89 | −0.94 | 0.90 |
+  | **human phase 0.60** | **0.600** | **0.20 (10% per transition)** | −0.88/−0.86 | −0.74 | 0.92 |
+  | human phase 0.65 | 0.650 | 0.30 | −0.88/−0.86 | −0.62 | 0.92 |
+  | human phase 0.40 | 0.400 | 0 (flight 0.20) | −0.87/−0.88 | −0.97 | — |
+  | rat halfcycle 0.50 | — | — | −0.95/−0.91 | −0.99 | — |
+  | rat phase 0.50 | 0.500 | 0 | −0.93/−0.91 | −0.99 | 0.90 |
+
+- **Acceptance met:**
+  - stance 0.600 and double support 10% per transition;
+  - L/R anti-phase holds. With 60% stance the ideal square-wave limit is
+    r ≈ −0.67, and the model gives −0.74.
+  - `phase` at 0.50 reproduces `halfcycle` statistically.
+  - Rat regression passes.
+- **D4 not needed:** both extensors are co-active in 30% of the stride and
+  each extensor is active through ~92% of its stance, so commissural
+  inhibition does not block double support.
+- `run_modes_local.sh` no longer forces `--stance-fraction 0.5`: rat gets 0.5
+  and human 0.60 from the species config.
+- **Not in scope:** force-trigger mode (`--cut-trigger force`) already has
+  per-leg triggers and ignores `--gait-scheduler`. Its lead offset and caps
+  are re-tuned for human timing in Phase 5.
+- **Five-mode rerun, human** (`run_modes_local.sh human 120000 1e-4`, now
+  stance 0.60 with double support; still rat stride periods). Figure:
+  `plots/modes/p3/human_modes_stages.png`. Left-leg r(E,F), beginning / middle
+  / end, P2 (halfcycle 0.50) → P3 (phase 0.60):
+
+  | mode | P2 | P3 | CUT→RG-E at end, P2 → P3 |
+  |---|---|---|---|
+  | slow | −0.89 / −0.99 / −0.92 | −0.89 / −0.98 / −0.93 | 63 → 65 pA |
+  | medium | −0.78 / −0.95 / −0.71 | −0.68 / −0.84 / −0.70 | 69 → 69 pA |
+  | fast | −0.74 / −0.67 / −0.40 | −0.58 / −0.79 / **−0.78** | 75 → 75 pA |
+  | toe | −0.79 / −0.78 / −0.93 | −0.50 / −0.56 / −0.88 | 21 → 24 pA |
+  | air | −0.70 / −0.71 / −0.76 | −0.50 / −0.48 / −0.51 | 5 → 5 pA |
+
+  - **Fast mode no longer collapses late** (end −0.40 → −0.78).
+  - Medium ends the same. Toe and air start weaker, although toe recovers by
+    the end.
+  - **CUT→RG-E over-potentiation is unchanged** (69–75 pA vs ~60 in rat).
+    The double-support schedule does not address it, so it stays open for
+    Phase 5 (human strides) and, if it persists, Phase 6.
+
+### MN5 check A (after Phase 3) — human five modes at production N (S)
+
+**Goal:** check whether the local `--debug-small` findings hold at the model's
+real size. Debug-small uses ~30 neurons per population and BS at 20 Hz;
+production uses N = 100 and BS at 60 Hz.
+
+**Changes**
+- A `run_modes_human.sh` SLURM array (1 node, 1 task, 64 threads, like the rat
+  production scripts): the five modes × `--species human`, 120 s, λ = 1e-4,
+  sensory-learning model.
+  - It uses the Phase 3 scheduler: human stance fraction and double support
+    where the mode allows it.
+  - Figures come from `scripts/cpg_modes_stages.py`.
+- Same array with `--species rat` as the reference.
+
+**Acceptance:** the runs complete. Compare against the local five-mode
+results in the Phase 2 status. In particular, does fast/medium degradation
+through CUT→RG-E over-potentiation persist at N = 100?
+
+**Cost:** 10 tasks × ~1 node-hour or less.
+
 ### Phase 4 — Muscle and afferent model (M)
 
 **Goal:** human contraction dynamics and afferent rates (B5, B6).
@@ -606,6 +695,46 @@ healthy, then incomplete SCI, then complete SCI.
 healthy dataset at each speed. SCI comparisons are qualitative until data is
 obtained.
 
+### MN5 check B (before Phase 9) — scaling benchmark (M)
+
+**Goal:** turn the Phase 9 size estimate into data. This is a benchmark, not
+science. An adult lumbar model is plausibly 10⁴–10⁵ neurons and 10⁸–10⁹
+synapses; raw NEST compute for that is feasible on a handful of MN5 nodes.
+The obstacles are in the model code (found 2026-09-25):
+
+1. **Closed sensory loop is not MPI-safe.**
+   - Muscle force and Ia/CUT rates are computed in Python each chunk from
+     spike counts, with no MPI reduction; `rank` only gates printing and
+     writing.
+   - On more than one rank, each rank would compute force from its local
+     spikes only, which is silently wrong.
+   - Production today is 1 node, 1 task, 64 threads.
+2. **Connectivity does not scale.** All 39 projections use
+   `pairwise_bernoulli` with fixed p (~0.1–0.5), tuned for N = 30–100.
+   - Scaling N multiplies every in-degree at the same weights, which
+     saturates the network.
+   - Needed: fixed-in-degree rules with realistic in-degrees and normalised
+     weights, then re-tuning.
+3. **Human population data are thin.**
+   - Motor pools: order-of-magnitude figures exist (to source).
+   - Human CPG interneuron classes (RG, V0/V1/V2a/V3) have never been
+     counted, so they would be extrapolated from rodent/cat.
+
+**Changes**
+- Benchmark script: build and simulate ~10 s at N × {1, 3, 10, 30}. Keep
+  in-degree fixed (weights unchanged), so dynamics stay comparable while size
+  grows.
+- Measure build time, memory, NEST simulate time and Python-loop time per
+  chunk. Record them in PLAN.md.
+- Prototype the MPI reduction of the per-chunk spike counts. Check that a
+  2-rank run reproduces the 1-rank closed-loop behaviour statistically. Runs
+  are not bit-identical across rank counts, because each virtual process has
+  its own RNG stream.
+
+**Acceptance:** a table of cost vs. N and a named bottleneck (expected: the
+per-chunk Python bookkeeping). Also a go/no-go on the Phase 9 adult size
+within the MN5 budget.
+
 ### Phase 9 — Adult-human production profile (MN5) and paper (L)
 
 **Goal:** per D6, the MN5 production model is **fully species-fitted to adult
@@ -631,6 +760,9 @@ humans**. The local/debug model stays abstract.
 - Update README, CLAUDE.md and the figure scripts. Figures must label species
   and profile (`human` / `human_adult`) explicitly.
 
+**Prerequisites:** MN5 check B (MPI-safe closed loop, fixed-in-degree
+connectivity, cost table) and sourced human population data.
+
 **Risk:** larger populations raise MN5 cost. Benchmark one production cell
 before submitting arrays.
 
@@ -639,13 +771,14 @@ before submitting arrays.
 ## 3. Order and dependencies
 
 ```
-P0 ─► P1 ─► P2 ─┬─► P4 ─► P5 ─► P6 ─► P7a ─► P7b ─► P7c ─► P9
-                └─► P3 ─┘                     ▲
-                    P8 (data sourcing can start now) ────┘
+P0 ─► P1 ─► P2 ─► P3 ─► MN5-A ─► P4 ─► P5 ─► P6 ─► P7a ─► P7b ─► P7c ─► MN5-B ─► P9
+                                                                        ▲
+                             P8 (data sourcing can start now) ──────────┘
 ```
 
-- P2 (delays) and P3 (scheduler) are independent after P1 and can run in
-  parallel.
+- P0–P2 are done (2026-09-25).
+- MN5 check A runs right after P3. MN5 check B precedes P9, and can start
+  earlier if MN5 time is free.
 - P5 needs P3 and P4.
 - P7 follows the agreed condition order: healthy, then incomplete, then
   complete.
@@ -737,7 +870,7 @@ applies to the human motor-unit and pool-size data needed for Phase 9.
 
 | # | Blocker | Where | Effect |
 |---|---|---|---|
-| B1 | The paced-gait scheduler is strictly sequential: one leg's stance, then the other's. `SWING_MS = HALF_MS − STANCE_MS` | `cpg_2legs_fast.py` ~L1111–1113, ~L2366–2410 | Stance can never exceed 50% of the stride, so there is **no double support**. Human stance is ~60%. With `--stance-fraction 0.6`, `SWING_MS` goes negative. |
+| B1 | **FIXED in P3 (2026-09-25)** by `--gait-scheduler phase` (human default); `halfcycle` kept for rat. Was: The paced-gait scheduler is strictly sequential: one leg's stance, then the other's. `SWING_MS = HALF_MS − STANCE_MS` | `cpg_2legs_fast.py` ~L1111–1113, ~L2366–2410 | Stance can never exceed 50% of the stride, so there is **no double support**. Human stance is ~60%. With `--stance-fraction 0.6`, `SWING_MS` goes negative. |
 | B2 | **FIXED in P1 (2026-09-24)**: help text now says "fraction of the full stride"; >0.5 is refused under `--paced-gait` until P3. Was: `--stance-fraction` help text says "fraction of HALF the step period". The code multiplies the full period. | ~L561 vs ~L1112 | The flag's meaning is ambiguous. It must be fixed before human values are set. |
 | B3 | **FIXED in P2 (2026-09-25):** human peripheral delays now 13.6–23.6 ms, reflex probe 30.2 ms. Was: the human delay preset gives ~1.7–2.3 ms delays, the same as rat | `DELAY_PRESETS["human"]` ~L185 | The peripheral loop is ~10× too fast. The human soleus H-reflex latency is ~30 ms. |
 | B4 | **FIXED in P1 (2026-09-24).** `--species` had no effect under the default `--delay-model fixed` | `make_delay_param` | A run labelled "human" can be pure rat without any warning. Resolved by D2 / Phase 1. |

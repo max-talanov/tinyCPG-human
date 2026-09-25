@@ -92,7 +92,8 @@ The model inherits these mechanisms from tinyCPG:
 | YAML species configs with delays tied to species (`config/`, `species_config.py`) | done (P1) |
 | Human conduction/synaptic delay values (`delays:` in `config/species/human.yaml`) | present; still rat-like, replaced in Phase 2 |
 | Species-dependent flexor BS gain (`FLEXOR_BS_GAIN` in the species YAML) | present, currently 1.0 for both species |
-| Human gait timing: stride period, stance fraction, cadence per mode | to do |
+| Human stance fraction with double support (`--gait-scheduler phase`, stance 0.60) | done (P3) |
+| Human gait timing: stride period and cadence per mode | to do (P5) |
 | Human bio-plausibility constraint table, replacing the rat table in `CLAUDE.md` | to do |
 | Human locomotion modes (slow/normal/fast walking, reduced body-weight support) | to do |
 | Validation against human EMG and kinematics, healthy and SCI | to do |
