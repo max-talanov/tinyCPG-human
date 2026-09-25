@@ -1,7 +1,8 @@
 # PLAN — Migrating the rat NEST CPG model to human parameters
 
-Status: **draft for review, revision 3** (2026-09-24). Decisions D1–D7 are agreed
-(§4). Nothing in this plan has been implemented yet.
+Status: **in progress** (2026-09-24). Decisions D1–D7 are agreed (§4).
+**Done:** Phase 0 (rat regression harness; B11/B12 reproducibility fixes) and
+Phase 1 (YAML species configs, delays tied to species). **Next:** Phase 2.
 
 This plan moves `cpg_2legs_fast.py` from rat to human parameters. The circuit,
 plasticity and consolidation mechanisms stay the same. What changes is timing,
@@ -122,11 +123,10 @@ is measured with the reflex-latency probe in Phase 2. Peripheral path lengths
 are stored as fractions of `height_m`, so the whole table rescales with body
 size.
 
-**Current state (§7, B3):** the existing `DELAY_PRESETS["human"]` gives
+**Current state (§7, B3):** the existing human delay file (`config/delays/human.yaml`, moved unchanged from `DELAY_PRESETS["human"]` in P1) gives
 rat-like delays of about 1.7–2.3 ms. The peripheral paths are about 10× too
-short, and `--species` is ignored under `--delay-model fixed`. Phase 1 makes
-delays part of the species YAML, and Phase 2 sets and calibrates the values
-above.
+short. Since Phase 1, delays are part of the species YAML and can no longer be
+detached from the species. Phase 2 sets and calibrates the values above.
 
 ### 1.4 Bio-plausible spinal plasticity
 
@@ -302,6 +302,46 @@ the species**. No behaviour change yet. Implements D1, D2 and D7.
 - `regress.sh` passes: rat is byte-identical when loaded from YAML.
 - A `--species human` run records its resolved configuration.
 - A species file without `delays:` fails to load.
+
+**Status: done (2026-09-24, local).**
+
+- `config/species/{rat,human}.yaml`, `config/delays/{rat,human}.yaml` and
+  `species_config.py` (loader; `python3 species_config.py --check` validates
+  all configs).
+- The model reads constants, CLI defaults and delays from the species YAML.
+  `DELAY_PRESETS` and `FLEXOR_BS_GAIN_BY_SPECIES` are gone from the code.
+- The paced-gait muscle τ literals (40/40/80/80) became named constants
+  (`PACED_TAU_*`), so they are configurable too.
+- Every output records the resolved config: `config_*` HDF5 attributes and a
+  `<out>.config.yaml` sidecar. `scripts/regression_compare.py` skips
+  `config_*` attributes as provenance.
+- Verified:
+  - `./regress.sh` passes, so rat is byte-identical;
+  - a human run records `species=human`, `height_m=1.74`, the human delay
+    table and a sidecar;
+  - the loader refuses:
+    - a species file without `delays:`;
+    - a contradicting `--delay-model`;
+    - an unknown constant, an unknown CLI default and an unknown species;
+  - negative controls: an unmodified copy of `rat.yaml` reproduces the golden
+    run exactly, and changing one value (`IA_K_FORCE`,
+    `PACED_TAU_FORCE_RISE_MS`, CLI default `ia_feedback_gain`) changes the
+    output.
+- B2 fixed: `--stance-fraction` help now states the real meaning (fraction of
+  the full stride). Values above 0.5 are refused under `--paced-gait` until
+  Phase 3.
+
+Departures from the design above, each deferred to where it is first needed:
+
+- **Delay values:** `human.yaml` delays were moved unchanged (absolute lengths,
+  still rat-like). Deriving peripheral lengths from `body.height_m` is Phase 2.
+- **Muscle τ:** still shared by extensor and flexor. The E/F split lands in
+  Phase 4, where soleus and TA values first differ; a split with equal values
+  would only add code.
+- **`modes/` and `plasticity.yaml`:** not created yet. Human mode timing is
+  Phase 5. Plasticity defaults are species-agnostic and stay in code for now.
+- **`human_adult.yaml`:** the loader already supports `extends:`, but the file
+  itself is Phase 9.
 
 ### Phase 2 — Human conduction delays (M)
 
@@ -638,9 +678,9 @@ applies to the human motor-unit and pool-size data needed for Phase 9.
 | # | Blocker | Where | Effect |
 |---|---|---|---|
 | B1 | The paced-gait scheduler is strictly sequential: one leg's stance, then the other's. `SWING_MS = HALF_MS − STANCE_MS` | `cpg_2legs_fast.py` ~L1111–1113, ~L2366–2410 | Stance can never exceed 50% of the stride, so there is **no double support**. Human stance is ~60%. With `--stance-fraction 0.6`, `SWING_MS` goes negative. |
-| B2 | `--stance-fraction` help text says "fraction of HALF the step period". The code multiplies the full period. | ~L561 vs ~L1112 | The flag's meaning is ambiguous. It must be fixed before human values are set. |
+| B2 | **FIXED in P1 (2026-09-24)**: help text now says "fraction of the full stride"; >0.5 is refused under `--paced-gait` until P3. Was: `--stance-fraction` help text says "fraction of HALF the step period". The code multiplies the full period. | ~L561 vs ~L1112 | The flag's meaning is ambiguous. It must be fixed before human values are set. |
 | B3 | The human delay preset gives ~1.7–2.3 ms delays, the same as rat | `DELAY_PRESETS["human"]` ~L185 | The peripheral loop is ~10× too fast. The human soleus H-reflex latency is ~30 ms. |
-| B4 | `--species` has no effect under the default `--delay-model fixed` | `make_delay_param` | A run labelled "human" can be pure rat without any warning. Resolved by D2 / Phase 1. |
+| B4 | **FIXED in P1 (2026-09-24).** `--species` had no effect under the default `--delay-model fixed` | `make_delay_param` | A run labelled "human" can be pure rat without any warning. Resolved by D2 / Phase 1. |
 | B5 | Muscle τ values are rat-tuned and shared between extensor and flexor (`TAU_FORCE_*`, `TAU_ACT_*`, `TAU_LENGTH_MS`). The paced-gait override is 80/80 ms. | ~L326–365, ~L1123–1126 | Human soleus (extensor) and tibialis anterior (flexor) contract at different speeds. |
 | B6 | Afferent rate model has `IA_RATE_MAX_HZ = 500` and `IA_K_*` gains | ~L372–375, ~L2035–2045 | The 500 Hz cap is far above plausible human Ia rates. The real rates the model produces have not been measured yet. |
 | B7 | No epidural-stimulation (EES) input | — | The key human SCI intervention cannot be modelled. |

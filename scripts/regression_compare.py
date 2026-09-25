@@ -8,7 +8,8 @@ The rat model must stay byte-identical while the human migration lands
 *content*: every dataset (shape, dtype, values) and every attribute, in every
 group. File bytes themselves are not comparable, because the writer stamps
 volatile metadata such as `created_utc` into the root attributes. Those are
-skipped by default (--ignore-attr adds more).
+skipped by default (--ignore-attr adds more), as are provenance attributes
+prefixed `config_` (the resolved species config, PLAN.md P1).
 
 Two subcommands:
 
@@ -41,6 +42,10 @@ import numpy as np
 
 # Root attributes that change on every run regardless of model behaviour.
 VOLATILE_ATTRS = ("created_utc",)
+# Provenance attributes (PLAN.md P1): the resolved species config written by
+# cpg_2legs_fast.py. They describe the inputs, not the model output -- a real
+# parameter change still shows up in the datasets -- so they are skipped.
+PROVENANCE_PREFIXES = ("config_",)
 
 MAX_REPORTED = 50  # cap on printed differences; the count is always reported
 
@@ -53,7 +58,8 @@ def collect(h5):
 
 
 def attrs_of(obj, ignore):
-    return {k: obj.attrs[k] for k in sorted(obj.attrs.keys()) if k not in ignore}
+    return {k: obj.attrs[k] for k in sorted(obj.attrs.keys())
+            if k not in ignore and not k.startswith(PROVENANCE_PREFIXES)}
 
 
 def values_equal(a, b):

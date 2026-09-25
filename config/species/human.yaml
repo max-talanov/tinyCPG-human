@@ -1,0 +1,55 @@
+# Human species configuration (PLAN.md P1). Selected with --species human.
+#
+# STATUS (P1): infrastructure only. Apart from the human delay file and the
+# body height, every value is still the rat value; each block names the phase
+# that replaces it with a human one (see PLAN.md §2 and CLAUDE.md "Rat → human
+# parameter map"). Local/debug profile: neuron parameters stay abstract (D6).
+#
+# Keys: see config/species/rat.yaml.
+
+species: human
+description: Two-leg human spinal CPG, abstract (local/debug) profile.
+delays: ../delays/human.yaml   # D2: human delays are part of the species
+neuron_profile: abstract       # D6: `adult` (species-fitted) only in human_adult.yaml, Phase 9
+body:
+  height_m: 1.74               # D7: reference adult; path lengths derive from it in Phase 2
+
+constants:
+  drive:                       # BS: keep 20-80 Hz (cat/rat proxy, no human recordings)
+    BS_REGULAR_HZ: 60.0
+    FLEXOR_BS_GAIN: 1.0
+  afferents:                   # Phase 4: set against human microneurography
+    CUT_RATE_ON_HZ: 100.0
+    CUT_RATE_OFF_HZ: 0.0
+    IA_BASE_HZ: 10.0
+    IA_K_FORCE: 6.0
+    IA_K_STRETCH: 250.0
+    IA_RATE_MAX_HZ: 500.0
+  muscle:                      # Phase 4: soleus (E) / tibialis anterior (F), D3
+    TAU_ACT_RISE_MS: 20.0
+    TAU_ACT_DECAY_MS: 20.0
+    ACT_MAX: 1.2
+    ACT_SAT_K: 0.02
+    TAU_FORCE_RISE_MS: 30.0
+    TAU_FORCE_DECAY_MS: 30.0
+    FORCE_MAX: 25.0
+    FORCE_SAT_K: 1.0
+    TAU_LENGTH_MS: 260.0
+    SHORTEN_GAIN: 0.010
+    STRETCH_GAIN: 0.35
+  muscle_paced_gait:
+    PACED_TAU_ACT_RISE_MS: 40.0
+    PACED_TAU_ACT_DECAY_MS: 40.0
+    PACED_TAU_FORCE_RISE_MS: 80.0
+    PACED_TAU_FORCE_DECAY_MS: 80.0
+
+cli_defaults:                  # Phases 3/5: human stride, stance ~0.60, rescaled caps/τ
+  step_period_ms: 1000.0
+  stance_fraction: 0.5
+  cut_max_stance_ms: 600.0
+  cut_max_swing_ms: 600.0
+  fatigue_tau_onset_ms: 400.0
+  fatigue_tau_recovery_ms: 600.0
+  consolidate_tau_tag_ms: 2000.0
+  ia_feedback_gain: 1.0
+  cut_feedback_gain: 1.0

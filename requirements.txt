@@ -10,6 +10,9 @@
 # ---------------------------------------------------------------------------
 numpy>=1.24
 h5py>=3.8
+# Species configs (config/species/*.yaml, config/delays/*.yaml; PLAN.md P1).
+# On MN5 check it is present in the NEST module/conda environment.
+pyyaml>=6.0
 
 # ---------------------------------------------------------------------------
 # Figure generation (scripts/*.py -> paper/figures/)

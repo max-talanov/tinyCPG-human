@@ -21,6 +21,12 @@ import numpy as np
 import h5py
 import nest
 
+# PLAN.md P1: species YAML configs live next to the real model file (resolve
+# symlinks, e.g. regress.sh runs the model through one from a scratch dir).
+import sys
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+from species_config import ConfigError, load_species, to_yaml  # noqa: E402
+
 
 def get_kernel_parallel_status(nest_mod):
     """Return (mpi_procs, local_threads) without assuming specific kernel keys."""
@@ -119,12 +125,8 @@ W_RG_REC_E = 4.0  # MOD_FIG10: reduced RG-E self-excitation (was 8.0) to bring r
 W_RG_REC_F = 5.5  # MOD_FLEXBOOST: slightly stronger RG-F recurrence to lift flexor activity
 
 # Flexor-phase brainstem gain can be species-dependent (human delays often damp oscillations slightly).
-# MOD_FLEXBOOST: auto-compensation by species.
-FLEXOR_BS_GAIN_BY_SPECIES = {
-    "rat": 1.00,   # MOD_BS_REGULAR200: keep BS E/F peak levels equal (no species gain)
-    "human": 1.00,  # MOD_BS_REGULAR200
-}
-FLEXOR_BS_GAIN = FLEXOR_BS_GAIN_BY_SPECIES["rat"]  # default; overridden in main() based on --species
+# MOD_FLEXBOOST: set per species in config/species/<name>.yaml (constants.drive); 1.0 for rat and human.
+FLEXOR_BS_GAIN = 1.00
 DELAY_MS = 1.0
 
 P_RG_RECIP = 0.20
@@ -166,36 +168,10 @@ LEFT_RIGHT_BIAS_IE = 0.12
 # Notes:
 #  - `fixed` preserves legacy behavior using DELAY_MS/DELAY_RECIP_MS/etc.
 #  - `length_velocity` uses coarse, tunable presets.
-#  - Human presets intentionally use longer path lengths than rat.
 #  - Delays are clipped to at least the kernel resolution.
-DELAY_PRESETS = {
-    "rat": {
-        "cut_to_rg":   {"syn_delay_ms": 1.0, "length_m": 0.005, "velocity_mps": 5.0},
-        "bs_to_rg":    {"syn_delay_ms": 1.0, "length_m": 0.010, "velocity_mps": 5.0},
-        "base_to_rg":  {"syn_delay_ms": 1.0, "length_m": 0.010, "velocity_mps": 5.0},
-        "rg_to_m":     {"syn_delay_ms": 1.0, "length_m": 0.005, "velocity_mps": 5.0},
-        "m_to_mus":    {"syn_delay_ms": 1.0, "length_m": 0.005, "velocity_mps": 5.0},
-        "ia_path":     {"syn_delay_ms": 1.0, "length_m": 0.010, "velocity_mps": 10.0},
-        "rg_rec":      {"syn_delay_ms": 0.8, "length_m": 0.002, "velocity_mps": 5.0},
-        "rg_recip":    {"syn_delay_ms": 1.0, "length_m": 0.004, "velocity_mps": 5.0},
-        "motor_e2f":   {"syn_delay_ms": 1.0, "length_m": 0.004, "velocity_mps": 5.0},
-        "motor_f2e":   {"syn_delay_ms": 1.0, "length_m": 0.004, "velocity_mps": 5.0},
-        "commissural": {"syn_delay_ms": 1.0, "length_m": 0.006, "velocity_mps": 5.0},
-    },
-    "human": {
-        "cut_to_rg":   {"syn_delay_ms": 1.0, "length_m": 0.020, "velocity_mps": 30.0},
-        "bs_to_rg":    {"syn_delay_ms": 1.0, "length_m": 0.050, "velocity_mps": 40.0},
-        "base_to_rg":  {"syn_delay_ms": 1.0, "length_m": 0.050, "velocity_mps": 40.0},
-        "rg_to_m":     {"syn_delay_ms": 1.0, "length_m": 0.020, "velocity_mps": 30.0},
-        "m_to_mus":    {"syn_delay_ms": 1.0, "length_m": 0.020, "velocity_mps": 30.0},
-        "ia_path":     {"syn_delay_ms": 1.0, "length_m": 0.040, "velocity_mps": 30.0},
-        "rg_rec":      {"syn_delay_ms": 0.8, "length_m": 0.010, "velocity_mps": 25.0},
-        "rg_recip":    {"syn_delay_ms": 1.0, "length_m": 0.015, "velocity_mps": 25.0},
-        "motor_e2f":   {"syn_delay_ms": 1.0, "length_m": 0.015, "velocity_mps": 25.0},
-        "motor_f2e":   {"syn_delay_ms": 1.0, "length_m": 0.015, "velocity_mps": 25.0},
-        "commissural": {"syn_delay_ms": 1.0, "length_m": 0.040, "velocity_mps": 30.0},
-    },
-}
+# PLAN.md P1 / decision D2: the per-path presets (syn_delay_ms, length_m, velocity_mps)
+# now live in config/delays/<name>.yaml and are selected by the species config, never
+# independently of it. `fixed` still falls back to DELAY_MS / DELAY_RECIP_MS / ... below.
 
 
 def _delay_ms_from_preset(preset: dict, delay_scale: float) -> float:
@@ -207,7 +183,7 @@ def _delay_ms_from_preset(preset: dict, delay_scale: float) -> float:
     return float(delay_scale) * float(base_ms)
 
 
-def make_delay_param(delay_model: str, species: str, key: str, *,
+def make_delay_param(delay_model: str, paths: dict, key: str, *,
                      fallback_ms: float, res_ms: float, jitter_ms: float, delay_scale: float):
     """Return a scalar or a NEST Parameter for synaptic delays.
 
@@ -217,13 +193,11 @@ def make_delay_param(delay_model: str, species: str, key: str, *,
     IMPORTANT: Call this only after nest.SetKernelStatus().
     """
     delay_model = str(delay_model).lower().strip()
-    species = str(species).lower().strip()
 
     if delay_model == "fixed":
         return float(fallback_ms)
 
-    presets = DELAY_PRESETS.get(species, DELAY_PRESETS["rat"])
-    preset = presets.get(key, None)
+    preset = (paths or {}).get(key, None)
     base_ms = float(fallback_ms) if preset is None else _delay_ms_from_preset(preset, delay_scale)
 
     p = float(base_ms)
@@ -343,6 +317,12 @@ FORCE_MAX = 25.0
 # is roughly linear in activation across the working range (0.1–0.6), so counter-phase from
 # the activation envelope passes through to force cleanly.
 FORCE_SAT_K = 1.0
+# --paced-gait replaces the activation/force τ above with these (smooth plateaus for the
+# ~500 ms stance windows; were literals in main() before PLAN.md P1).
+PACED_TAU_ACT_RISE_MS = 40.0
+PACED_TAU_ACT_DECAY_MS = 40.0
+PACED_TAU_FORCE_RISE_MS = 80.0
+PACED_TAU_FORCE_DECAY_MS = 80.0
 
 # MOD_CUT_FORCE_TRIGGER: initial seed for the per-leg adaptive peak-force tracker
 # (fraction of FORCE_MAX), before any real burst has been observed. 0.4*FORCE_MAX=10
@@ -455,6 +435,39 @@ def sorted_connections(conns):
         return conns
 
 
+def apply_species_constants(constants: dict):
+    """Set module-level model constants from a species config (PLAN.md P1).
+
+    Only existing numeric constants can be set, so a typo in the YAML fails loudly
+    instead of silently doing nothing."""
+    g = globals()
+    for name, value in constants.items():
+        if name not in g:
+            raise ConfigError(f"unknown model constant `{name}`")
+        cur = g[name]
+        if isinstance(cur, bool) or not isinstance(cur, (int, float)):
+            raise ConfigError(f"`{name}` is not a numeric model constant")
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise ConfigError(f"`{name}` must be a number, got {value!r}")
+        g[name] = float(value) if isinstance(cur, float) else value
+
+
+def write_species_provenance(h5obj, cfg: dict, out_path: str = None):
+    """Record the resolved species config (PLAN.md P1). HDF5 attrs are all prefixed
+    `config_` (scripts/regression_compare.py treats them as provenance, not model
+    output); a sidecar <out>.config.yaml holds the same text for humans."""
+    text = to_yaml(cfg)
+    h5obj.attrs["config_species_yaml"] = text
+    h5obj.attrs["config_species_file"] = os.path.relpath(cfg["files"]["species"], os.path.dirname(os.path.realpath(__file__)))
+    h5obj.attrs["config_delays_file"] = os.path.relpath(cfg["files"]["delays"], os.path.dirname(os.path.realpath(__file__)))
+    h5obj.attrs["config_neuron_profile"] = str(cfg["neuron_profile"])
+    if "height_m" in cfg["body"]:
+        h5obj.attrs["config_body_height_m"] = float(cfg["body"]["height_m"])
+    if out_path:
+        with open(out_path + ".config.yaml", "w") as fh:
+            fh.write(text)
+
+
 def main():
     global BS_RATE_BASE_HZ, BS_NOISE_STD_HZ, BS_DRIVE_NORM_HZ, ENFORCE_TONIC_BS
     global TAU_ACT_RISE_MS, TAU_ACT_DECAY_MS, TAU_FORCE_RISE_MS, TAU_FORCE_DECAY_MS
@@ -489,13 +502,18 @@ def main():
                     help="Simulate in larger chunks to reduce Python<->NEST call overhead (ms). Must be >= dt-ms. Try 50 or 100.")
     ap.add_argument("--long-run", action="store_true",
                     help="Enable long-run defaults (aimed at >=30s sims): coarser chunking, less frequent sampling, and weight downsampling for trend plots.")
-    # ---- delay model (rat vs human) ----
-    ap.add_argument("--species", type=str, default="rat", choices=["rat", "human"],
-                    help="Preset for axonal/synaptic delays. rat preserves legacy behavior; human uses longer path lengths.")
-    ap.add_argument("--delay-model", type=str, default="fixed", choices=["fixed", "length_velocity"],
-                    help="fixed uses legacy delay constants; length_velocity uses delay = syn_delay + length/velocity (+ jitter).")
+    # ---- species configuration (PLAN.md P1: YAML, decisions D1/D2) ----
+    ap.add_argument("--species", type=str, default="rat",
+                    help="Species configuration: loads config/species/<name>.yaml (constants, CLI defaults "
+                         "and its delay file). Default rat = the tinyCPG baseline. See species_config.py.")
+    ap.add_argument("--species-config", type=str, default=None,
+                    help="Explicit species YAML path (overrides --species).")
+    ap.add_argument("--delay-model", type=str, default=None, choices=["fixed", "length_velocity"],
+                    help="DEPRECATED (PLAN.md D2): the delay model is part of the species config. Accepted "
+                         "only if it matches the species' delay file; otherwise the run stops.")
     ap.add_argument("--delay-jitter-ms", type=float, default=0.2,
-                    help="Std-dev (ms) for per-connection delay jitter when using length_velocity. Set 0 to disable.")
+                    help="Std-dev (ms) for per-connection delay jitter when using length_velocity. Set 0 to "
+                         "disable. Default comes from the species' delay file.")
     ap.add_argument("--delay-scale", type=float, default=1.0,
                     help="Global multiplier on computed delays (useful for quick calibration).")
 
@@ -581,11 +599,13 @@ def main():
                          "Ia-E groups (heel→toe). Swing leg gets CUT OFF, RGF bursts freely. "
                          "Use with --sim-ms 10000 and --step-period-ms 1000.")
     ap.add_argument("--step-period-ms", type=float, default=1000.0,
-                    help="Full gait cycle period (ms) for --paced-gait. Each leg spends half "
-                         "of this in stance and half in swing (trot pattern).")
+                    help="Full stride period (ms) for --paced-gait: one stance+swing cycle per "
+                         "leg, L and R offset by half a stride. Default from the species config.")
     ap.add_argument("--stance-fraction", type=float, default=0.5,
-                    help="Fraction of HALF the step period (per leg) spent with sequential "
-                         "Ia-E active. 0.5 = Ia active for all of the stance half-cycle.")
+                    help="Fraction of the FULL stride (--step-period-ms) each leg spends in "
+                         "stance (CUT on, sequential Ia-E groups active): stance_ms = step_period "
+                         "x fraction. The current paced scheduler gives each leg one half-stride, "
+                         "so values above 0.5 are refused until PLAN.md Phase 3 (double support).")
     ap.add_argument("--n-ia-groups", type=int, default=3,
                     help="Number of sequential Ia-E sub-groups (heel→mid→toe) for --paced-gait.")
     ap.add_argument("--ia-ext-hz", type=float, nargs="+", default=[60.0, 80.0, 100.0],
@@ -824,7 +844,36 @@ def main():
     ap.add_argument("--stdp-lambda", type=float, default=None,
                     help="Override the STDP learning-rate constant LAMBDA. Default None "
                          "uses the global LAMBDA = 0.001. Bio-plausible range 5e-4 to 5e-3.")
+    # PLAN.md P1: resolve the species config first, so its cli_defaults become argparse
+    # defaults (explicit flags still win) and its constants are applied before any use.
+    pre, _ = ap.parse_known_args()
+    try:
+        SPECIES_CFG = load_species(name=pre.species, path=pre.species_config)
+    except ConfigError as e:
+        ap.error(str(e))
+    known_dests = {a.dest for a in ap._actions}
+    unknown = sorted(set(SPECIES_CFG["cli_defaults"]) - known_dests)
+    if unknown:
+        ap.error(f"{SPECIES_CFG['files']['species']}: cli_defaults has unknown options {unknown}")
+    ap.set_defaults(**SPECIES_CFG["cli_defaults"], delay_jitter_ms=SPECIES_CFG["delays"]["jitter_ms"])
     args = ap.parse_args()
+    args.species = SPECIES_CFG["species"]
+    _cfg_model = SPECIES_CFG["delays"]["model"]
+    if args.delay_model is not None and args.delay_model != _cfg_model:
+        ap.error(f"--delay-model {args.delay_model} contradicts species `{args.species}`, whose delay file "
+                 f"{SPECIES_CFG['delays']['file']} uses `{_cfg_model}` (PLAN.md D2). Drop the flag or "
+                 f"use a species config with that delay model.")
+    args.delay_model = _cfg_model
+    # PLAN.md §7 B1/B2: the sequential half-cycle scheduler computes swing as
+    # half_stride - stance, which goes negative above 0.5. Refuse instead of running
+    # a broken schedule; Phase 3 replaces the scheduler to allow human double support.
+    if getattr(args, "paced_gait", False) and float(args.stance_fraction) > 0.5:
+        ap.error(f"--stance-fraction {args.stance_fraction} > 0.5 is not supported by the current "
+                 f"paced-gait scheduler (no double support yet; PLAN.md Phase 3)")
+    try:
+        apply_species_constants(SPECIES_CFG["constants"])
+    except ConfigError as e:
+        ap.error(f"{SPECIES_CFG['files']['species']}: {e}")
     # ---- apply ablation overrides (must happen before connect-time uses these constants) ----
     global W_IA2IN, W_INF2RGE, W_INE2RGF, W_COMM_F_INH, W_COMM_E_INH, LAMBDA
     ablation_tag = []
@@ -1149,10 +1198,10 @@ def main():
         SUB_STANCE_MS  = q_ms(STANCE_MS / max(1, N_IA_GROUPS_PACED))
         n_half_cycles  = max(2, int(np.ceil(SIM_MS / HALF_MS)))
         # Longer time constants for smooth 500ms force plateaus (was tuned for ~150ms cycles)
-        TAU_ACT_RISE_MS   = 40.0
-        TAU_ACT_DECAY_MS  = 40.0
-        TAU_FORCE_RISE_MS = 80.0
-        TAU_FORCE_DECAY_MS = 80.0
+        TAU_ACT_RISE_MS   = PACED_TAU_ACT_RISE_MS
+        TAU_ACT_DECAY_MS  = PACED_TAU_ACT_DECAY_MS
+        TAU_FORCE_RISE_MS = PACED_TAU_FORCE_RISE_MS
+        TAU_FORCE_DECAY_MS = PACED_TAU_FORCE_DECAY_MS
 
     nest.ResetKernel()
     # B12 (PLAN.md §7): --seed must reach NEST. Before this, rng_seed was never set,
@@ -1165,47 +1214,45 @@ def main():
          "rng_seed": NEST_RNG_SEED})
 
     # ---- delay parameters (must be created AFTER kernel config) ----
-    delay_model = str(getattr(args, "delay_model", "fixed"))
-    species = str(getattr(args, "species", "rat"))
+    # Delay model and per-path table come from the species config (PLAN.md P1, D2);
+    # FLEXOR_BS_GAIN (MOD_FLEXBOOST) was already set from it by apply_species_constants().
+    delay_model = str(args.delay_model)
+    delay_paths = SPECIES_CFG["delays"]["paths"]
     delay_jitter_ms = float(getattr(args, "delay_jitter_ms", 0.0))
     delay_scale = float(getattr(args, "delay_scale", 1.0))
 
-    # MOD_FLEXBOOST: set species-dependent flexor BS gain (keeps patterns comparable across rat/human delays)
-    global FLEXOR_BS_GAIN
-    FLEXOR_BS_GAIN = float(FLEXOR_BS_GAIN_BY_SPECIES.get(species, FLEXOR_BS_GAIN_BY_SPECIES["rat"]))
-
     delay = {
-        "cut_to_rg": make_delay_param(delay_model, species, "cut_to_rg",
+        "cut_to_rg": make_delay_param(delay_model, delay_paths, "cut_to_rg",
                                       fallback_ms=DELAY_MS, res_ms=RES_MS,
                                       jitter_ms=delay_jitter_ms, delay_scale=delay_scale),
-        "bs_to_rg": make_delay_param(delay_model, species, "bs_to_rg",
+        "bs_to_rg": make_delay_param(delay_model, delay_paths, "bs_to_rg",
                                      fallback_ms=DELAY_MS, res_ms=RES_MS,
                                      jitter_ms=delay_jitter_ms, delay_scale=delay_scale),
-        "base_to_rg": make_delay_param(delay_model, species, "base_to_rg",
+        "base_to_rg": make_delay_param(delay_model, delay_paths, "base_to_rg",
                                        fallback_ms=DELAY_MS, res_ms=RES_MS,
                                        jitter_ms=delay_jitter_ms, delay_scale=delay_scale),
-        "rg_to_m": make_delay_param(delay_model, species, "rg_to_m",
+        "rg_to_m": make_delay_param(delay_model, delay_paths, "rg_to_m",
                                     fallback_ms=DELAY_MS, res_ms=RES_MS,
                                     jitter_ms=delay_jitter_ms, delay_scale=delay_scale),
-        "m_to_mus": make_delay_param(delay_model, species, "m_to_mus",
+        "m_to_mus": make_delay_param(delay_model, delay_paths, "m_to_mus",
                                      fallback_ms=DELAY_MS, res_ms=RES_MS,
                                      jitter_ms=delay_jitter_ms, delay_scale=delay_scale),
-        "ia_path": make_delay_param(delay_model, species, "ia_path",
+        "ia_path": make_delay_param(delay_model, delay_paths, "ia_path",
                                     fallback_ms=DELAY_MS, res_ms=RES_MS,
                                     jitter_ms=delay_jitter_ms, delay_scale=delay_scale),
-        "rg_rec": make_delay_param(delay_model, species, "rg_rec",
+        "rg_rec": make_delay_param(delay_model, delay_paths, "rg_rec",
                                    fallback_ms=DELAY_MS, res_ms=RES_MS,
                                    jitter_ms=delay_jitter_ms, delay_scale=delay_scale),
-        "rg_recip": make_delay_param(delay_model, species, "rg_recip",
+        "rg_recip": make_delay_param(delay_model, delay_paths, "rg_recip",
                                      fallback_ms=DELAY_RECIP_MS, res_ms=RES_MS,
                                      jitter_ms=delay_jitter_ms, delay_scale=delay_scale),
-        "motor_e2f": make_delay_param(delay_model, species, "motor_e2f",
+        "motor_e2f": make_delay_param(delay_model, delay_paths, "motor_e2f",
                                       fallback_ms=DELAY_MOTOR_RECIP_E2F_MS, res_ms=RES_MS,
                                       jitter_ms=delay_jitter_ms, delay_scale=delay_scale),
-        "motor_f2e": make_delay_param(delay_model, species, "motor_f2e",
+        "motor_f2e": make_delay_param(delay_model, delay_paths, "motor_f2e",
                                       fallback_ms=DELAY_MOTOR_RECIP_F2E_MS, res_ms=RES_MS,
                                       jitter_ms=delay_jitter_ms, delay_scale=delay_scale),
-        "commissural": make_delay_param(delay_model, species, "commissural",
+        "commissural": make_delay_param(delay_model, delay_paths, "commissural",
                                         fallback_ms=DELAY_COMM_MS, res_ms=RES_MS,
                                         jitter_ms=delay_jitter_ms, delay_scale=delay_scale),
     }
@@ -1709,6 +1756,7 @@ def main():
                 hc.attrs["species"] = str(getattr(args, "species", "rat"))
                 hc.attrs["delay_model"] = str(getattr(args, "delay_model", "fixed"))
                 hc.attrs["delay_jitter_ms"] = float(getattr(args, "delay_jitter_ms", 0.0))
+                write_species_provenance(hc, SPECIES_CFG)
                 for entry in projset:
                     name, src, tgt = entry[0], entry[1], entry[2]
                     syn_model = entry[3] if len(entry) > 3 else None
@@ -2591,6 +2639,7 @@ def main():
         h5.attrs["species"] = str(getattr(args, "species", "rat"))
         h5.attrs["delay_jitter_ms"] = float(getattr(args, "delay_jitter_ms", 0.0))
         h5.attrs["delay_scale"] = float(getattr(args, "delay_scale", 1.0))
+        write_species_provenance(h5, SPECIES_CFG, out_path=args.out)
         # Sweep metadata (if active)
         if ("sweep_active" in locals()) and sweep_active:
             h5.attrs["sweep_active"] = True

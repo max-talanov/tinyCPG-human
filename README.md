@@ -79,17 +79,19 @@ The model inherits these mechanisms from tinyCPG:
   required failsafe timeout. `--muscle-fatigue` lets force decay within a
   stance bout.
 - **Species-aware conduction delays**
-  (`--delay-model length_velocity --species human`). Each delay is computed as
-  `syn_delay + path_length / conduction_velocity`, using human path lengths and
-  velocities (`DELAY_PRESETS["human"]` in `cpg_2legs_fast.py`).
+  (`--species human`, which loads `config/species/human.yaml` and its delay file
+  `config/delays/human.yaml`). Each delay is computed as
+  `syn_delay + path_length / conduction_velocity`, using the species' path
+  lengths and velocities.
 
 ## Human adaptation: status and roadmap
 
 | Item | Status |
 |---|---|
 | Rat tinyCPG model, STDP and consolidation imported | done |
-| Human conduction/synaptic delay preset (`--species human`) | present; not yet validated against human data |
-| Species-dependent flexor BS gain (`FLEXOR_BS_GAIN_BY_SPECIES`) | present, currently 1.0 for both species |
+| YAML species configs with delays tied to species (`config/`, `species_config.py`) | done (P1) |
+| Human conduction/synaptic delay values (`config/delays/human.yaml`) | present; still rat-like, replaced in Phase 2 |
+| Species-dependent flexor BS gain (`FLEXOR_BS_GAIN` in the species YAML) | present, currently 1.0 for both species |
 | Human gait timing: stride period, stance fraction, cadence per mode | to do |
 | Human bio-plausibility constraint table, replacing the rat table in `CLAUDE.md` | to do |
 | Human locomotion modes (slow/normal/fast walking, reduced body-weight support) | to do |
@@ -122,6 +124,8 @@ The main rat-to-human changes:
 | `paper/` | LaTeX manuscript of the rat model (`main.tex`, `sections/`, `figures/`) |
 | `validation/` | Literature-validation notes and EMG data requests |
 | `spinal_plasticity_as_learning_spec.md` | Literature spec for spinal plasticity timescales and gating, and for tag-and-capture |
+| `config/`, `species_config.py` | YAML species configs (constants, CLI defaults, delay file) and their loader |
+| `regress.sh` | Rat regression check; must pass after every model change |
 | `CLAUDE.md` | Detailed model internals, tuning history, key constants and "do not touch" list |
 | `MN5_RUN.md` | Workflow for MN5 runs: upload, submit, retrieve, plot |
 
@@ -137,7 +141,7 @@ To run the same circuit with human conduction delays, change `--species rat`
 to `--species human` in `debug.sh`, or run the model directly:
 
 ```bash
-python3 cpg_2legs_fast.py --debug-small --paced-gait --delay-model length_velocity --species human --sim-ms 10000 --out results/debug_human.h5
+python3 cpg_2legs_fast.py --debug-small --paced-gait --species human --sim-ms 10000 --out results/debug_human.h5
 ```
 
 Use the healthy vs. SCI flags on top of this. Descending plasticity off:
