@@ -1,4 +1,8 @@
-# MN5 run manifest — descending vs sensory learning + ablation
+# MN5 run manifest
+
+§0 is the **human** workflow (tinyCPG-human). §1–§5 below are the inherited
+**rat** manifest (descending vs sensory learning + ablation), kept for the rat
+reference runs.
 
 > **tinyCPG-human note (2026-09-25):** this is the inherited **rat** MN5 workflow. The
 > rat run scripts now live in `rat-sh/` and are submitted from the repo root
@@ -19,6 +23,112 @@
 
 What to upload to MN5, what to submit, and what to bring back for local plotting.
 Plotting is done **locally** (after `scp`-ing results back), not on MN5.
+
+## 0. Human production — MN5 check A (`run_modes_mn5.sh`)
+
+The five locomotion modes at production size (N = 100, BS 60 Hz), 120 s,
+λ = 1e-4. It is one 10-task array: tasks 0–4 are human slow / medium / fast /
+toe / air, and tasks 5–9 are the same modes for rat as the reference.
+
+- Stance and scheduler come from the species config: human 0.60 with double
+  support, rat 0.5 halfcycle.
+- CPU partition `gp_bsccs`, 1 node, 64 threads, 1 h per task.
+- Details are in the script header and PLAN.md "MN5 check A".
+
+**Files.** Since PLAN.md P1 the model is **not** standalone. It imports
+`species_config.py` and reads `config/species/*.yaml`, and stops at startup
+without them.
+
+Option A, if MN5 has a git clone (on MN5, in the clone):
+
+```bash
+git pull origin main
+```
+
+Option B, from this repo root on your laptop. `--relative` keeps the
+`config/species/` path:
+
+```bash
+rsync -av --relative cpg_2legs_fast.py species_config.py config/species/ run_modes_mn5.sh <user>@<mn5-login>:/path/to/tinyCPG-human/
+```
+
+| File | Role |
+|---|---|
+| `cpg_2legs_fast.py` | The model |
+| `species_config.py` | Species-config loader, imported by the model |
+| `config/species/human.yaml`, `rat.yaml` | Constants, delays and gait defaults per species |
+| `run_modes_mn5.sh` | The job script |
+
+`scripts/` is not needed on MN5 (plotting is local).
+
+**Run.** On MN5, from the directory you uploaded to. The job writes
+`results/modes_mn5/` relative to the submission directory.
+
+1. Check the environment (PyYAML is new since P1):
+
+   ```bash
+   python3 -c "import nest, yaml, h5py; print(nest.__version__)"
+   ```
+
+2. If `yaml` is missing:
+
+   ```bash
+   pip install --user pyyaml
+   ```
+
+3. Validate the species configs:
+
+   ```bash
+   python3 species_config.py --check
+   ```
+
+4. Optional cheap first check, task 0 only (human slow):
+
+   ```bash
+   sbatch --array=0 run_modes_mn5.sh
+   ```
+
+5. The full array (10 tasks):
+
+   ```bash
+   sbatch run_modes_mn5.sh
+   ```
+
+6. Monitor:
+
+   ```bash
+   squeue -u $USER
+   ```
+
+- The job runs in a login shell (`#!/bin/bash -l`, as in tinyHippo), so it
+  uses the NEST environment your MN5 login profile provides.
+- Each task logs to `Nest_modes_<jobid>_<task>.slurmout` and `.slurmerr` in
+  the submission directory.
+- A missing module or config fails the task within seconds, with a
+  `[modes-mn5]` message in the `.slurmerr` file.
+
+**Bring back.** From this repo root on your laptop:
+
+```bash
+rsync -av '<user>@<mn5-login>:/path/to/tinyCPG-human/results/modes_mn5/' results/modes_mn5/
+```
+
+This gives `human/` and `rat/`, each with `<mode>.h5` and `<mode>.h5.config.yaml`
+for the five modes.
+
+**Plot locally:**
+
+```bash
+python3 scripts/cpg_modes_stages.py --species human --indir results/modes_mn5/human --out plots/modes/mn5/human_modes_stages.png
+```
+
+```bash
+python3 scripts/cpg_modes_stages.py --species rat --indir results/modes_mn5/rat --out plots/modes/mn5/rat_modes_stages.png
+```
+
+```bash
+python3 scripts/cpg_gait_phase_metrics.py results/modes_mn5/human/*.h5
+```
 
 > **NOTE — architecture fix + unloading-rescue exploration (2026-09-14,
 > `feature/ia-rge-direct-pathway`).** `Ia→RG-E`/`Ia→RG-F` (a direct excitatory
@@ -88,8 +198,8 @@ Plotting is done **locally** (after `scp`-ing results back), not on MN5.
 
 ## 1. Files to upload
 
-The model is standalone (no local imports), so MN5 needs only the model + the
-SLURM scripts you intend to submit.
+Since PLAN.md P1 the model needs `species_config.py` and `config/species/*.yaml`
+next to `cpg_2legs_fast.py`, plus the SLURM scripts you intend to submit.
 
 **Option A — git (cleanest, if MN5 has a clone):**
 ```bash
@@ -100,8 +210,10 @@ git pull origin main
 **Option B — scp/rsync the minimal set:**
 ```bash
 # from this repo root, on your laptop
-rsync -av \
+rsync -av --relative \
   cpg_2legs_fast.py \
+  species_config.py \
+  config/species/ \
   rat-sh/run_speed_stdp.sh \
   rat-sh/run_sensory_stdp.sh \
   rat-sh/run_ablation_stim.sh \
@@ -113,7 +225,8 @@ rsync -av \
 
 | File | Role |
 |---|---|
-| `cpg_2legs_fast.py` | The model (the only code file needed). |
+| `cpg_2legs_fast.py` | The model. |
+| `species_config.py`, `config/species/` | Species-config loader and YAML (required since P1). |
 | `rat-sh/run_speed_stdp.sh` | Phase A — **descending** arm: speed × λ (BS→RG plastic). |
 | `rat-sh/run_sensory_stdp.sh` | Phase A — **sensory** arm: speed × λ (frozen BS + plastic Ia→RG). |
 | `rat-sh/run_ablation_stim.sh` | Phase B — epidural-**stim** arm (CUT intact). |
