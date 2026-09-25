@@ -82,13 +82,17 @@ def main():
     if len(stages) != 3:
         ap.error("--stage must be given exactly 3 times")
 
-    data, attrs = {}, {}
+    data, attrs, scale = {}, {}, "size ?"
     for mode, _ in MODES:
         path = os.path.join(indir, f"{mode}.h5")
         if not os.path.isfile(path):
             continue
         with h5py.File(path, "r") as f:
             attrs = dict(f.attrs)
+            # The model does not record --debug-small; infer the scale from the CUT->RG-E
+            # synapse count (~5000 per leg at production N=100, a few hundred at debug-small).
+            n_cut = int(dict(f["stats"].attrs).get("L_stdp_cut_rge", 0)) if "stats" in f else 0
+            scale = "production N=100" if n_cut >= 2500 else ("debug-small" if n_cut else "size ?")
             d = {"t": f["times_ms"][()], "wt": f["weights_times_ms"][()]}
             for side in ("L", "R"):
                 g = f[f"leg_{side}"]
@@ -170,7 +174,7 @@ def main():
     fig.text(0.06, 1.0, f"{args.species}: force and plastic weights at three stages, five locomotion modes",
              ha="left", va="bottom", fontsize=12.5, fontweight="bold", color=INK)
     fig.text(0.06, 0.995,
-             f"species={attrs.get('species', '?')}  debug-small  sim={attrs.get('sim_ms', 0) / 1000:.0f} s  "
+             f"species={attrs.get('species', '?')}  {scale}  sim={attrs.get('sim_ms', 0) / 1000:.0f} s  "
              f"λ={attrs.get('stdp_lambda', attrs.get('lambda', '?'))}  seed={attrs.get('seed', '?')}   {note}"
              f"Force panels: left leg; r(E,F) for both legs.",
              ha="left", va="top", fontsize=8.5, color=INK_2)

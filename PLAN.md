@@ -3,8 +3,9 @@
 Status: **in progress** (2026-09-24). Decisions D1–D7 are agreed (§4).
 **Done:** Phase 0 (rat regression harness; B11/B12 reproducibility fixes) and
 Phase 1 (YAML species configs, delays tied to species), Phase 2 (human
-conduction delays, reflex probe at 30 ms) and Phase 3 (phase scheduler, human
-stance 0.60 with double support). **Next:** MN5 check A, then Phase 4.
+conduction delays, reflex probe at 30 ms), Phase 3 (phase scheduler, human
+stance 0.60 with double support) and MN5 check A (five modes at production N).
+**Next:** Phase 4.
 
 This plan moves `cpg_2legs_fast.py` from rat to human parameters. The circuit,
 plasticity and consolidation mechanisms stay the same. What changes is timing,
@@ -559,18 +560,59 @@ through CUT→RG-E over-potentiation persist at N = 100?
 
 **Cost:** 10 tasks, each a few minutes of NEST time.
 
-**Status: prepared 2026-09-25, not submitted** (`sbatch run_modes_mn5.sh` from
-the repo root is your call).
+**Status: done 2026-09-25** (MN5 job, results in `results/2026-09-25/{human,rat}/`;
+figures `plots/modes/mn5/{human,rat}_modes_stages.png`).
 
-- Smoke-tested locally at production size, 10 s, 4 threads: human slow
-  (phase scheduler) and rat fast (halfcycle) both complete.
-- 10 simulated seconds = 13 s NEST + 3.4 s bookkeeping, and bookkeeping is
-  now linear.
+- All 10 tasks completed: production size (~5,000 CUT→RG-E synapses per leg,
+  ~173k synapses), 120 s, λ = 1e-4, 64 threads, NEST 3.9.0.
+- Human used the phase scheduler with stance 0.60 (measured stance 0.600,
+  double support 0.200). Rat used halfcycle 0.50.
+- Before the run, two fixes were made: B14 (recorder bookkeeping was
+  quadratic) and B15 (the jobs requested the GPU partition).
 
-Two fixes were made first:
+Left-leg r(E,F), beginning / middle / end (4–9 s, 40–45 s, 115–120 s), and
+CUT→RG-E at the end:
 
-- **B14:** recorder bookkeeping was quadratic in simulated time.
-- **B15:** the SLURM scripts requested the GPU partition.
+| mode | human MN5 (N=100) | human local debug-small | rat MN5 (N=100) | CUT→RG-E end: human / rat |
+|---|---|---|---|---|
+| slow | −0.68 / −0.79 / −0.84 | −0.89 / −0.98 / −0.93 | −0.78 / −1.00 / −0.99 | 68 / 65 pA |
+| medium | −0.45 / −0.92 / **−0.91** | −0.68 / −0.84 / −0.70 | −0.76 / −0.98 / −0.97 | 72 / 65 pA |
+| fast | −0.65 / −0.95 / **−0.96** | −0.58 / −0.79 / −0.78 | −0.49 / −0.87 / −0.96 | 77 / 65 pA |
+| toe | −0.23 / −0.33 / −0.34 | −0.50 / −0.56 / −0.88 | −0.31 / −0.26 / −0.31 | 62 / 50 pA |
+| air | −0.19 / −0.41 / −0.31 | −0.50 / −0.48 / −0.51 | −0.52 / −0.49 / −0.34 | 10 / 9 pA |
+
+Findings:
+
+1. **The late degradation of human medium/fast was a debug-small artifact.**
+   - At N = 100, human medium and fast end at −0.91 and −0.96, like rat
+     (−0.97, −0.96).
+   - CUT→RG-E still settles higher in human (72–77 vs ~65 pA in rat), but it
+     no longer destroys alternation.
+   - That narrows the open "over-potentiation" item from P2/P3 to a
+     set-point difference to keep watching, not a failure.
+2. **Human slow is the weakest loaded mode** (end −0.84 vs rat −0.99).
+   - The right leg settles late (beginning r = −0.31).
+   - With 60% stance and 80 ms force time constants, some E/F overlap is
+     expected, so part of this may be the stance fraction rather than a
+     defect. Recheck with human strides in P5.
+3. **Both unloaded modes collapse in both species at production N:** the
+   flexor stays tonically near its ceiling (5th-percentile F-force ~11–13 of
+   ~17) while the extensor oscillates underneath, i.e. E/F co-contraction.
+   - Under unloading, the Ia→RG cap is relaxed toward `WMAX_IA_UNLOADED`: the
+     effective cap is 10 loaded, 35 toe and 55 air (MOD_IA_RG_LOADING_GAIN).
+     Ia→RG-F then potentiates to 13–19 pA (vs ~4 when loaded).
+   - This is inherited rat-model behaviour (rat collapses the same way),
+     consistent with the paper's "unloading collapses the sensory arm".
+   - It matters directly for P7, where body-weight support and SCI are
+     unloading conditions.
+   - Flag for P5/P7: look at the unloaded Ia→RG-F cap and the flexor
+     intrinsic drive before building SCI conditions on toe/air.
+4. **Human fast mode:** the extensor is active through only ~67% of its
+   210 ms stance (vs 96–100% in medium and slow). The 80 ms force time
+   constants cannot fill a rat-length stance. Expected to resolve with human
+   strides (P5).
+5. **Early learning is slower at N = 100 than at debug-small in both species**
+   (lower r at 4–9 s; CUT→RG-E reaches ~60 pA by 40 s).
 
 ### Phase 4 — Muscle and afferent model (M)
 
