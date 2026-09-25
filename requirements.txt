@@ -42,11 +42,6 @@ neuron>=8.2
 # (e.g. OpenMPI or MPICH) to be present at runtime.
 mpi4py>=3.1
 
-# Brian2 — used only by 2_stdp_izhi_brian2_memcpg.py, an early standalone
-# Colab-exported prototype kept for reference. Not part of the current
-# pipeline; the file carries its own inline `!pip install brian2`.
-brian2>=2.5
-
 # ---------------------------------------------------------------------------
 # Slide-deck export (scripts/build_deck.py only) — not needed to run the
 # model or to regenerate any paper figure.

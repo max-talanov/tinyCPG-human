@@ -28,7 +28,7 @@ sbatch rat-sh/run_sensory_stdp.sh
 | `run.sh` | MN5: 10-point (μ, CV) initial-weight sweep (paper Algorithm 1) | Init-robustness method, reused for human production (P9) |
 | `run_frozen.sh` | MN5: frozen-weight control (plasticity off) | Paper control |
 | `run_consolidate_all_modes_production.sh` | MN5: force-trigger + `--consolidate`, medium/fast/toe/slow (Stage 5) | Latest rat consolidation operating points; template for human P5/P6 |
-| `run_sim_mt.sh` | Container job (Docker default `CMD`) | Keeps the Docker image runnable |
+| `run_sim_mt.sh` | Rat container job | Optional rat run inside the Docker image (`--script=rat-sh/run_sim_mt.sh`); the image default is the human five-mode job |
 
 ## Deleted on 2026-09-25
 
