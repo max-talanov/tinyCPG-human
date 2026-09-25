@@ -2,7 +2,8 @@
 
 Status: **in progress** (2026-09-24). Decisions D1–D7 are agreed (§4).
 **Done:** Phase 0 (rat regression harness; B11/B12 reproducibility fixes) and
-Phase 1 (YAML species configs, delays tied to species). **Next:** Phase 2.
+Phase 1 (YAML species configs, delays tied to species) and Phase 2 (human
+conduction delays, reflex probe at 30 ms). **Next:** Phase 3.
 
 This plan moves `cpg_2legs_fast.py` from rat to human parameters. The circuit,
 plasticity and consolidation mechanisms stay the same. What changes is timing,
@@ -380,6 +381,61 @@ Departures from the design above, each deferred to where it is first needed:
 **Risk:** a larger NEST `max_delay` slightly changes how NEST communicates
 between threads and MPI ranks, which could affect run time. Measure it.
 
+**Status: done (2026-09-25, local).**
+
+- Human delay table: peripheral paths as fractions of body height via a new
+  `length_frac_height` field. At 1.74 m:
+  - Ia afferent 13.6 ms;
+  - motor axon 15.9 ms;
+  - cutaneous 23.6 ms;
+  - reticulospinal 8.3 ms.
+
+  Intraspinal paths stay ~1–2 ms. All anatomical fractions and velocities
+  are estimates to verify (§5).
+- New delay key `ia_int_to_m`: the intraspinal Ia-interneuron → antagonist
+  motoneuron hop used to share `ia_path`, and would otherwise have inherited
+  the ~13 ms afferent delay.
+  - Rat gives it the identical value, and the model then reuses `ia_path`'s
+    NEST Parameter object.
+  - This matters because two separate, identical random-delay Parameters
+    draw differently in NEST (verified), which would have changed rat output.
+- Reflex-latency probe (`--probe-reflex-at-ms`,
+  `scripts/probe_reflex_latency.py`).
+  - The model has no monosynaptic Ia → motoneuron connection, so the probe
+    measures the shortest causal Ia → muscle latency.
+  - Method: identical control and volley runs; the first diverging spike
+    gives the latency. It uses 10 volleys across one stride.
+- **Result (debug.sh configuration):** human mus-E **30.2 ms** (median
+  30.9 ms; RG-E 13.4 ms, M-E 14.8 ms), inside the 28–35 ms target. Rat:
+  5.0 ms.
+- `./regress.sh` passes (rat byte-identical).
+- Run time is unchanged by the longer delays: the five-mode runs take the
+  same wall time for rat and human.
+- The Python sensory update tick (`--rate-update-ms`: 50 ms in `debug.sh`,
+  100 ms in the paper's mode scripts) is still coarser than the reflex loop.
+  It sets how fast *rate-coded* feedback responds. Revisit it in Phase 4/5.
+- **Five-mode check** (`run_modes_local.sh`: the paper's sensory-learning
+  model, debug-small, 120 s, λ = 1e-4). Figures:
+  `plots/modes/{rat,human}_modes_stages.png`.
+  - **Rat:** counter-phase sharpens with learning in every loaded mode. r(E,F)
+    left leg, beginning → end:
+    - slow −0.87 → −0.98;
+    - medium −0.82 → −0.96;
+    - fast −0.79 → −0.91;
+    - toe −0.75 → −0.92 (the extensor recovers as CUT→RG-E reaches ~21 pA).
+  - **Human delays with rat stride timing:** slow and medium peak mid-run
+    (−0.99, −0.95) and then degrade (end −0.92 and −0.71). Fast degrades
+    throughout (−0.74 → −0.40).
+    - Mechanism: CUT→RG-E over-potentiates (medium 69, fast 75 pA vs ~60 in
+      rat), and the extensor no longer relaxes between strides.
+    - Likely cause: the ~24 ms cutaneous and ~30 ms reflex delays shift STDP
+      timing inside a 350–520 ms rat stride.
+    - Check again in Phases 3/5 with human strides (≥ 900 ms). If it
+      persists, it is a plasticity-timing issue to raise before Phase 6.
+  - **Air stepping (both species):** the extensor stays silent and CUT does
+    not learn (~4.7 pA). The r(E,F) ≈ −0.7 there reflects flexor oscillation
+    against a flat extensor, not real alternation.
+
 ### Phase 3 — Human gait scheduler with double support (L)
 
 **Goal:** allow human stance ≈ 60% with ~10% double support at each
@@ -683,7 +739,7 @@ applies to the human motor-unit and pool-size data needed for Phase 9.
 |---|---|---|---|
 | B1 | The paced-gait scheduler is strictly sequential: one leg's stance, then the other's. `SWING_MS = HALF_MS − STANCE_MS` | `cpg_2legs_fast.py` ~L1111–1113, ~L2366–2410 | Stance can never exceed 50% of the stride, so there is **no double support**. Human stance is ~60%. With `--stance-fraction 0.6`, `SWING_MS` goes negative. |
 | B2 | **FIXED in P1 (2026-09-24)**: help text now says "fraction of the full stride"; >0.5 is refused under `--paced-gait` until P3. Was: `--stance-fraction` help text says "fraction of HALF the step period". The code multiplies the full period. | ~L561 vs ~L1112 | The flag's meaning is ambiguous. It must be fixed before human values are set. |
-| B3 | The human delay preset gives ~1.7–2.3 ms delays, the same as rat | `DELAY_PRESETS["human"]` ~L185 | The peripheral loop is ~10× too fast. The human soleus H-reflex latency is ~30 ms. |
+| B3 | **FIXED in P2 (2026-09-25):** human peripheral delays now 13.6–23.6 ms, reflex probe 30.2 ms. Was: the human delay preset gives ~1.7–2.3 ms delays, the same as rat | `DELAY_PRESETS["human"]` ~L185 | The peripheral loop is ~10× too fast. The human soleus H-reflex latency is ~30 ms. |
 | B4 | **FIXED in P1 (2026-09-24).** `--species` had no effect under the default `--delay-model fixed` | `make_delay_param` | A run labelled "human" can be pure rat without any warning. Resolved by D2 / Phase 1. |
 | B5 | Muscle τ values are rat-tuned and shared between extensor and flexor (`TAU_FORCE_*`, `TAU_ACT_*`, `TAU_LENGTH_MS`). The paced-gait override is 80/80 ms. | ~L326–365, ~L1123–1126 | Human soleus (extensor) and tibialis anterior (flexor) contract at different speeds. |
 | B6 | Afferent rate model has `IA_RATE_MAX_HZ = 500` and `IA_K_*` gains | ~L372–375, ~L2035–2045 | The 500 Hz cap is far above plausible human Ia rates. The real rates the model produces have not been measured yet. |

@@ -38,8 +38,10 @@ SPECIES_DIR = os.path.join(CONFIG_ROOT, "species")
 
 DELAY_MODELS = ("fixed", "length_velocity")
 DELAY_PATH_KEYS = ("cut_to_rg", "bs_to_rg", "base_to_rg", "rg_to_m", "m_to_mus", "ia_path",
-                   "rg_rec", "rg_recip", "motor_e2f", "motor_f2e", "commissural")
+                   "ia_int_to_m", "rg_rec", "rg_recip", "motor_e2f", "motor_f2e", "commissural")
 DELAY_FIELDS = ("syn_delay_ms", "length_m", "velocity_mps")
+# A path gives its length either absolutely (length_m) or as a fraction of the
+# species' body.height_m (length_frac_height; PLAN.md P2, D7) -- exactly one.
 NEURON_PROFILES = ("abstract", "adult")
 
 
@@ -117,8 +119,9 @@ def _load_chain(path, seen=()):
     return data, chain
 
 
-def _load_delays(d, path):
-    """Validate the `delays:` section of the species file `path`."""
+def _load_delays(d, path, body):
+    """Validate the `delays:` section of the species file `path`; resolve
+    length_frac_height against body.height_m into length_m."""
     model = d.get("model")
     if model not in DELAY_MODELS:
         raise ConfigError(f"{path}: `model` must be one of {DELAY_MODELS}, got {model!r}")
@@ -130,16 +133,33 @@ def _load_delays(d, path):
         extra = [k for k in paths if k not in DELAY_PATH_KEYS]
         if extra:
             raise ConfigError(f"{path}: unknown delay paths {extra} (known: {list(DELAY_PATH_KEYS)})")
+        resolved = {}
         for k, p in paths.items():
-            if not isinstance(p, dict) or any(f not in p for f in DELAY_FIELDS):
-                raise ConfigError(f"{path}: path `{k}` needs {DELAY_FIELDS}")
-            for f in DELAY_FIELDS:
-                if not isinstance(p[f], (int, float)) or isinstance(p[f], bool):
+            if not isinstance(p, dict):
+                raise ConfigError(f"{path}: path `{k}` must be a mapping")
+            p = dict(p)
+            if ("length_m" in p) == ("length_frac_height" in p):
+                raise ConfigError(f"{path}: path `{k}` needs exactly one of length_m, length_frac_height")
+            for f in ("syn_delay_ms", "velocity_mps", "length_m", "length_frac_height"):
+                if f in p and (not isinstance(p[f], (int, float)) or isinstance(p[f], bool)):
                     raise ConfigError(f"{path}: {k}.{f} must be a number")
+            for f in ("syn_delay_ms", "velocity_mps"):
+                if f not in p:
+                    raise ConfigError(f"{path}: path `{k}` needs {f}")
             if p["velocity_mps"] <= 0:
                 raise ConfigError(f"{path}: {k}.velocity_mps must be > 0")
-    return {"model": model, "jitter_ms": float(d.get("jitter_ms", 0.2)),
-            "paths": {k: {f: float(v[f]) for f in DELAY_FIELDS} for k, v in paths.items()}}
+            if "length_frac_height" in p:
+                h = (body or {}).get("height_m")
+                if not isinstance(h, (int, float)) or isinstance(h, bool) or h <= 0:
+                    raise ConfigError(f"{path}: path `{k}` uses length_frac_height but body.height_m is not set")
+                p["length_m"] = float(p["length_frac_height"]) * float(h)
+            r = {f: float(p[f]) for f in DELAY_FIELDS}
+            if "length_frac_height" in p:
+                r["length_frac_height"] = float(p["length_frac_height"])
+            r["delay_ms"] = r["syn_delay_ms"] + r["length_m"] / r["velocity_mps"] * 1000.0
+            resolved[k] = r
+        paths = resolved
+    return {"model": model, "jitter_ms": float(d.get("jitter_ms", 0.2)), "paths": paths}
 
 
 def _flatten_constants(groups, source):
@@ -186,7 +206,7 @@ def load_species(name=None, path=None):
         "body": dict(data.get("body") or {}),
         "constants": _flatten_constants(data.get("constants"), src),
         "cli_defaults": dict(cli),
-        "delays": _load_delays(data["delays"], src),
+        "delays": _load_delays(data["delays"], src, data.get("body")),
         "files": {"species": src, "chain": chain},
     }
 

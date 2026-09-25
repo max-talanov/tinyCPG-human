@@ -520,6 +520,12 @@ def main():
                     help="If >0, downsample each projection's connection list to at most this many connections when computing weight mean/std (trend mode speed-up).")
     ap.add_argument("--save-weights", type=str, default="snapshots", choices=["none", "final", "snapshots"],
                     help="Save full weight vectors for plastic projections: none=only mean/std; final=store initial+final full vectors; snapshots=store full vectors at each weight sample tick (can be large).")
+    ap.add_argument("--probe-reflex-at-ms", type=float, default=None,
+                    help="PLAN.md P2 reflex-latency probe: at this time (ms) deliver one synchronous "
+                         "volley to every left-leg Ia-E afferent and record raw spike times of left "
+                         "RG-E, M-E and mus-E into the HDF5 group `probe`. A negative value builds the "
+                         "same probe structure without the volley (the control run). Compare the two "
+                         "with scripts/probe_reflex_latency.py.")
     ap.add_argument("--dump-connectivity", type=str, default="",
                     help="If set, after building the network dump per-connection WEIGHT and "
                          "DELAY distributions for every named projection to this HDF5 path, "
@@ -1255,6 +1261,20 @@ def main():
                                         fallback_ms=DELAY_COMM_MS, res_ms=RES_MS,
                                         jitter_ms=delay_jitter_ms, delay_scale=delay_scale),
     }
+    # PLAN.md P2: intraspinal Ia-interneuron -> antagonist motoneuron hop. It used
+    # delay["ia_path"] (the afferent conduction delay) before; split so human-scale
+    # afferent delays do not also slow one-segment reciprocal inhibition.
+    # NEST quirk (verified): two *separate* but identical random-delay Parameter objects
+    # draw differently from one shared object -- even connection counts change. So when
+    # the species gives ia_int_to_m exactly the ia_path values (rat), reuse that object;
+    # this keeps rat output byte-identical (./regress.sh).
+    _pk = lambda k: tuple(sorted((delay_paths.get(k) or {}).items()))
+    if delay_model == "fixed" or _pk("ia_int_to_m") == _pk("ia_path"):
+        delay["ia_int_to_m"] = delay["ia_path"]
+    else:
+        delay["ia_int_to_m"] = make_delay_param(delay_model, delay_paths, "ia_int_to_m",
+                                                fallback_ms=DELAY_MS, res_ms=RES_MS,
+                                                jitter_ms=delay_jitter_ms, delay_scale=delay_scale)
 
     # Ensure output directory exists (especially for sweep auto-naming)
     try:
@@ -1577,12 +1597,12 @@ def main():
         nest.Connect(L["ia_in_e"], L["ia_int_e"], conn_spec={"rule": "pairwise_bernoulli", "p": IA2RG_P},
                      syn_spec={"synapse_model": "static_synapse", "weight": W_IA_IN2INT, "delay": delay["ia_path"]})
         nest.Connect(L["ia_int_e"], L["m_f"], conn_spec={"rule": "pairwise_bernoulli", "p": IA2RG_P},
-                     syn_spec={"synapse_model": "static_synapse", "weight": W_IA_INT2ANT, "delay": delay["ia_path"]})
+                     syn_spec={"synapse_model": "static_synapse", "weight": W_IA_INT2ANT, "delay": delay["ia_int_to_m"]})
 
         nest.Connect(L["ia_in_f"], L["ia_int_f"], conn_spec={"rule": "pairwise_bernoulli", "p": IA2RG_P},
                      syn_spec={"synapse_model": "static_synapse", "weight": W_IA_IN2INT, "delay": delay["ia_path"]})
         nest.Connect(L["ia_int_f"], L["m_e"], conn_spec={"rule": "pairwise_bernoulli", "p": IA2RG_P},
-                     syn_spec={"synapse_model": "static_synapse", "weight": W_IA_INT2ANT, "delay": delay["ia_path"]})
+                     syn_spec={"synapse_model": "static_synapse", "weight": W_IA_INT2ANT, "delay": delay["ia_int_to_m"]})
 
         # MOD_IA_LOOP: Ia afferents drive the RG reciprocal-inhibition interneurons too.
         # Ia-E (peaks with extensor force/stretch) → InE → inhibits RG-F → reinforces
@@ -1704,6 +1724,27 @@ def main():
         except Exception as e:
             if rank == 0:
                 print(f"[BioPlaus] static heterogeneity skipped: {e}")
+
+    # ---- PLAN.md P2: reflex-latency probe (opt-in) ----
+    # Runs are deterministic for a fixed seed and thread count (B11/B12), so a probe run
+    # and a control run with the SAME extra nodes differ only by the volley: the first
+    # spike that differs after the volley gives the shortest causal Ia -> RG/M/muscle
+    # latency. Nothing here is created unless --probe-reflex-at-ms is given.
+    PROBE_RECS = {}
+    PROBE_VOLLEY_MS = None
+    if getattr(args, "probe_reflex_at_ms", None) is not None:
+        _t = float(args.probe_reflex_at_ms)
+        PROBE_VOLLEY_MS = round(_t / RES_MS) * RES_MS if _t >= 0 else -1.0
+        _sg = nest.Create("spike_generator", len(leg["L"]["ia_in_e"]),
+                          params={"spike_times": [PROBE_VOLLEY_MS] if PROBE_VOLLEY_MS > 0 else []})
+        nest.Connect(_sg, leg["L"]["ia_in_e"], "one_to_one",
+                     syn_spec={"synapse_model": "static_synapse", "weight": 1.0, "delay": RES_MS})
+        for _name in ("rg_e", "m_e", "mus_e"):
+            PROBE_RECS[_name] = nest.Create("spike_recorder")
+            nest.Connect(leg["L"][_name], PROBE_RECS[_name])
+        if rank == 0:
+            print(f"[Probe] Ia-E volley at {PROBE_VOLLEY_MS} ms (negative = control, no volley); "
+                  f"recording left RG-E, M-E, mus-E")
 
     # ---- optional: dump per-connection weight & delay distributions, then exit ----
     if str(getattr(args, "dump_connectivity", "")).strip():
@@ -2639,6 +2680,15 @@ def main():
         h5.attrs["delay_jitter_ms"] = float(getattr(args, "delay_jitter_ms", 0.0))
         h5.attrs["delay_scale"] = float(getattr(args, "delay_scale", 1.0))
         write_species_provenance(h5, SPECIES_CFG, out_path=args.out)
+        if PROBE_RECS:  # PLAN.md P2 reflex-latency probe
+            gp = h5.create_group("probe")
+            gp.attrs["volley_ms"] = float(PROBE_VOLLEY_MS)
+            gp.attrs["resolution_ms"] = float(RES_MS)
+            for _name, _rec in PROBE_RECS.items():
+                _ev = nest.GetStatus(_rec, "events")[0]
+                _order = np.lexsort((np.asarray(_ev["senders"]), np.asarray(_ev["times"])))
+                gp.create_dataset(f"{_name}_times", data=np.asarray(_ev["times"], dtype=np.float64)[_order])
+                gp.create_dataset(f"{_name}_senders", data=np.asarray(_ev["senders"], dtype=np.int64)[_order])
         # Sweep metadata (if active)
         if ("sweep_active" in locals()) and sweep_active:
             h5.attrs["sweep_active"] = True

@@ -76,24 +76,30 @@ run is "human":
   `config/species/human.yaml` is still the rat value. Each block names the phase
   that replaces it.
 - `FLEXOR_BS_GAIN` is `1.00`, the same as rat.
-- **The human `delays:` section gives rat-like delays** (Phase 2 fixes this). Its path lengths are longer (1–5 cm)
-  but its velocities are 6× higher (25–40 m/s), so the resulting delays barely change:
+- **Human delays (PLAN.md P2, 2026-09-25).** Peripheral paths scale with body height
+  (`length_frac_height` × `body.height_m`, 1.74 m); intraspinal paths stay ~1–2 ms.
+  Estimates to verify (anthropometry, nerve-conduction norms):
 
-  | Key | rat (ms) | human preset (ms) |
-  |---|---|---|
-  | `cut_to_rg` | 2.00 | 1.67 |
-  | `bs_to_rg` / `base_to_rg` | 3.00 | 2.25 |
-  | `rg_to_m` / `m_to_mus` | 2.00 | 1.67 |
-  | `ia_path` | 2.00 | 2.33 |
-  | `rg_rec` | 1.20 | 1.20 |
-  | `rg_recip` / `motor_e2f` / `motor_f2e` | 1.80 | 1.60 |
-  | `commissural` | 2.20 | 2.33 |
+  | Key | rat (ms) | human (ms) | human path |
+  |---|---|---|---|
+  | `ia_path` | 2.00 | 13.6 | soleus spindle → L5/S1, 0.47 H at 65 m/s |
+  | `m_to_mus` | 2.00 | 15.9 | motoneuron → soleus/TA, 0.47 H at 55 m/s (+ NMJ) |
+  | `cut_to_rg` | 2.00 | 23.6 | plantar sole → lumbar cord, 0.65 H at 50 m/s |
+  | `bs_to_rg` / `base_to_rg` | 3.00 | 8.3 | medulla → lumbar cord, 0.25 H at 60 m/s |
+  | `ia_int_to_m` (new in P2) | 2.00 | 1.5 | Ia interneuron → antagonist motoneuron (intraspinal) |
+  | `rg_to_m`, `rg_rec`, `rg_recip`, `motor_*`, `commissural` | 1.2–2.2 | 1.2–2.3 | intraspinal |
 
-  Intraspinal paths (`rg_rec`, `rg_recip`, `motor_*`, `commissural`) being short is
-  fine. The **peripheral** paths are not: in an adult, the soleus-to-L5/S1 path is
-  roughly 0.8–1 m each way, and the soleus H-reflex latency is about 30 ms (Palmieri
-  et al. 2004). `ia_path`, `m_to_mus` and `cut_to_rg` should each be on the order of
-  10–20 ms, not about 2 ms. Fixing this preset is step 1 of the plan below.
+  `ia_int_to_m` was split off `ia_path` in P2: the Ia-interneuron → antagonist
+  motoneuron synapse used the afferent conduction delay before. Rat keeps the
+  identical value and **reuses the `ia_path` NEST Parameter object** when the two
+  entries are equal — two separate but identical random-delay Parameters draw
+  differently in NEST (verified; even connection counts change).
+- **Reflex-latency probe:** `python3 scripts/probe_reflex_latency.py --species human`.
+  The model has no monosynaptic Ia → motoneuron connection (Ia reaches M-E through
+  RG-E), so it measures the shortest causal Ia → muscle latency. It uses
+  `--probe-reflex-at-ms` and determinism (identical control vs. volley runs; the first
+  diverging spike). Result, debug.sh configuration: **human 30.2 ms** (median 30.9;
+  RG-E 13.4 ms, M-E 14.8 ms), inside the 28–35 ms soleus reflex target; rat 5.0 ms.
 - The Ia/CUT rates are recomputed from force/length in Python every `--rate-update-ms`
   (50 ms in `debug.sh`). That update lag is already larger than any synaptic delay.
   Account for it when matching the ~30 ms reflex latency.
@@ -191,6 +197,9 @@ sbatch run.sh
 | `config/species/<name>.yaml` | One file per species: constants, CLI defaults, body, neuron profile and the `delays:` section (delay model + per-path table). Rat values equal the pre-P1 code. |
 | `scripts/cpg_force_weights_panel.py` | Force + plastic weights over a whole run, both legs, extensor and flexor. |
 | `scripts/cpg_force_weights_stages.py` | Force + weights at beginning / middle / end of a run, both legs. |
+| `scripts/probe_reflex_latency.py` | PLAN.md P2 reflex-latency probe: shortest causal Ia → RG-E / M-E / muscle latency for a species (control vs. volley runs). |
+| `run_modes_local.sh` | The five canonical locomotion modes (slow/medium/fast walk, toe/air stepping; sensory-learning model) locally at `--debug-small`, for one species → `results/modes/<species>/`. |
+| `scripts/cpg_modes_stages.py` | Force + weights at three stages for all five modes of one species (overview figure). |
 | `debug_force.sh` | Local single-config run with `--debug-small --cut-trigger force` (closed-loop, force-triggered CUT — see below). |
 | `run_cutforce_sweep.sh` | EXPLORATORY MN5 sweep round 1 (9 tasks): fatigue-onset-τ {200,400,600} × cap {500,800,1100}. Superseded by round 2 — its apparent "best" result turned out 100% cap-dominated on re-diagnosis, see "Force-triggered CUT" below. |
 | `run_cutforce_sweep2.sh` | EXPLORATORY MN5 sweep round 2 (9 tasks): fatigue-onset-τ {400,600,800} × tighter, bio-plausible cap {300,450,600}. Superseded — 100% cap-dominated on all 9 configs, see "Force-triggered CUT" below. |

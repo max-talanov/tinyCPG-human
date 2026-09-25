@@ -1,7 +1,7 @@
 # Human species configuration (PLAN.md P1). Selected with --species human.
 #
-# STATUS (P1): infrastructure only. Apart from the delays section and the
-# body height, every value is still the rat value; each block names the phase
+# STATUS: delays are human since P2 (2026-09-25). Apart from the delays section
+# and the body height, every value is still the rat value; each block names the phase
 # that replaces it with a human one (see PLAN.md §2 and CLAUDE.md "Rat → human
 # parameter map"). Local/debug profile: neuron parameters stay abstract (D6).
 #
@@ -54,21 +54,30 @@ cli_defaults:                  # Phases 3/5: human stride, stance ~0.60, rescale
   cut_feedback_gain: 1.0
 
 # Delays (decision D2: part of the species file). Formula: see rat.yaml.
-# STATUS: pre-P1 DELAY_PRESETS["human"], moved unchanged -- still rat-like
-# ~1.7-2.3 ms (PLAN.md §1.3, §7 B3). Phase 2 derives the peripheral paths
-# (ia_path, m_to_mus, cut_to_rg) from body.height_m and calibrates them against
-# the ~30 ms soleus H-reflex latency. Do not treat these as human delays.
+# PLAN.md P2 (2026-09-25). Peripheral paths use length_frac_height x body.height_m
+# (1.74 m -> lengths in brackets); intraspinal paths keep absolute lengths.
+# All anatomical fractions and velocities are ESTIMATES TO VERIFY (anthropometry,
+# e.g. Winter 2009; human nerve-conduction norms). They are chosen so the model's
+# Ia -> muscle loop lands at ~30-35 ms, the human soleus stretch/H-reflex range
+# (Palmieri et al. 2004); scripts/probe_reflex_latency.py measures it.
+#   soleus spindle <-> L5/S1 segments (conus ~L1 vertebra): ~0.47 H  [0.82 m]
+#   plantar sole -> lumbar cord:                             ~0.65 H  [1.13 m]
+#   medulla -> lumbar enlargement (reticulospinal):          ~0.25 H  [0.44 m]
 delays:
   model: length_velocity
   jitter_ms: 0.2
 
   paths:
-    cut_to_rg:   {syn_delay_ms: 1.0, length_m: 0.020, velocity_mps: 30.0}
-    bs_to_rg:    {syn_delay_ms: 1.0, length_m: 0.050, velocity_mps: 40.0}
-    base_to_rg:  {syn_delay_ms: 1.0, length_m: 0.050, velocity_mps: 40.0}
+    # --- peripheral (scale with height) ---
+    ia_path:     {syn_delay_ms: 1.0, length_frac_height: 0.47, velocity_mps: 65.0}  # Ia afferent, ~13.6 ms
+    m_to_mus:    {syn_delay_ms: 1.0, length_frac_height: 0.47, velocity_mps: 55.0}  # alpha-motor axon + NMJ, ~15.9 ms
+    cut_to_rg:   {syn_delay_ms: 1.0, length_frac_height: 0.65, velocity_mps: 50.0}  # plantar A-beta afferent, ~23.6 ms
+    # --- descending (tonic drive: timing matters little) ---
+    bs_to_rg:    {syn_delay_ms: 1.0, length_frac_height: 0.25, velocity_mps: 60.0}  # reticulospinal, ~8.3 ms
+    base_to_rg:  {syn_delay_ms: 1.0, length_frac_height: 0.25, velocity_mps: 60.0}
+    # --- intraspinal (absolute, ~1-2 ms; synaptic delay dominates) ---
+    ia_int_to_m: {syn_delay_ms: 1.0, length_m: 0.010, velocity_mps: 20.0}
     rg_to_m:     {syn_delay_ms: 1.0, length_m: 0.020, velocity_mps: 30.0}
-    m_to_mus:    {syn_delay_ms: 1.0, length_m: 0.020, velocity_mps: 30.0}
-    ia_path:     {syn_delay_ms: 1.0, length_m: 0.040, velocity_mps: 30.0}
     rg_rec:      {syn_delay_ms: 0.8, length_m: 0.010, velocity_mps: 25.0}
     rg_recip:    {syn_delay_ms: 1.0, length_m: 0.015, velocity_mps: 25.0}
     motor_e2f:   {syn_delay_ms: 1.0, length_m: 0.015, velocity_mps: 25.0}

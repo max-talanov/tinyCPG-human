@@ -76,6 +76,7 @@ delays:
     rg_to_m:     {syn_delay_ms: 1.0, length_m: 0.005, velocity_mps: 5.0}
     m_to_mus:    {syn_delay_ms: 1.0, length_m: 0.005, velocity_mps: 5.0}
     ia_path:     {syn_delay_ms: 1.0, length_m: 0.010, velocity_mps: 10.0}
+    ia_int_to_m: {syn_delay_ms: 1.0, length_m: 0.010, velocity_mps: 10.0}   # = ia_path (P2 split; rat unchanged)
     rg_rec:      {syn_delay_ms: 0.8, length_m: 0.002, velocity_mps: 5.0}
     rg_recip:    {syn_delay_ms: 1.0, length_m: 0.004, velocity_mps: 5.0}
     motor_e2f:   {syn_delay_ms: 1.0, length_m: 0.004, velocity_mps: 5.0}
