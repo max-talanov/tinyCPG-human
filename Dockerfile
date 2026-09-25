@@ -8,7 +8,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY ./*.py ./
 COPY ./*.sh ./
-RUN chmod +x ./*.sh
+# Species configs (PLAN.md P1) -- the model cannot start without them.
+COPY config/ ./config/
+# Rat reference scripts (rat-sh/README.md), incl. the default job below.
+COPY rat-sh/ ./rat-sh/
+RUN chmod +x ./*.sh ./rat-sh/*.sh
 
 ENTRYPOINT ["./entrypoint.sh"]
-CMD ["./run_sim_mt.sh"]
+CMD ["./rat-sh/run_sim_mt.sh"]

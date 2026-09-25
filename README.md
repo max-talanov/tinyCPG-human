@@ -117,15 +117,15 @@ The main rat-to-human changes:
 | Path | Contents |
 |---|---|
 | `cpg_2legs_fast.py` | The model: neurons, connectivity, plasticity, consolidation, simulation loop, HDF5 export |
-| `debug.sh`, `debug_force.sh` | Fast local single-config runs (`--debug-small`, about 30 s) |
-| `run*.sh` | SLURM array scripts for production sweeps on MareNostrum 5 (MN5) |
+| `run_modes_local.sh` | The five locomotion modes (slow/medium/fast walk, toe/air stepping) locally, for one species |
+| `regress.sh` | Rat regression check; must pass after every model change |
+| `rat-sh/` | Rat reference scripts, kept only for comparison: local debug runs and MN5 SLURM sweeps (see `rat-sh/README.md`) |
 | `scripts/` | Figure and analysis generators, including `cpg_plot_from_hdf5.py` and `cpg_cutforce_diagnostics.py` |
 | `scripts/legacy/` | Superseded generators, kept for reference |
 | `paper/` | LaTeX manuscript of the rat model (`main.tex`, `sections/`, `figures/`) |
 | `validation/` | Literature-validation notes and EMG data requests |
 | `spinal_plasticity_as_learning_spec.md` | Literature spec for spinal plasticity timescales and gating, and for tag-and-capture |
 | `config/species/`, `species_config.py` | YAML species configs (constants, CLI defaults, delays) and their loader |
-| `regress.sh` | Rat regression check; must pass after every model change |
 | `CLAUDE.md` | Detailed model internals, tuning history, key constants and "do not touch" list |
 | `MN5_RUN.md` | Workflow for MN5 runs: upload, submit, retrieve, plot |
 
@@ -133,16 +133,33 @@ The main rat-to-human changes:
 
 ```bash
 pip install -r requirements.txt     # needs nest-simulator>=3.9 (not the `nest` package)
-./debug.sh                          # rat baseline -> results/debug.h5
-python3 scripts/cpg_plot_from_hdf5.py --in results/debug.h5 --save-prefix debug
 ```
 
-To run the same circuit with human conduction delays, change `--species rat`
-to `--species human` in `debug.sh`, or run the model directly:
+Human model, the five locomotion modes (debug-small, local), and their
+force/weight figures at three stages:
+
+```bash
+./run_modes_local.sh human 120000 1e-4
+```
+
+```bash
+python3 scripts/cpg_modes_stages.py --species human
+```
+
+A single short human run:
 
 ```bash
 python3 cpg_2legs_fast.py --debug-small --paced-gait --species human --sim-ms 10000 --out results/debug_human.h5
 ```
+
+Reflex latency of the human delays (target ~30 ms):
+
+```bash
+python3 scripts/probe_reflex_latency.py --species human
+```
+
+The rat model is kept only for comparison: `./rat-sh/debug.sh` is the rat
+reference run, and `./regress.sh` checks that rat output is unchanged.
 
 Use the healthy vs. SCI flags on top of this. Descending plasticity off:
 `--freeze-bs-rg`. Reduced loading: `--ia-feedback-gain`,

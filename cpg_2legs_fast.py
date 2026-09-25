@@ -690,7 +690,7 @@ def main():
     # indefinitely -- RG-E has no INaP-style self-terminating burst mechanism the
     # way RG-F does (RGF_C/RGF_D intrinsic bursting), so nothing makes force decay
     # on its own during sustained stance). Opt-in and OFF by default so existing
-    # timer-based paced-gait runs (debug.sh, run.sh, run_*_stdp.sh) are unaffected.
+    # timer-based paced-gait runs (rat-sh/debug.sh, rat-sh/run.sh, rat-sh/run_*_stdp.sh) are unaffected.
     ap.add_argument("--muscle-fatigue", action="store_true",
                     help="MOD_MUSCLE_FATIGUE: add slow activity-dependent fatigue to "
                          "the force proxy (both E and F) so force genuinely decays "
@@ -1038,7 +1038,7 @@ def main():
             args.stdp_winit_std = float(sweep_cv)
 
     # B12 (PLAN.md §7): seed numpy in every mode. Previously only sweep mode seeded it,
-    # so non-sweep runs (e.g. run_frozen.sh) drew BS spike offsets/jitter unseeded.
+    # so non-sweep runs (e.g. rat-sh/run_frozen.sh) drew BS spike offsets/jitter unseeded.
     # Sweep mode is unchanged: same seed value, same point in the RNG stream.
     np.random.seed(run_seed)
     # --- STDP randomized initial weights helper ---

@@ -1,5 +1,12 @@
 # MN5 run manifest — descending vs sensory learning + ablation
 
+> **tinyCPG-human note (2026-09-25):** this is the inherited **rat** MN5 workflow. The
+> rat run scripts now live in `rat-sh/` and are submitted from the repo root
+> (`sbatch rat-sh/<script>.sh`). The superseded force-trigger sweeps described
+> below (`run_cutforce_sweep*.sh`, `run_cutforce_sensory_unload.sh`) were deleted.
+> Restore one with `git show c047f24:<name>.sh` (see `rat-sh/README.md`). Human
+> production scripts arrive in PLAN.md Phase 9.
+
 What to upload to MN5, what to submit, and what to bring back for local plotting.
 Plotting is done **locally** (after `scp`-ing results back), not on MN5.
 
@@ -46,7 +53,7 @@ Plotting is done **locally** (after `scp`-ing results back), not on MN5.
 > Every round so far tested only **one** STDP initial-weight point (μ=3.5,
 > CV=0.30). Phase 3 (`run_cutforce_sweep6.sh`) holds the winning config fixed and
 > sweeps the same 10-point (μ,CV) grid the base timer-based model already uses for
-> its own robustness claim (`run.sh` / paper Algorithm 1), at the same 120s
+> its own robustness claim (`rat-sh/run.sh` / paper Algorithm 1), at the same 120s
 > duration. **Always run `scripts/cpg_cutforce_diagnostics.py` on the outputs
 > before trusting any correlation number.** Not a final result to plot into the
 > paper yet.
@@ -54,8 +61,8 @@ Plotting is done **locally** (after `scp`-ing results back), not on MN5.
 > **NOTE — 5×5 matrix + logistic gate (post 2026-07-07).** Two changes require a
 > re-run of the sensory arms: (i) the activation gate is now a smooth logistic
 > (`MOD_LOGISTIC_GATE`, replaces the hard clamp — bio-plausibility) so all figures
-> should be regenerated against the new equations; (ii) `run_sensory_stdp.sh` and
-> `run_ablation_sensory.sh` now sweep **5 STDP rates** (λ = 1e-6 … 1e-2, arrays
+> should be regenerated against the new equations; (ii) `rat-sh/run_sensory_stdp.sh` and
+> `rat-sh/run_ablation_sensory.sh` now sweep **5 STDP rates** (λ = 1e-6 … 1e-2, arrays
 > `0-14`) for the 5 modes × 5 λ comparison. Submit both, bring back
 > `cpg_sensory_stdp_*` and `cpg_ablsens_*`, then run
 > `scripts/cpg_mode_lambda_summary.py --indir <dated>` (heatmaps + trends + table, auto-detects
@@ -85,23 +92,23 @@ git pull origin main
 # from this repo root, on your laptop
 rsync -av \
   cpg_2legs_fast.py \
-  run_speed_stdp.sh \
-  run_sensory_stdp.sh \
-  run_ablation_stim.sh \
-  run_ablation_graded.sh \
-  run_ablation_sensory.sh \
-  run_frozen.sh \
+  rat-sh/run_speed_stdp.sh \
+  rat-sh/run_sensory_stdp.sh \
+  rat-sh/run_ablation_stim.sh \
+  rat-sh/run_ablation_graded.sh \
+  rat-sh/run_ablation_sensory.sh \
+  rat-sh/run_frozen.sh \
   <user>@mn5:/path/to/tinyCPG/
 ```
 
 | File | Role |
 |---|---|
 | `cpg_2legs_fast.py` | The model (the only code file needed). |
-| `run_speed_stdp.sh` | Phase A — **descending** arm: speed × λ (BS→RG plastic). |
-| `run_sensory_stdp.sh` | Phase A — **sensory** arm: speed × λ (frozen BS + plastic Ia→RG). |
-| `run_ablation_stim.sh` | Phase B — epidural-**stim** arm (CUT intact). |
-| `run_ablation_graded.sh` | Phase B — **natural** arm (CUT + Ia gated by loading). |
-| `run_ablation_sensory.sh` | Phase B — **sensory** arm: loading × λ, Ia is the gated learning drive. |
+| `rat-sh/run_speed_stdp.sh` | Phase A — **descending** arm: speed × λ (BS→RG plastic). |
+| `rat-sh/run_sensory_stdp.sh` | Phase A — **sensory** arm: speed × λ (frozen BS + plastic Ia→RG). |
+| `rat-sh/run_ablation_stim.sh` | Phase B — epidural-**stim** arm (CUT intact). |
+| `rat-sh/run_ablation_graded.sh` | Phase B — **natural** arm (CUT + Ia gated by loading). |
+| `rat-sh/run_ablation_sensory.sh` | Phase B — **sensory** arm: loading × λ, Ia is the gated learning drive. |
 
 `make sure they're executable: chmod +x run_*.sh` (already +x in git).
 
@@ -112,8 +119,8 @@ Each script is a 9-task array (`--array=0-8` = 3 conditions × 3 λ), 120 s/task
 
 **New / required (the sensory-learning results don't exist yet):**
 ```bash
-sbatch run_sensory_stdp.sh       # -> results/cpg_sensory_stdp_<spd>_<lam>_*.h5
-sbatch run_ablation_sensory.sh   # -> results/cpg_ablsens_<gain>_<lam>_*.h5
+sbatch rat-sh/run_sensory_stdp.sh       # -> results/cpg_sensory_stdp_<spd>_<lam>_*.h5
+sbatch rat-sh/run_ablation_sensory.sh   # -> results/cpg_ablsens_<gain>_<lam>_*.h5
 ```
 
 **Descending / ablation arms — only if not already produced with the current
@@ -121,18 +128,18 @@ model** (these scripts are unchanged in behaviour; the freeze/Ia flags are OFF
 by default, so existing `cpg_speed_stdp_*`, `cpg_ablstim_*`, `cpg_ablgrad_*`
 outputs are still valid). Re-run for single-version consistency if you prefer:
 ```bash
-sbatch run_speed_stdp.sh         # -> results/cpg_speed_stdp_<spd>_<lam>_*.h5
-sbatch run_ablation_stim.sh      # -> results/cpg_ablstim_<gain>_<lam>_*.h5
-sbatch run_ablation_graded.sh    # -> results/cpg_ablgrad_<gain>_<lam>_*.h5
+sbatch rat-sh/run_speed_stdp.sh         # -> results/cpg_speed_stdp_<spd>_<lam>_*.h5
+sbatch rat-sh/run_ablation_stim.sh      # -> results/cpg_ablstim_<gain>_<lam>_*.h5
+sbatch rat-sh/run_ablation_graded.sh    # -> results/cpg_ablgrad_<gain>_<lam>_*.h5
 ```
 
 **Frozen-weight control (§3.6) — re-run required at BASELINE loading.**
-`run_frozen.sh` now runs at full weight-bearing (`IA_GAIN=1.0`) and inherits
+`rat-sh/run_frozen.sh` now runs at full weight-bearing (`IA_GAIN=1.0`) and inherits
 the bio-plausible defaults; it tests whether imposing the converged
 CUT$\to$RG-E marginal distribution by hand reproduces the clean baseline
 rhythm (corr $-0.90$). The old air-stepping frozen data is superseded.
 ```bash
-sbatch run_frozen.sh             # -> results/cpg_frozen_m<M>_cv<CV3>_baseline_*.h5
+sbatch rat-sh/run_frozen.sh             # -> results/cpg_frozen_m<M>_cv<CV3>_baseline_*.h5
 ```
 
 Check progress: `squeue -u <user>`. Each array job writes its tasks into
@@ -230,7 +237,7 @@ squeue -u <user>                  # check progress
 ```
 Logs: `Nest_cutforce6_<jobid>_<task>.slurmout/.slurmerr`. Output:
 `results/cpg_cutforce6_robustness_idx0<N>_mu<MU>_cv<CV>_*.h5` (10 files, one per
-(μ,CV) point in the same grid `run.sh`/Algorithm 1 uses — see the script header).
+(μ,CV) point in the same grid `rat-sh/run.sh`/Algorithm 1 uses — see the script header).
 
 **Runtime — calibrated from a real timeout, not an estimate.** The first
 submission used `--time=03:00:00` and every one of the 10 tasks was
@@ -239,7 +246,7 @@ submission used `--time=03:00:00` and every one of the 10 tasks was
 writes the HDF5 at the very end). 180min for 66.7% extrapolates to ~270min
 (4.5h) for the full run *at that load level* — but MN5 load varies run to
 run, so a flat 33%-margin budget (06:00:00) is still only sized for the one
-load level actually observed. `--time` is now `12:00:00`, matching `run.sh`'s
+load level actually observed. `--time` is now `12:00:00`, matching `rat-sh/run.sh`'s
 own precedent for its 120s/10-task runs on the same partition (which budgets
 12h despite reportedly finishing in ~2h — see paper Sec 3.9), a margin that's
 already proven itself against MN5's load variance in practice. If you see

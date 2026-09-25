@@ -1,7 +1,7 @@
 #!/bin/bash
 # regress.sh — rat regression check (PLAN.md, Phase 0).
 #
-# Re-runs the two rat debug configs (debug.sh, debug_force.sh) exactly as
+# Re-runs the two rat debug configs (rat-sh/debug.sh, rat-sh/debug_force.sh) exactly as
 # they are, and checks that their output content is unchanged against the
 # recorded rat "golden" run. Every migration phase must end with this passing
 # (PLAN.md, guiding principle 1: rat stays byte-identical).
@@ -42,8 +42,8 @@ THREADS="${REGRESS_THREADS:-4}"
 MODE="${1:-check}"
 
 # config name | script | output path inside the scratch dir
-CONFIGS="debug|debug.sh|results/debug.h5
-debug_force|debug_force.sh|results/debug_force.h5"
+CONFIGS="debug|rat-sh/debug.sh|results/debug.h5
+debug_force|rat-sh/debug_force.sh|results/debug_force.h5"
 
 case "$MODE" in
   check|record) ;;
@@ -125,7 +125,7 @@ if [ "$MODE" = "record" ]; then
     echo "# Rat golden run for regress.sh (PLAN.md, Phase 0). Written by './regress.sh record'."
     echo "# Digests: scripts/regression_compare.py digest (content only, created_utc excluded)."
     echo "recorded_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-    echo "git_commit=$(git -C "$REPO" rev-parse --short HEAD 2>/dev/null || echo unknown)$(git -C "$REPO" diff --quiet -- cpg_2legs_fast.py debug.sh debug_force.sh 2>/dev/null || echo '+dirty')"
+    echo "git_commit=$(git -C "$REPO" rev-parse --short HEAD 2>/dev/null || echo unknown)$(git -C "$REPO" diff --quiet -- cpg_2legs_fast.py species_config.py config rat-sh/debug.sh rat-sh/debug_force.sh 2>/dev/null || echo '+dirty')"
     echo "threads=$THREADS"
     echo "nest_version=$(python3 -c 'import nest; print(nest.__version__)' 2>/dev/null | tail -1)"
     echo "python=$(python3 -c 'import platform; print(platform.python_version())')"

@@ -124,10 +124,10 @@ is measured with the reflex-latency probe in Phase 2. Peripheral path lengths
 are stored as fractions of `height_m`, so the whole table rescales with body
 size.
 
-**Current state (§7, B3):** the existing human delays (the `delays:` section of `config/species/human.yaml`, moved unchanged from `DELAY_PRESETS["human"]` in P1) give
-rat-like delays of about 1.7–2.3 ms. The peripheral paths are about 10× too
-short. Since Phase 1, delays are part of the species YAML and can no longer be
-detached from the species. Phase 2 sets and calibrates the values above.
+**Status: done in Phase 2** (2026-09-25). The human table in
+`config/species/human.yaml` gives Ia afferent 13.6 ms, motor axon 15.9 ms,
+cutaneous 23.6 ms and reticulospinal 8.3 ms at 1.74 m. The reflex-latency
+probe measures **30.2 ms**. See the Phase 2 status for details.
 
 ### 1.4 Bio-plausible spinal plasticity
 
@@ -215,7 +215,7 @@ merge (see README).
 **Goal:** make rat regressions detectable before touching the model.
 
 **Changes**
-- Record rat "golden" outputs from `debug.sh` and `debug_force.sh`, with fixed
+- Record rat "golden" outputs from `rat-sh/debug.sh` and `rat-sh/debug_force.sh`, with fixed
   seed and fixed `--threads`, under `results/golden/rat/`. They stay local
   because `*.h5` is git-ignored. A checksum manifest is committed.
 - Add `scripts/regression_compare.py`. It compares two HDF5 files array by
@@ -405,13 +405,13 @@ between threads and MPI ranks, which could affect run time. Measure it.
     measures the shortest causal Ia → muscle latency.
   - Method: identical control and volley runs; the first diverging spike
     gives the latency. It uses 10 volleys across one stride.
-- **Result (debug.sh configuration):** human mus-E **30.2 ms** (median
+- **Result (rat-sh/debug.sh configuration):** human mus-E **30.2 ms** (median
   30.9 ms; RG-E 13.4 ms, M-E 14.8 ms), inside the 28–35 ms target. Rat:
   5.0 ms.
 - `./regress.sh` passes (rat byte-identical).
 - Run time is unchanged by the longer delays: the five-mode runs take the
   same wall time for rat and human.
-- The Python sensory update tick (`--rate-update-ms`: 50 ms in `debug.sh`,
+- The Python sensory update tick (`--rate-update-ms`: 50 ms in `rat-sh/debug.sh`,
   100 ms in the paper's mode scripts) is still coarser than the reflex loop.
   It sets how fast *rate-coded* feedback responds. Revisit it in Phase 4/5.
 - **Five-mode check** (`run_modes_local.sh`: the paper's sensory-learning
@@ -747,6 +747,6 @@ applies to the human motor-unit and pool-size data needed for Phase 9.
 | B8 | No weight save → restore between runs (`--save-weights` writes only) | ~L479 | Multi-session rehabilitation protocols are not possible. |
 | B9 | No test or regression harness in the repo | — | Nothing checks that rat is unchanged. |
 | B11 | **FIXED 2026-09-24.** Not reproducible with >1 NEST thread (found in P0). NEST builds identical connections, but `GetConnections` returns them in a different order each run. The static-weight heterogeneity (`--static-weight-cv`, 0.5 by default) assigned its seeded numpy lognormal factors in that order. The `--max-weight-conns` subset and the consolidation baselines are positional too. | `sorted_connections()`; static heterogeneity, plastic `conns_cache`, `--dump-connectivity` | Before the fix, the same seed gave a differently wired network on every multi-thread run, including on MN5. **Rat results produced before 2026-09-24 cannot be reproduced bit-for-bit.** They remain statistically valid samples. |
-| B12 | **FIXED 2026-09-24.** NEST `rng_seed` was never set, so `--seed` only seeded numpy, and numpy was seeded only in sweep mode | kernel setup (`NEST_RNG_SEED`), `np.random.seed` now in every mode | Before the fix, every run used NEST's default seed (143202461). Poisson afferent noise, NEST-drawn weight init and delay jitter were identical across "different seeds". Multi-seed sweeps (for example the 3 seeds in `run_consolidate_all_modes_production.sh`) varied only the numpy-drawn parts. Now `rng_seed` = run seed; recorded as the `nest_rng_seed` attribute. |
+| B12 | **FIXED 2026-09-24.** NEST `rng_seed` was never set, so `--seed` only seeded numpy, and numpy was seeded only in sweep mode | kernel setup (`NEST_RNG_SEED`), `np.random.seed` now in every mode | Before the fix, every run used NEST's default seed (143202461). Poisson afferent noise, NEST-drawn weight init and delay jitter were identical across "different seeds". Multi-seed sweeps (for example the 3 seeds in `rat-sh/run_consolidate_all_modes_production.sh`) varied only the numpy-drawn parts. Now `rng_seed` = run seed; recorded as the `nest_rng_seed` attribute. |
 | B13 | **Open, needs decision.** Consolidation acts only on the `--max-weight-conns` subset. `conns_cache` is cut down to that subset "for weight stats", but the consolidation baselines and write-back use the same cache. | `cpg_2legs_fast.py` `conns_cache` downsampling and `MOD_CONSOLIDATE` | Production scripts pass `--max-weight-conns 2000`, but each plastic pathway has ~5,000 synapses per leg (100 × 100 × p = 0.5). So **only ~40% of synapses are consolidated**; the rest are vanilla STDP. Since B11 it is at least the same 40% every run. Debug-small is unaffected (all pathways are under 1,000 synapses). Possible fix: consolidation always uses the full collection, and only the stats use the subset. This changes production behaviour, and consolidate results at production N would need re-running. |
-| B10 | All per-mode timing is hard-coded in rat scripts (`run_*.sh`, `debug*.sh`), and constants are hard-coded in `cpg_2legs_fast.py` | scripts, model | Human modes need their own configuration. Resolved by D1 / Phase 1 (YAML) and Phase 5 (human scripts). |
+| B10 | (Rat scripts moved to `rat-sh/` on 2026-09-25; superseded ones deleted.) All per-mode timing is hard-coded in rat scripts (`run_*.sh`, `debug*.sh`), and constants are hard-coded in `cpg_2legs_fast.py` | scripts, model | Human modes need their own configuration. Resolved by D1 / Phase 1 (YAML) and Phase 5 (human scripts). |

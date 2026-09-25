@@ -6,7 +6,7 @@ synchronous Ia-E afferent volley to the left-leg RG-E, M-E and muscle (mus-E)
 spikes, for one species configuration.
 
 Method. Model runs are bit-reproducible for a fixed seed and thread count
-(PLAN.md §7 B11/B12). The script runs the debug.sh configuration once as a
+(PLAN.md §7 B11/B12). The script runs the rat-sh/debug.sh configuration once as a
 control (probe structure present, no volley: --probe-reflex-at-ms -1) and once
 per volley time. Up to the volley both runs are identical, so the first spike
 that differs afterwards is the earliest effect of the volley:
@@ -35,7 +35,7 @@ REPO = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 MODEL = os.path.join(REPO, "cpg_2legs_fast.py")
 POPS = ("rg_e", "m_e", "mus_e")
 
-# The debug.sh configuration (debug-small, paced gait), minus --species/--out/--sim-ms.
+# The rat-sh/debug.sh configuration (debug-small, paced gait), minus --species/--out/--sim-ms.
 DEBUG_ARGS = [
     "--debug-small", "--paced-gait", "--step-period-ms", "1000", "--stance-fraction", "0.5",
     "--n-ia-groups", "3", "--ia-ext-hz", "60", "80", "100", "--ia-ext-f-hz", "80",
@@ -95,7 +95,7 @@ def main():
     os.makedirs(workdir, exist_ok=True)
 
     print(f"[probe] species={args.species} threads={args.threads} sim={sim_ms:.0f} ms "
-          f"volleys={len(args.volley_ms)} (debug.sh configuration)")
+          f"volleys={len(args.volley_ms)} (rat-sh/debug.sh configuration)")
     ctrl = run(workdir, "control", args.species, -1, sim_ms, args.threads, args.extra)
     rows = []
     for v in args.volley_ms:

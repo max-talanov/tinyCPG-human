@@ -98,16 +98,16 @@ run is "human":
   The model has no monosynaptic Ia → motoneuron connection (Ia reaches M-E through
   RG-E), so it measures the shortest causal Ia → muscle latency. It uses
   `--probe-reflex-at-ms` and determinism (identical control vs. volley runs; the first
-  diverging spike). Result, debug.sh configuration: **human 30.2 ms** (median 30.9;
+  diverging spike). Result, rat-sh/debug.sh configuration: **human 30.2 ms** (median 30.9;
   RG-E 13.4 ms, M-E 14.8 ms), inside the 28–35 ms soleus reflex target; rat 5.0 ms.
 - The Ia/CUT rates are recomputed from force/length in Python every `--rate-update-ms`
-  (50 ms in `debug.sh`). That update lag is already larger than any synaptic delay.
+  (50 ms in `rat-sh/debug.sh`). That update lag is already larger than any synaptic delay.
   Account for it when matching the ~30 ms reflex latency.
 
 ### Rat → human parameter map
 
 Human values are **starting targets, none tested yet**. Rat values are the current
-inherited defaults (production script `run_consolidate_all_modes_production.sh` for
+inherited defaults (production script `rat-sh/run_consolidate_all_modes_production.sh` for
 per-mode timing).
 
 | Parameter | Where | Rat (current) | Human starting target | Basis |
@@ -165,14 +165,19 @@ feedback (Ia → InE/InF → RG).
 ## Quick start
 
 ```bash
-# Fast local iteration (~30 s wall clock)
-./debug.sh
+# Human: the five locomotion modes locally (debug-small), then the stage figure
+./run_modes_local.sh human 120000 1e-4
+python3 scripts/cpg_modes_stages.py --species human
 
-# Plot results
-python3 scripts/cpg_plot_from_hdf5.py --in results/debug.h5 --save-prefix debug
+# Human reflex latency (target ~30 ms)
+python3 scripts/probe_reflex_latency.py --species human
 
-# Production run on MN5 (don't touch unless ready)
-sbatch run.sh
+# After ANY model change: the rat must stay byte-identical
+./regress.sh
+
+# Rat reference only (comparison): local debug run, MN5 production sweep
+./rat-sh/debug.sh
+sbatch rat-sh/run.sh
 ```
 
 ## File map
@@ -184,14 +189,15 @@ sbatch run.sh
 | `scripts/legacy/` | Superseded figure scripts, kept for reference only — not used by the current paper. |
 | `scripts/cpg_plot_from_hdf5.py` | Reads HDF5, makes per-leg PNGs. |
 | `scripts/cpg_cutforce_diagnostics.py` | Pass/fail check for `--cut-trigger force` sweep outputs: corr(Force-E,Force-F) plus `frac_at_cap` (is the failsafe timer doing the work, or genuine force-threshold crossings?). Run before trusting any correlation number from this mode. |
-| `run.sh` | MN5 SLURM array script (N=100, 10-point μ:CV sweep). |
-| `run_speed_stdp.sh` | Phase A: 3 speeds × 3 λ {1e-5,1e-4,1e-3}, 120 s. (descending/BS-plastic arm) |
-| `run_sensory_stdp.sh` | Sensory-learning arm: same 3×3 matrix but `--freeze-bs-rg --stdp-ia-rg --wmax-ia 10`. Pair with `run_speed_stdp.sh` for descending-vs-sensory contrast. Outputs `cpg_sensory_stdp_*`. |
-| `run_ablation_sensory.sh` | Sensory-learning ablation arm: graded loading × λ with frozen BS + plastic Ia→RG (Ia is the *gated* learning drive). Outputs `cpg_ablsens_*`. Plot with `--mode ablsens`. |
-| `run_ablation_graded.sh` | Phase B: 3 Ia gains × 3 λ, 120 s. |
-| `run_frozen.sh` | Frozen-weight control: STDP off, air stepping, (mean,CV) sweep. |
-| `debug.sh` | Local single-config run with `--debug-small`. |
-| `regress.sh` | **Rat regression check (PLAN.md P0). Run after every model change; it must print `ALL PASS`.** Re-runs `debug.sh` and `debug_force.sh` unmodified in a scratch directory and compares content digests against `results/golden/rat/MANIFEST.txt`. The golden `.h5` files are local and git-ignored. Runs at 4 threads; runs are reproducible since the B11/B12 fix. `./regress.sh record` re-records the golden run; do that only on purpose. |
+| `rat-sh/run.sh` | MN5 SLURM array script (N=100, 10-point μ:CV sweep). |
+| `rat-sh/run_speed_stdp.sh` | Phase A: 3 speeds × 3 λ {1e-5,1e-4,1e-3}, 120 s. (descending/BS-plastic arm) |
+| `rat-sh/run_sensory_stdp.sh` | Sensory-learning arm: same 3×3 matrix but `--freeze-bs-rg --stdp-ia-rg --wmax-ia 10`. Pair with `rat-sh/run_speed_stdp.sh` for descending-vs-sensory contrast. Outputs `cpg_sensory_stdp_*`. |
+| `rat-sh/run_ablation_sensory.sh` | Sensory-learning ablation arm: graded loading × λ with frozen BS + plastic Ia→RG (Ia is the *gated* learning drive). Outputs `cpg_ablsens_*`. Plot with `--mode ablsens`. |
+| `rat-sh/run_ablation_graded.sh` | Phase B: 3 Ia gains × 3 λ, 120 s. |
+| `rat-sh/run_frozen.sh` | Frozen-weight control: STDP off, air stepping, (mean,CV) sweep. |
+| `rat-sh/debug.sh` | Local single-config run with `--debug-small`. |
+| `rat-sh/` | **Rat reference scripts** (comparison and regression only; see `rat-sh/README.md`). Run from the repo root, e.g. `./rat-sh/debug.sh`. Superseded rat sweeps (`run_cutforce_sweep*.sh`, `run_cutforce_sensory_unload.sh`, `run_consolidate_speed_arm_loading.sh`, `run_speed.sh`, `run_ablation.sh`) were deleted 2026-09-25; restore from git with `git show c047f24:<name>.sh`. |
+| `regress.sh` | **Rat regression check (PLAN.md P0). Run after every model change; it must print `ALL PASS`.** Re-runs `rat-sh/debug.sh` and `rat-sh/debug_force.sh` unmodified in a scratch directory and compares content digests against `results/golden/rat/MANIFEST.txt`. The golden `.h5` files are local and git-ignored. Runs at 4 threads; runs are reproducible since the B11/B12 fix. `./regress.sh record` re-records the golden run; do that only on purpose. |
 | `scripts/regression_compare.py` | `compare A.h5 B.h5` gives a per-array diff of two outputs. `digest F.h5` gives a content hash that skips `created_utc`. |
 | `species_config.py` | YAML species-config loader (PLAN.md P1). `python3 species_config.py <name>` prints the resolved config; `--check` validates all of `config/species/`. |
 | `config/species/<name>.yaml` | One file per species: constants, CLI defaults, body, neuron profile and the `delays:` section (delay model + per-path table). Rat values equal the pre-P1 code. |
@@ -200,24 +206,20 @@ sbatch run.sh
 | `scripts/probe_reflex_latency.py` | PLAN.md P2 reflex-latency probe: shortest causal Ia → RG-E / M-E / muscle latency for a species (control vs. volley runs). |
 | `run_modes_local.sh` | The five canonical locomotion modes (slow/medium/fast walk, toe/air stepping; sensory-learning model) locally at `--debug-small`, for one species → `results/modes/<species>/`. |
 | `scripts/cpg_modes_stages.py` | Force + weights at three stages for all five modes of one species (overview figure). |
-| `debug_force.sh` | Local single-config run with `--debug-small --cut-trigger force` (closed-loop, force-triggered CUT — see below). |
-| `run_cutforce_sweep.sh` | EXPLORATORY MN5 sweep round 1 (9 tasks): fatigue-onset-τ {200,400,600} × cap {500,800,1100}. Superseded by round 2 — its apparent "best" result turned out 100% cap-dominated on re-diagnosis, see "Force-triggered CUT" below. |
-| `run_cutforce_sweep2.sh` | EXPLORATORY MN5 sweep round 2 (9 tasks): fatigue-onset-τ {400,600,800} × tighter, bio-plausible cap {300,450,600}. Superseded — 100% cap-dominated on all 9 configs, see "Force-triggered CUT" below. |
-| `run_cutforce_sweep3.sh` | EXPLORATORY MN5 sweep round 3 (9 tasks): fast fatigue-onset-τ {100,150,250} × looser `--cut-force-off-frac` {0.30,0.40,0.50}, cap fixed at 450ms. First round to escape cap-domination (frac_at_cap ~0 across the whole grid) — see "Force-triggered CUT" below. |
-| `run_cutforce_sweep4.sh` | EXPLORATORY MN5 sweep round 4 (9 tasks): narrows around round 3's working region — fatigue-onset-τ {250,300,350} × `--cut-force-off-frac` {0.25,0.30,0.35}, cap still fixed at 450ms. 6/9 configs reverted to cap-domination (incl. the numerically best-looking correlation); best genuine result τ=250/off=0.35 — see "Force-triggered CUT" below. |
-| `run_cutforce_sweep5.sh` | CONFIRMATION refinement (9 tasks, not a new exploration): brackets round 4's τ=250/off=0.35 optimum — fatigue-onset-τ {240,250,260} × `--cut-force-off-frac` {0.35,0.375,0.40}, cap still fixed at 450ms. **Confirmed: frac_at_cap=0.00 on all 9 configs** — best point τ=260/off=0.35, see "Force-triggered CUT" below. |
-| `run_cutforce_sweep6.sh` | PHASE 3 — seed/init robustness (10 tasks, 120s each): holds round 5's winning config fixed (τ=260, off=0.35, cap=450ms), sweeps the same 10-point (μ,CV) STDP-init grid as `run.sh`/paper Algorithm 1. Tests whether the operating point found in rounds 1-5 holds away from μ=3.5. |
-| `run_cutforce_sensory_unload.sh` | EXPLORATORY, round 1 (9 tasks, 120s each): production-scale test of the unloading-rescue mechanism (Ia→RG-E/F now loading-dependent, see "Core architecture fix" below) — sensory arm (`--freeze-bs-rg`), 3×3 grid of `--cut-feedback-gain` (loading) × `--ia-feedback-gain` (compensation). Local debug-scale tuning plateaued at weak counter-phase across a wide search; suspected debug-scale population-size ceiling (N_IA_E/F=30 vs 100 production), not a broken mechanism — see "Force-triggered CUT" below. |
-| `run_consolidate_speed_arm_loading.sh` | Stage 4 MN5 array (12 tasks): production sweep, force-trigger mode — 2 confirmed speeds (medium/slow, fast excluded — unresolved, see "Force-trigger speed axis" below) × 2 arms (descending/sensory), full weight-bearing only. **`--consolidate` is OFF for all 4 cells as of 2026-09-17** (revised — see "Medium's tick-alignment fragility and the consolidate leading-leg problem" below): medium+consolidate turned out to have its own unresolved leading-leg asymmetry issue (14 configs tried, none passed), joining slow+consolidate's already-documented failure (Stage 2). Also fixed medium's stale `step-period=520` → `1000` (never the actually-tested value). Toe/air loading is excluded entirely — Stage 3 found the medium timing config fails even without `--consolidate` at reduced loading (cap-domination at toe, tick-floor chattering at air, see "Stage 3" below). Seed/init-robustness (μ:CV grid) is explicitly NOT part of this sweep — see "MN5 readiness verdict" below. Superseded in scope by `run_consolidate_all_modes_production.sh` below for the consolidate-on question; this script's no-consolidate slow cells remain the reference for that speed. |
-| `run_consolidate_all_modes_production.sh` | **STAGE 5, prepared 2026-09-17, not yet submitted.** First production-scale (full N, BS=60Hz) test of `--consolidate` at the new uniform descending-arm gain (`0.25`/`0.10`) confirmed at `--debug-small` across medium/fast/toe (see "Fast/toe re-confirmed under the BS→RG write-back fix" below). 8 cells × 3 seeds = 24 tasks: {medium, fast, toe} × {desc, sens} with `--consolidate` at 0.25/0.10 (mode's own `tau_tag_ms`), plus slow × {desc, sens} without `--consolidate` (unchanged control). Deliberately does **not** apply the debug-small tick-de-alignment fix to medium's timing — at production's 100ms tick those constants are already not exact multiples, so the fix's premise may not transfer; see the script's own header for the full reasoning. Fast/toe's *base* timing (not just the gain) is itself still debug-small-only, flagged explicitly in the script. Flag construction dry-run-verified for all 8 cells; not submitted — `sbatch` is the user's call. |
+| `rat-sh/debug_force.sh` | Local single-config run with `--debug-small --cut-trigger force` (closed-loop, force-triggered CUT — see below). |
+| `rat-sh/run_consolidate_all_modes_production.sh` | **STAGE 5, prepared 2026-09-17, not yet submitted.** First production-scale (full N, BS=60Hz) test of `--consolidate` at the new uniform descending-arm gain (`0.25`/`0.10`) confirmed at `--debug-small` across medium/fast/toe (see "Fast/toe re-confirmed under the BS→RG write-back fix" below). 8 cells × 3 seeds = 24 tasks: {medium, fast, toe} × {desc, sens} with `--consolidate` at 0.25/0.10 (mode's own `tau_tag_ms`), plus slow × {desc, sens} without `--consolidate` (unchanged control). Deliberately does **not** apply the debug-small tick-de-alignment fix to medium's timing — at production's 100ms tick those constants are already not exact multiples, so the fix's premise may not transfer; see the script's own header for the full reasoning. Fast/toe's *base* timing (not just the gain) is itself still debug-small-only, flagged explicitly in the script. Flag construction dry-run-verified for all 8 cells; not submitted — `sbatch` is the user's call. |
 | `CLAUDE.md` | This file. |
 | `spinal_plasticity_as_learning_spec.md` | Literature-grounded spec for the `--consolidate` tag-and-capture mechanism (see "Tag-and-capture consolidation" below). Spinal-cord-only scope: §1 motor-circuit plasticity timescales, §2 the gating signals (serotonergic, contingency, structural), §3 nociceptive plasticity kept separate, §4 the mapping onto this model's three plastic pathways. All references verified against PubMed and cited by number. |
 
 > **Inherited rat-model history starts here** and runs to "Sensory-driven mode". All
 > timing, cap, fatigue and correlation numbers below are rat-scale (`--species rat`).
 > Use them for mechanism behaviour and failure modes, not as human operating points.
+> Scripts named below now live in `rat-sh/`, or were deleted on 2026-09-25 as superseded
+> (`run_cutforce_sweep*.sh`, `run_cutforce_sensory_unload.sh`,
+> `run_consolidate_speed_arm_loading.sh`, `run_speed.sh`, `run_ablation.sh`; restore with
+> `git show c047f24:<name>.sh`).
 
-## Frozen-weight control (`run_frozen.sh`)
+## Frozen-weight control (`rat-sh/run_frozen.sh`)
 
 Tests the Phase B two-regime hypothesis: that the descending-weight
 *distribution* (not the learning dynamics) carries the counter-phase quality.
@@ -280,14 +282,14 @@ loading, Grillner & Rossignol 1978; matches the two-level sensory-gated +
 endogenous-timer picture, Rybak/McCrea unit-burst-generator model). **Do not remove
 this timeout.**
 
-**Debug-scale validated** (`debug_force.sh`, debug-small, BS=20 Hz, 10 s): both legs
+**Debug-scale validated** (`rat-sh/debug_force.sh`, debug-small, BS=20 Hz, 10 s): both legs
 alternate stance/swing continuously for the full run (7-8 bouts/leg, no lock-in),
 corr(Force-E,Force-F) **−0.967 (L) / −0.967 (R)**, corr(RGE,RGF) **−0.83 (L) / −0.88
 (R)**, corr(Force-E_L, Force-E_R) **−0.80**, Force-E peaks ~17.5 a.u. with clean
 near-0 troughs.
 
 **Production scale is NOT yet at the same bar.** At full N, BS=60Hz, step_period=520ms,
-sweep-pairs 3.5:0.30 (the established operating point for `run_speed_stdp.sh` etc.),
+sweep-pairs 3.5:0.30 (the established operating point for `rat-sh/run_speed_stdp.sh` etc.),
 the debug-tuned defaults only reach corr(Force-E,Force-F) ≈ **−0.65 (L) / −0.77 to
 −0.85 (R)** over 8-20s, and bout-duration analysis showed transitions landing almost
 exactly at the `--cut-max-stance-ms` value every cycle — i.e. the failsafe was doing
@@ -403,7 +405,7 @@ across other STDP init points yet (Phase 3, next).
 winning config fixed (τ=260, off-frac=0.35, cap=450ms) and instead varies the STDP
 initial-weight distribution across the same 10-point (μ,CV) diagnostic grid the
 base timer-based model already uses for its own robustness claim (paper Algorithm 1
-/ `run.sh`) — reusing the project's established methodology rather than inventing a
+/ `rat-sh/run.sh`) — reusing the project's established methodology rather than inventing a
 new one, so the two are directly comparable. Every round so far (1-5) tested only
 μ=3.5,CV=0.30; this asks whether the mechanism holds at μ=0 and μ=16 too, the real
 stress tests. 120s sim (matching Algorithm 1's own duration, not the 60s first-pass
@@ -465,7 +467,7 @@ missing this pathway** and needs regenerating — this is now "regenerate the pa
 evidence base," not a small patch. See `~/.claude/plans/virtual-forging-owl.md` for
 the full rollout.
 
-**Smoke test — base timer-based descending arm (`debug.sh`, unchanged flags, just
+**Smoke test — base timer-based descending arm (`rat-sh/debug.sh`, unchanged flags, just
 the new circuit):** results improved, didn't regress. corr(Force-E,Force-F)
 −0.70(L)/−0.78(R), corr(RGE,RGF) −0.72 both legs, corr(Force-E_L,Force-E_R) **−0.98**.
 Notably, **the long-standing weak-flexor debug problem looks fixed for free**:
@@ -625,10 +627,10 @@ bout-boundary signal to gate on); raises at start-up if passed without it.
 working, default parameters do not yet show a self-correction benefit.**
 Three checks:
 
-1. *Regression*: `debug_force.sh` unmodified (no `--consolidate`) is
+1. *Regression*: `rat-sh/debug_force.sh` unmodified (no `--consolidate`) is
    byte-for-byte unaffected — confirmed, the flag is a true no-op when absent.
 2. *Mechanism sanity* (a naturally-occurring falsification-test case): the
-   plain `debug_force.sh` config has no `--muscle-fatigue`, so every bout is
+   plain `rat-sh/debug_force.sh` config has no `--muscle-fatigue`, so every bout is
    failsafe-forced (`frac_at_cap`=1.00 both legs, confirmed) — a run where
    `prp_pool` can only ever decrease. With `--consolidate` on, `baseline`
    stayed exactly flat at its t=0 init the entire 10s run on all three
@@ -2019,8 +2021,8 @@ tonic BS + closed-loop proprioception.
 **Confirmed at production scale** (full N, BS=60 Hz, paced, 15 s): corr(RGE,RGF) **−0.965**,
 corr(F-E,F-F) **−0.983**, Force-E/F peaks **16.7/16.7** (fully balanced), troughs ~1.0–1.1,
 CUT→RGE→62.4, Ia→RG self-stabilises at **~4.5 pA** (same as debug — robust, sub-cap).
-Cleaner than debug-small. Production sweep: `run_sensory_stdp.sh` (sensory-learning arm,
-mirrors `run_speed_stdp.sh` for a descending-vs-sensory paired contrast).
+Cleaner than debug-small. Production sweep: `rat-sh/run_sensory_stdp.sh` (sensory-learning arm,
+mirrors `rat-sh/run_speed_stdp.sh` for a descending-vs-sensory paired contrast).
 
 ## Architecture
 
@@ -2064,8 +2066,8 @@ Cross-leg: L↔R commissural inhibition on RG-F (strong) and RG-E (weak).
 | `TAU_FORCE_RISE/DECAY_MS = 30/30` | line ~294 | Force time constants. Rat fast-twitch range. **Overridden to 80/80 by `--paced-gait`.** |
 | `FORCE_SAT_K = 1.0` | line ~301 | Force saturation. K=1 keeps force linear. |
 | `N_INF = 40` (debug-small) | line ~792 | Doubled in debug-small to give 12 InF connections per RGE vs 6 at N=20. |
-| `--step-period-ms 1000` | `debug.sh` | Full gait cycle period. HALF_MS=500ms per leg. |
-| `--n-ia-groups 3` | `debug.sh` | Heel/mid/toe sequential Ia-E groups (60/80/100 Hz). Each active 167ms. |
+| `--step-period-ms 1000` | `rat-sh/debug.sh` | Full gait cycle period. HALF_MS=500ms per leg. |
+| `--n-ia-groups 3` | `rat-sh/debug.sh` | Heel/mid/toe sequential Ia-E groups (60/80/100 Hz). Each active 167ms. |
 | `config/species/*.yaml` | — | **Species configuration (PLAN.md P1).** Species-dependent constants (drive, afferents, muscle τ incl. `PACED_TAU_*`), CLI defaults and the per-path delay table. Loaded by `species_config.py`, applied by `apply_species_constants()` before anything else runs. Only existing numeric constants can be set, so a typo fails. The human `delays:` section **still gives rat-like ~2 ms delays** until Phase 2. |
 | `FLEXOR_BS_GAIN` | line ~128 | Flexor BS gain, set per species (`constants.drive`). `1.00` for both rat and human. |
 
@@ -2149,18 +2151,18 @@ Don't push values outside these ranges without flagging it. Rows marked "to veri
 ## Debug iteration pattern
 
 1. Edit one knob in `cpg_2legs_fast.py` (typically `W_IA2IN`, `P_IA2IN`, `BS_REGULAR_HZ`, or one of the `W_*2*` weights)
-2. `./debug.sh`
+2. `./rat-sh/debug.sh`
 3. `python3 scripts/cpg_plot_from_hdf5.py --in results/debug.h5 --save-prefix debug`
 4. Inspect `debug_legL_rg_rate.png`, `debug_legL_force.png`, `debug_legL_activation.png`
 5. Repeat
 
-Each iteration is ~30 s. Don't edit `run.sh` during debug.
+Each iteration is ~30 s. Don't edit `rat-sh/run.sh` during debug.
 
 ## When ready for MN5
 
-1. Verify alternation works at BS=20 Hz with `./debug.sh`
-2. Verify it still works at BS=60 Hz: remove `--debug-small` from `debug.sh` and re-run with `--sim-ms 5000`
-3. `sbatch run.sh`
+1. Verify alternation works at BS=20 Hz with `./rat-sh/debug.sh`
+2. Verify it still works at BS=60 Hz: remove `--debug-small` from `rat-sh/debug.sh` and re-run with `--sim-ms 5000`
+3. `sbatch rat-sh/run.sh`
 4. After completion, plot one HDF5 to confirm: `python3 scripts/cpg_plot_from_hdf5.py --in results/cpg_bursting_commfix_idx04_*.h5 --save-prefix solid_bs`
 
 ## Things NOT to touch without flagging the user
