@@ -5,7 +5,10 @@ Status: **in progress** (2026-09-24). Decisions D1–D7 are agreed (§4).
 Phase 1 (YAML species configs, delays tied to species), Phase 2 (human
 conduction delays, reflex probe at 30 ms), Phase 3 (phase scheduler, human
 stance 0.60 with double support) and MN5 check A (five modes at production N).
-**Next:** Phase 4.
+**Next:** Phase 3b (size-invariant connectivity, plus the B13 fix), then MN5
+check B (scaling benchmark and MPI-safe loop) alongside Phase 4. Both were moved
+forward on 2026-09-26 so that everything tuned from P4 on carries over to the
+adult-size model (P9) without re-tuning.
 
 This plan moves `cpg_2legs_fast.py` from rat to human parameters. The circuit,
 plasticity and consolidation mechanisms stay the same. What changes is timing,
@@ -614,6 +617,73 @@ Findings:
 5. **Early learning is slower at N = 100 than at debug-small in both species**
    (lower r at 4–9 s; CUT→RG-E reaches ~60 pA by 40 s).
 
+### Phase 3b — Size-invariant connectivity (M) — moved forward 2026-09-26
+
+**Goal:** the network behaves the same at any population size N. Then the
+operating points tuned at N = 100 in P4–P7 carry over to the adult-size model
+in P9 by construction, instead of having to be re-found there. This is the
+earliest point where it can be done: it changes the wiring that every later
+phase tunes against.
+
+**Why now.** All 39 projections use `pairwise_bernoulli` with a fixed
+probability p, tuned for N = 30–100 (B16). The mean in-degree is p × N_source,
+so it grows with N at unchanged weights:
+- 10× the neurons means 10× the synaptic input per neuron, and the network
+  saturates;
+- `--debug-small` needs a hand-tuned BS drive (20 Hz instead of 60 Hz) to
+  compensate for its smaller in-degree. This is the same problem in the other
+  direction.
+
+Muscle and afferent read-outs are already normalised per neuron
+(`sp / N_MUS` and fan-in in the muscle loop), so only the connectivity is
+size dependent.
+
+**Changes**
+- New flag `--conn-rule {bernoulli, indegree}`, with the default set in the
+  species YAML (`cli_defaults`):
+  - human: `indegree`;
+  - rat: `bernoulli`, so the rat golden files stay byte-identical.
+- Under `indegree`, each projection uses NEST `fixed_indegree` with a target
+  in-degree K* = p × N_ref, where N_ref is the production source size today
+  (100 for most populations). At N = 100 the mean input is therefore the same
+  as now, and MN5 check A stays a valid reference.
+- If a source population is smaller than K* (debug-small), use
+  K = min(K*, N_source) and scale the weight, and for plastic synapses Wmax,
+  by K*/K. That keeps the total input w × K constant. The debug-small BS
+  compensation can then be dropped under `indegree`.
+- The K* values go into the species YAML (`connectivity:`), not code
+  constants. Each is stored as an in-degree, not a probability, so P9 can
+  replace it with sourced values.
+- **Fix B13 in the same phase:** consolidation baselines and write-back use
+  the full synapse collection of each plastic pathway, and only the weight
+  statistics use the `--max-weight-conns` subset. Log the consolidated
+  fraction (it must be 1.0). This touches the same connection bookkeeping and
+  also has to be size-invariant: at adult size, a 2,000-synapse subset would
+  be a few percent of the pathway.
+- Record `conn_rule` and the K* table in the HDF5 attributes and the
+  `.config.yaml` sidecar.
+
+**Acceptance**
+- `./regress.sh` passes (rat unchanged).
+- **Switch check.** Human medium at N = 100, 3 seeds, `indegree` vs
+  `bernoulli`: gait metrics agree within the seed-to-seed spread. The metrics
+  are r(E,F), r(E_L,E_R), stance fraction, cycle period and end CUT→RG-E
+  weight. If they don't agree, document the shift and re-run MN5 check A under
+  `indegree`.
+- **Size sweep.** Human medium, 120 s, N scale × {0.3, 1, 3}: the same metrics
+  within the seed spread of N = 100. N × 0.3 and × 1 run locally; × 3 runs on
+  MN5 (it can share the MN5 check B job).
+- B13: consolidated fraction 1.0 at production N. Re-run the consolidate
+  operating point once to measure the behavioural change.
+
+**Risks**
+- Fixed in-degree removes the binomial spread of in-degrees, so neurons are a
+  little more homogeneous. The existing `--static-weight-cv` heterogeneity
+  can compensate if alternation turns out to depend on it.
+- Full-collection consolidation costs Python time per gate event. It is cheap
+  at N = 100 (~5,000 synapses per pathway and leg), but it must be measured
+  in MN5 check B before adult size.
+
 ### Phase 4 — Muscle and afferent model (M)
 
 **Goal:** human contraction dynamics and afferent rates (B5, B6).
@@ -753,7 +823,7 @@ healthy, then incomplete SCI, then complete SCI.
 healthy dataset at each speed. SCI comparisons are qualitative until data is
 obtained.
 
-### MN5 check B (before Phase 9) — scaling benchmark (M)
+### MN5 check B (after Phase 3b, alongside Phase 4) — scaling benchmark (M)
 
 **Goal:** turn the Phase 9 size estimate into data. This is a benchmark, not
 science. An adult lumbar model is plausibly 10⁴–10⁵ neurons and 10⁸–10⁹
@@ -771,17 +841,17 @@ The obstacles are in the model code (found 2026-09-25):
    `pairwise_bernoulli` with fixed p (~0.1–0.5), tuned for N = 30–100.
    - Scaling N multiplies every in-degree at the same weights, which
      saturates the network.
-   - Needed: fixed-in-degree rules with realistic in-degrees and normalised
-     weights, then re-tuning.
+   - **Moved to Phase 3b** (fixed in-degree with normalised weights). Check B
+     runs on the Phase 3b model.
 3. **Human population data are thin.**
    - Motor pools: order-of-magnitude figures exist (to source).
    - Human CPG interneuron classes (RG, V0/V1/V2a/V3) have never been
      counted, so they would be extrapolated from rodent/cat.
 
 **Changes**
-- Benchmark script: build and simulate ~10 s at N × {1, 3, 10, 30}. Keep
-  in-degree fixed (weights unchanged), so dynamics stay comparable while size
-  grows.
+- Benchmark script: build and simulate ~10 s at N × {1, 3, 10, 30} under
+  `--conn-rule indegree` (Phase 3b), so dynamics stay comparable while size
+  grows. Include full-collection consolidation (B13 fix) in the timing.
 - Measure build time, memory, NEST simulate time and Python-loop time per
   chunk. Record them in PLAN.md.
 - Prototype the MPI reduction of the per-chunk spike counts. Check that a
@@ -818,8 +888,8 @@ humans**. The local/debug model stays abstract.
 - Update README, CLAUDE.md and the figure scripts. Figures must label species
   and profile (`human` / `human_adult`) explicitly.
 
-**Prerequisites:** MN5 check B (MPI-safe closed loop, fixed-in-degree
-connectivity, cost table) and sourced human population data.
+**Prerequisites:** Phase 3b (fixed-in-degree connectivity), MN5 check B
+(MPI-safe closed loop, cost table) and sourced human population data.
 
 **Risk:** larger populations raise MN5 cost. Benchmark one production cell
 before submitting arrays.
@@ -829,14 +899,17 @@ before submitting arrays.
 ## 3. Order and dependencies
 
 ```
-P0 ─► P1 ─► P2 ─► P3 ─► MN5-A ─► P4 ─► P5 ─► P6 ─► P7a ─► P7b ─► P7c ─► MN5-B ─► P9
-                                                                        ▲
-                             P8 (data sourcing can start now) ──────────┘
+P0 ─► P1 ─► P2 ─► P3 ─► MN5-A ─► P3b ─┬─► P4 ─► P5 ─► P6 ─► P7a ─► P7b ─► P7c ─┬─► P9
+                                      └─► MN5-B (alongside P4) ────────────────┤
+                             P8 (data sourcing can start now) ─────────────────┘
 ```
 
-- P0–P2 are done (2026-09-25).
-- MN5 check A runs right after P3. MN5 check B precedes P9, and can start
-  earlier if MN5 time is free.
+- P0–P3 and MN5 check A are done (2026-09-25).
+- MN5 check A runs right after P3.
+- **P3b and MN5 check B were moved forward (2026-09-26)**, from just before P9
+  to right after MN5 check A. Tuning P4–P7 on a size-invariant network means
+  the adult-size run in P9 needs no re-tuning. P9 itself stays last: it needs
+  the settled SCI conditions (P7) and the sourced human population data.
 - P5 needs P3 and P4.
 - P7 follows the agreed condition order: healthy, then incomplete, then
   complete.
@@ -939,7 +1012,8 @@ applies to the human motor-unit and pool-size data needed for Phase 9.
 | B9 | No test or regression harness in the repo | — | Nothing checks that rat is unchanged. |
 | B11 | **FIXED 2026-09-24.** Not reproducible with >1 NEST thread (found in P0). NEST builds identical connections, but `GetConnections` returns them in a different order each run. The static-weight heterogeneity (`--static-weight-cv`, 0.5 by default) assigned its seeded numpy lognormal factors in that order. The `--max-weight-conns` subset and the consolidation baselines are positional too. | `sorted_connections()`; static heterogeneity, plastic `conns_cache`, `--dump-connectivity` | Before the fix, the same seed gave a differently wired network on every multi-thread run, including on MN5. **Rat results produced before 2026-09-24 cannot be reproduced bit-for-bit.** They remain statistically valid samples. |
 | B12 | **FIXED 2026-09-24.** NEST `rng_seed` was never set, so `--seed` only seeded numpy, and numpy was seeded only in sweep mode | kernel setup (`NEST_RNG_SEED`), `np.random.seed` now in every mode | Before the fix, every run used NEST's default seed (143202461). Poisson afferent noise, NEST-drawn weight init and delay jitter were identical across "different seeds". Multi-seed sweeps (for example the 3 seeds in `rat-sh/run_consolidate_all_modes_production.sh`) varied only the numpy-drawn parts. Now `rng_seed` = run seed; recorded as the `nest_rng_seed` attribute. |
-| B13 | **Open, needs decision.** Consolidation acts only on the `--max-weight-conns` subset. `conns_cache` is cut down to that subset "for weight stats", but the consolidation baselines and write-back use the same cache. | `cpg_2legs_fast.py` `conns_cache` downsampling and `MOD_CONSOLIDATE` | Production scripts pass `--max-weight-conns 2000`, but each plastic pathway has ~5,000 synapses per leg (100 × 100 × p = 0.5). So **only ~40% of synapses are consolidated**; the rest are vanilla STDP. Since B11 it is at least the same 40% every run. Debug-small is unaffected (all pathways are under 1,000 synapses). Possible fix: consolidation always uses the full collection, and only the stats use the subset. This changes production behaviour, and consolidate results at production N would need re-running. |
+| B13 | **Open, scheduled for Phase 3b** (full collection for consolidation, subset for stats only). Consolidation acts only on the `--max-weight-conns` subset. `conns_cache` is cut down to that subset "for weight stats", but the consolidation baselines and write-back use the same cache. | `cpg_2legs_fast.py` `conns_cache` downsampling and `MOD_CONSOLIDATE` | Production scripts pass `--max-weight-conns 2000`, but each plastic pathway has ~5,000 synapses per leg (100 × 100 × p = 0.5). So **only ~40% of synapses are consolidated**; the rest are vanilla STDP. Since B11 it is at least the same 40% every run. Debug-small is unaffected (all pathways are under 1,000 synapses). Possible fix: consolidation always uses the full collection, and only the stats use the subset. This changes production behaviour, and consolidate results at production N would need re-running. |
 | B14 | **FIXED 2026-09-25 (MOD_RECORDER_CLEAR).** Python bookkeeping grew with the square of simulated time. The model counted spikes by reading `n_events` from spike recorders that were never cleared. A NEST status read costs O(stored events), about 0.9 ms per million on this machine, and 16 reads happen per chunk. | `new_spikes()` in `cpg_2legs_fast.py` | tinyCPG MN5 Round 6: ~135 s in NEST vs ~17,000 s in bookkeeping per task, which forced 12 h limits. Now the recorder is cleared after each read. Measured locally, 60 s human medium: bookkeeping 17.2 s → 4.6 s, linear (20 s: 1.5 s). Spike counts are unchanged, so outputs are byte-identical (`./regress.sh` passes). |
 | B15 | **FIXED 2026-09-25.** Every SLURM script asked for the GPU partition (`--partition=acc`, 64 cores, 10–12 h), although no GPU is used; jobs sat pending. | `rat-sh/*.sh`, `mpi_test.sh` | Now `--partition=gp_bsccs` (the CPU partition, as in tinyHippo). Limits are 2 h (4 h for consolidation) and 10 min for `mpi_test.sh`. |
+| B16 | **Open, scheduled for Phase 3b.** Connectivity is not size-invariant: all 39 projections use `pairwise_bernoulli` with a fixed p, so the mean in-degree grows with N at unchanged weights. | `nest.Connect(..., rule pairwise_bernoulli)` in the network build | A larger network saturates, so the adult-size model (P9) cannot reuse the N = 100 operating points. `--debug-small` already needs a hand-tuned BS drive (20 Hz) to compensate for its smaller in-degree. |
 | B10 | (Rat scripts moved to `rat-sh/` on 2026-09-25; superseded ones deleted.) All per-mode timing is hard-coded in rat scripts (`run_*.sh`, `debug*.sh`), and constants are hard-coded in `cpg_2legs_fast.py` | scripts, model | Human modes need their own configuration. Resolved by D1 / Phase 1 (YAML) and Phase 5 (human scripts). |
