@@ -162,6 +162,27 @@ def _load_delays(d, path, body):
     return {"model": model, "jitter_ms": float(d.get("jitter_ms", 0.2)), "paths": paths}
 
 
+def _load_connectivity(c, source):
+    """Optional `connectivity:` section (PLAN.md P3b). The in-degrees themselves are
+    derived in the model as K* = p * production source size; `indegree_override` sets
+    K* for named projections (keys as in the HDF5 `conn_table_json`), e.g. from sourced
+    human data in Phase 9. Projection names are checked by the model at build time."""
+    if c is None:
+        return {"indegree_override": {}}
+    if not isinstance(c, dict):
+        raise ConfigError(f"{source}: connectivity must be a mapping")
+    extra = set(c) - {"indegree_override"}
+    if extra:
+        raise ConfigError(f"{source}: connectivity has unknown keys {sorted(extra)}")
+    ovr = c.get("indegree_override") or {}
+    if not isinstance(ovr, dict):
+        raise ConfigError(f"{source}: connectivity.indegree_override must be a mapping")
+    for k, v in ovr.items():
+        if isinstance(v, bool) or not isinstance(v, (int, float)) or not v > 0:
+            raise ConfigError(f"{source}: connectivity.indegree_override.{k} must be a number > 0")
+    return {"indegree_override": {str(k): float(v) for k, v in ovr.items()}}
+
+
 def _flatten_constants(groups, source):
     flat = {}
     for group, items in (groups or {}).items():
@@ -199,6 +220,7 @@ def load_species(name=None, path=None):
     cli = data.get("cli_defaults") or {}
     if not isinstance(cli, dict):
         raise ConfigError(f"{src}: cli_defaults must be a mapping")
+    conn = _load_connectivity(data.get("connectivity"), src)
     return {
         "species": str(data["species"]),
         "description": str(data.get("description", "")),
@@ -207,6 +229,7 @@ def load_species(name=None, path=None):
         "constants": _flatten_constants(data.get("constants"), src),
         "cli_defaults": dict(cli),
         "delays": _load_delays(data["delays"], src, data.get("body")),
+        "connectivity": conn,
         "files": {"species": src, "chain": chain},
     }
 

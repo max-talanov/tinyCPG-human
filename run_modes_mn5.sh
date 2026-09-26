@@ -68,7 +68,7 @@ python3 -c "import nest, yaml, h5py, numpy" 2>/dev/null \
 python3 species_config.py --check >/dev/null \
   || { echo "[modes-mn5] species config check failed" >&2; python3 species_config.py --check; exit 1; }
 
-OUTDIR="results/modes_mn5/$SPECIES"
+OUTDIR="${OUTDIR:-results/modes_mn5/$SPECIES}"
 mkdir -p "$OUTDIR"
 if command -v srun >/dev/null 2>&1 && [ -n "${SLURM_JOB_ID:-}" ]; then
   LAUNCH=(srun --cpu-bind=cores --distribution=block:block)

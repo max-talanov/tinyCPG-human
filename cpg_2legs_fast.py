@@ -13,6 +13,7 @@ Only rank 0 writes the .h5 file.
 """
 
 import argparse
+import json
 import os
 import time
 from datetime import datetime
@@ -598,6 +599,16 @@ def main():
                          "iteration. Overrides N_RG/N_CUT/N_BS/N_MOTOR/N_MUS/N_IA/N_IA_INT/N_IN "
                          "to ~30-40 and BS_REGULAR_HZ to 20 Hz. Use with --sim-ms 5000 to "
                          "iterate in seconds instead of minutes.")
+    ap.add_argument("--conn-rule", type=str, default="bernoulli", choices=["bernoulli", "indegree"],
+                    help="PLAN.md P3b. bernoulli = original pairwise_bernoulli with a fixed p: the mean "
+                         "in-degree p*N_source grows with the population size. indegree = size-invariant "
+                         "fixed_indegree with K* = p * (production source size), so every neuron gets the "
+                         "same mean input at any N. Default from the species config (human: indegree, "
+                         "rat: bernoulli).")
+    ap.add_argument("--n-scale", type=float, default=1.0,
+                    help="PLAN.md P3b. Multiply every population size by this factor (production "
+                         "sizes x s, rounded). For the size-invariance sweep; with --conn-rule indegree "
+                         "the in-degrees do not change. Not combinable with --debug-small.")
     ap.add_argument("--paced-gait", action="store_true",
                     help="MOD_PACED_GAIT: replace rotating CUT phase with explicit 1-s gait cycle. "
                          "L and R legs alternate 180° (trot). Stance leg gets CUT ON + sequential "
@@ -884,6 +895,10 @@ def main():
             and float(args.stance_fraction) > 0.5):
         ap.error(f"--stance-fraction {args.stance_fraction} > 0.5 needs --gait-scheduler phase "
                  f"(the halfcycle scheduler has no double support; PLAN.md Phase 3)")
+    if not float(args.n_scale) > 0.0:
+        ap.error(f"--n-scale must be > 0, got {args.n_scale}")
+    if args.debug_small and float(args.n_scale) != 1.0:
+        ap.error("--n-scale and --debug-small are exclusive (both set the population sizes)")
     try:
         apply_species_constants(SPECIES_CFG["constants"])
     except ConfigError as e:
@@ -1360,11 +1375,27 @@ def main():
             print(f"[PACED-GAIT] TAU_ACT={TAU_ACT_RISE_MS}/{TAU_ACT_DECAY_MS}ms  "
                   f"TAU_FORCE={TAU_FORCE_RISE_MS}/{TAU_FORCE_DECAY_MS}ms")
 
+    # ---- PLAN.md P3b: production (reference) population sizes ----
+    # Captured before --debug-small / --n-scale change them. Under --conn-rule indegree
+    # every projection's in-degree is K* = p * N_REF[source], i.e. the mean input a
+    # neuron gets in the production network, whatever the actual population size.
+    global N_CUT, N_BS, N_RG_E, N_RG_F, N_MOTOR_E, N_MOTOR_F
+    global N_MUS_E, N_MUS_F, N_IA_E, N_IA_F, N_IA_INT, N_INE, N_INF
+    global BS_REGULAR_HZ
+    _N_NAMES = ("N_CUT", "N_BS", "N_RG_E", "N_RG_F", "N_MOTOR_E", "N_MOTOR_F", "N_MUS_E", "N_MUS_F",
+                "N_IA_E", "N_IA_F", "N_IA_INT", "N_INE", "N_INF")
+    N_REF = {n: int(globals()[n]) for n in _N_NAMES}
+    CONN_RULE = str(args.conn_rule)
+    N_SCALE = float(args.n_scale)
+    if N_SCALE != 1.0:
+        for n in _N_NAMES:
+            globals()[n] = max(1, int(round(N_REF[n] * N_SCALE)))
+        if rank == 0:
+            print(f"[N-SCALE] population sizes x{N_SCALE}: "
+                  + " ".join(f"{n[2:]}={globals()[n]}" for n in _N_NAMES))
+
     # ---- MOD_DEBUG_SMALL: small-N + low-BS debug mode for fast local iteration ----
     if args.debug_small:
-        global N_CUT, N_BS, N_RG_E, N_RG_F, N_MOTOR_E, N_MOTOR_F
-        global N_MUS_E, N_MUS_F, N_IA_E, N_IA_F, N_IA_INT, N_INE, N_INF
-        global BS_REGULAR_HZ
         N_CUT = 30
         N_BS  = 30
         N_RG_E = 40
@@ -1378,15 +1409,21 @@ def main():
         N_IA_INT = 20
         N_INE = 20  # E→F pathway: keep sparse (preserves F's rhythm-leading role; doubling hurt correlation)
         N_INF = 40  # F→E pathway: doubled for adequate RGE silencing during F burst at small N
-        BS_REGULAR_HZ = 20.0
+        # The 20 Hz BS compensates for the smaller in-degree under bernoulli wiring. Under
+        # --conn-rule indegree the in-degree is the production one, so BS stays as configured.
+        if CONN_RULE == "bernoulli":
+            BS_REGULAR_HZ = 20.0
         if rank == 0:
             print("=" * 64)
             print("[DEBUG-SMALL] Local fast-iteration mode active")
             print(f"  N_RG=({N_RG_E},{N_RG_F})  N_CUT={N_CUT}  N_BS={N_BS}")
             print(f"  N_MOTOR=({N_MOTOR_E},{N_MOTOR_F})  N_MUS=({N_MUS_E},{N_MUS_F})")
             print(f"  N_IA=({N_IA_E},{N_IA_F})  N_IA_INT={N_IA_INT}  N_IN=({N_INE},{N_INF})")
-            print(f"  BS_REGULAR_HZ={BS_REGULAR_HZ} Hz (was 60)")
-            print("  Rhythm now relies on Ia → In → RG closed-loop instead of BS drive.")
+            if CONN_RULE == "bernoulli":
+                print(f"  BS_REGULAR_HZ={BS_REGULAR_HZ} Hz (was 60)")
+                print("  Rhythm now relies on Ia → In → RG closed-loop instead of BS drive.")
+            else:
+                print(f"  BS_REGULAR_HZ={BS_REGULAR_HZ} Hz (conn-rule indegree: production input per neuron)")
             print("=" * 64)
 
     # ---- build per-leg ----
@@ -1557,12 +1594,53 @@ def main():
         copy(f"stdp_ia_rge_{side}", stdp_ia_defaults, make_weight_recorder_safe())
         copy(f"stdp_ia_rgf_{side}", stdp_ia_defaults, make_weight_recorder_safe())
 
+    # ---- PLAN.md P3b: size-invariant connectivity ----
+    # Production (reference) size of each source population, by the leg-dict name.
+    SRC_REF = {"cut_in": N_REF["N_CUT"], "bs_in_e": N_REF["N_BS"], "bs_in_f": N_REF["N_BS"],
+               "base_in": N_REF["N_BS"], "ia_in_e": N_REF["N_IA_E"], "ia_in_f": N_REF["N_IA_F"],
+               "ia_ext_e_group": max(1, N_REF["N_IA_E"] // N_IA_GROUPS_PACED) if PACED_GAIT else 0,
+               "ia_ext_pg_f": N_REF["N_IA_F"],
+               "rg_e": N_REF["N_RG_E"], "rg_f": N_REF["N_RG_F"],
+               "m_e": N_REF["N_MOTOR_E"], "m_f": N_REF["N_MOTOR_F"],
+               "ia_int_e": N_REF["N_IA_INT"], "ia_int_f": N_REF["N_IA_INT"],
+               "in_e": N_REF["N_INE"], "in_f": N_REF["N_INF"]}
+    INDEGREE_OVERRIDE = dict(SPECIES_CFG.get("connectivity", {}).get("indegree_override") or {})
+    unknown_ovr = set(INDEGREE_OVERRIDE)  # checked after the build (keys are made there)
+    CONN_TABLE = {}  # projection key -> what was built (first leg; both legs are identical)
+
+    def connect(key, src_ref, src, tgt, p, syn_spec):
+        """One projection. bernoulli: pairwise_bernoulli(p), exactly the original wiring.
+        indegree: fixed_indegree K = round(K*), K* = p * SRC_REF[src_ref] (or the species
+        `connectivity.indegree_override`). Multapses only when the source is smaller than K
+        (down-scaled runs). A static weight is scaled by K*/K so the mean input is exact
+        despite rounding; plastic weights are not (their K* is an integer at production)."""
+        n_src = len(src)
+        if CONN_RULE == "bernoulli":
+            conn_spec = {"rule": "pairwise_bernoulli", "p": p}
+            info = {"rule": "bernoulli", "p": float(p), "n_src": n_src, "k": float(p) * n_src}
+        else:
+            k_star = float(INDEGREE_OVERRIDE.get(key, float(p) * SRC_REF[src_ref]))
+            unknown_ovr.discard(key)
+            k = max(1, int(round(k_star)))
+            multapses = k > n_src
+            conn_spec = {"rule": "fixed_indegree", "indegree": k,
+                         "allow_autapses": True, "allow_multapses": multapses}
+            w_scale = 1.0
+            if (syn_spec.get("synapse_model") == "static_synapse" and k != k_star
+                    and isinstance(syn_spec.get("weight"), (int, float))):
+                w_scale = k_star / k
+                syn_spec = {**syn_spec, "weight": float(syn_spec["weight"]) * w_scale}
+            info = {"rule": "indegree", "p": float(p), "n_src_ref": SRC_REF[src_ref], "n_src": n_src,
+                    "k_star": k_star, "k": k, "multapses": multapses, "w_scale": w_scale}
+        CONN_TABLE.setdefault(key, info)
+        nest.Connect(src, tgt, conn_spec=conn_spec, syn_spec=syn_spec)
+
     # ---- connect per leg ----
     for side in LEGS:
         L = leg[side]
 
-        nest.Connect(L["cut_in"], L["rg_e"], conn_spec={"rule": "pairwise_bernoulli", "p": P_IN_STDP},
-                     syn_spec={"synapse_model": f"stdp_cut_rge_{side}", "weight": W_INIT_CUT, "delay": delay["cut_to_rg"]})
+        connect("cut_in->rg_e", "cut_in", L["cut_in"], L["rg_e"], P_IN_STDP,
+                syn_spec={"synapse_model": f"stdp_cut_rge_{side}", "weight": W_INIT_CUT, "delay": delay["cut_to_rg"]})
 
         # MOD_COACT: static CUT → RGE pathway — present from t=0 before STDP bootstraps.
         # CUT 100 Hz × W=14 × ~35 conns alone is subthreshold; combined with BS 60 Hz it
@@ -1570,63 +1648,63 @@ def main():
         # --cut-static-w sets the weight; default 0 drops the pathway (single plastic CUT).
         _cut_static_w = float(getattr(args, "cut_static_w", 0.0))
         if _cut_static_w != 0.0:
-            nest.Connect(L["cut_in"], L["rg_e"], conn_spec={"rule": "pairwise_bernoulli", "p": P_CUT2RGE_STATIC},
-                         syn_spec={"synapse_model": "static_synapse", "weight": _cut_static_w, "delay": delay["cut_to_rg"]})
+            connect("cut_in->rg_e:static", "cut_in", L["cut_in"], L["rg_e"], P_CUT2RGE_STATIC,
+                    syn_spec={"synapse_model": "static_synapse", "weight": _cut_static_w, "delay": delay["cut_to_rg"]})
 
         # MOD_FREEZE_BS: with --freeze-bs-rg these are static (no STDP), held at the weak
         # lognormal init so BS is a fixed tonic drive and the learning shifts to Ia->RG.
         _bs_rge_model = "static_synapse" if getattr(args, "freeze_bs_rg", False) else f"stdp_bs_rge_{side}"
         _bs_rgf_model = "static_synapse" if getattr(args, "freeze_bs_rg", False) else f"stdp_bs_rgf_{side}"
-        nest.Connect(L["bs_in_e"], L["rg_e"], conn_spec={"rule": "pairwise_bernoulli", "p": P_IN_STDP},
-                     syn_spec={"synapse_model": _bs_rge_model, "weight": W_INIT_BS, "delay": delay["bs_to_rg"]})
-        nest.Connect(L["bs_in_f"], L["rg_f"], conn_spec={"rule": "pairwise_bernoulli", "p": P_IN_STDP},
-                     syn_spec={"synapse_model": _bs_rgf_model, "weight": W_INIT_BS, "delay": delay["bs_to_rg"]})
+        connect("bs_in_e->rg_e", "bs_in_e", L["bs_in_e"], L["rg_e"], P_IN_STDP,
+                syn_spec={"synapse_model": _bs_rge_model, "weight": W_INIT_BS, "delay": delay["bs_to_rg"]})
+        connect("bs_in_f->rg_f", "bs_in_f", L["bs_in_f"], L["rg_f"], P_IN_STDP,
+                syn_spec={"synapse_model": _bs_rgf_model, "weight": W_INIT_BS, "delay": delay["bs_to_rg"]})
 
-        nest.Connect(L["base_in"], L["rg_e"], conn_spec={"rule": "pairwise_bernoulli", "p": BASE_DRIVE_P},
-                     syn_spec={"synapse_model": "static_synapse", "weight": BASE_DRIVE_W, "delay": delay["base_to_rg"]})
-        nest.Connect(L["base_in"], L["rg_f"], conn_spec={"rule": "pairwise_bernoulli", "p": BASE_DRIVE_P},
-                     syn_spec={"synapse_model": "static_synapse", "weight": BASE_DRIVE_W, "delay": delay["base_to_rg"]})
+        connect("base_in->rg_e", "base_in", L["base_in"], L["rg_e"], BASE_DRIVE_P,
+                syn_spec={"synapse_model": "static_synapse", "weight": BASE_DRIVE_W, "delay": delay["base_to_rg"]})
+        connect("base_in->rg_f", "base_in", L["base_in"], L["rg_f"], BASE_DRIVE_P,
+                syn_spec={"synapse_model": "static_synapse", "weight": BASE_DRIVE_W, "delay": delay["base_to_rg"]})
 
-        nest.Connect(L["rg_e"], L["m_e"], conn_spec={"rule": "pairwise_bernoulli", "p": P_IN_STDP},
-                     syn_spec={"synapse_model": "static_synapse", "weight": W0_RM, "delay": delay["rg_to_m"]})
-        nest.Connect(L["rg_f"], L["m_f"], conn_spec={"rule": "pairwise_bernoulli", "p": P_IN_STDP},
-                     syn_spec={"synapse_model": "static_synapse", "weight": W0_RM, "delay": delay["rg_to_m"]})
+        connect("rg_e->m_e", "rg_e", L["rg_e"], L["m_e"], P_IN_STDP,
+                syn_spec={"synapse_model": "static_synapse", "weight": W0_RM, "delay": delay["rg_to_m"]})
+        connect("rg_f->m_f", "rg_f", L["rg_f"], L["m_f"], P_IN_STDP,
+                syn_spec={"synapse_model": "static_synapse", "weight": W0_RM, "delay": delay["rg_to_m"]})
 
         # Motor-pool reciprocal inhibition (helps enforce E/F alternation)
-        nest.Connect(L["m_e"], L["m_f"], conn_spec={"rule": "pairwise_bernoulli", "p": P_MOTOR_RECIP},
-                     syn_spec={"synapse_model": "static_synapse", "weight": W_MOTOR_RECIP,
+        connect("m_e->m_f", "m_e", L["m_e"], L["m_f"], P_MOTOR_RECIP,
+                syn_spec={"synapse_model": "static_synapse", "weight": W_MOTOR_RECIP,
                                "delay": delay["motor_e2f"]})
-        nest.Connect(L["m_f"], L["m_e"], conn_spec={"rule": "pairwise_bernoulli", "p": P_MOTOR_RECIP},
-                     syn_spec={"synapse_model": "static_synapse", "weight": W_MOTOR_RECIP,
+        connect("m_f->m_e", "m_f", L["m_f"], L["m_e"], P_MOTOR_RECIP,
+                syn_spec={"synapse_model": "static_synapse", "weight": W_MOTOR_RECIP,
                                "delay": delay["motor_f2e"]})
 
-        nest.Connect(L["m_e"], L["mus_e"], conn_spec={"rule": "pairwise_bernoulli", "p": P_M2MUS},
-                     syn_spec={"synapse_model": "static_synapse", "weight": W_M2MUS, "delay": delay["m_to_mus"]})
-        nest.Connect(L["m_f"], L["mus_f"], conn_spec={"rule": "pairwise_bernoulli", "p": P_M2MUS},
-                     syn_spec={"synapse_model": "static_synapse", "weight": W_M2MUS, "delay": delay["m_to_mus"]})
+        connect("m_e->mus_e", "m_e", L["m_e"], L["mus_e"], P_M2MUS,
+                syn_spec={"synapse_model": "static_synapse", "weight": W_M2MUS, "delay": delay["m_to_mus"]})
+        connect("m_f->mus_f", "m_f", L["m_f"], L["mus_f"], P_M2MUS,
+                syn_spec={"synapse_model": "static_synapse", "weight": W_M2MUS, "delay": delay["m_to_mus"]})
 
         # Ia afferent pathways via inhibitory interneurons:
         # - Ia from extensor inhibits flexor motor pool
         # - Ia from flexor inhibits extensor motor pool
-        nest.Connect(L["ia_in_e"], L["ia_int_e"], conn_spec={"rule": "pairwise_bernoulli", "p": IA2RG_P},
-                     syn_spec={"synapse_model": "static_synapse", "weight": W_IA_IN2INT, "delay": delay["ia_path"]})
-        nest.Connect(L["ia_int_e"], L["m_f"], conn_spec={"rule": "pairwise_bernoulli", "p": IA2RG_P},
-                     syn_spec={"synapse_model": "static_synapse", "weight": W_IA_INT2ANT, "delay": delay["ia_int_to_m"]})
+        connect("ia_in_e->ia_int_e", "ia_in_e", L["ia_in_e"], L["ia_int_e"], IA2RG_P,
+                syn_spec={"synapse_model": "static_synapse", "weight": W_IA_IN2INT, "delay": delay["ia_path"]})
+        connect("ia_int_e->m_f", "ia_int_e", L["ia_int_e"], L["m_f"], IA2RG_P,
+                syn_spec={"synapse_model": "static_synapse", "weight": W_IA_INT2ANT, "delay": delay["ia_int_to_m"]})
 
-        nest.Connect(L["ia_in_f"], L["ia_int_f"], conn_spec={"rule": "pairwise_bernoulli", "p": IA2RG_P},
-                     syn_spec={"synapse_model": "static_synapse", "weight": W_IA_IN2INT, "delay": delay["ia_path"]})
-        nest.Connect(L["ia_int_f"], L["m_e"], conn_spec={"rule": "pairwise_bernoulli", "p": IA2RG_P},
-                     syn_spec={"synapse_model": "static_synapse", "weight": W_IA_INT2ANT, "delay": delay["ia_int_to_m"]})
+        connect("ia_in_f->ia_int_f", "ia_in_f", L["ia_in_f"], L["ia_int_f"], IA2RG_P,
+                syn_spec={"synapse_model": "static_synapse", "weight": W_IA_IN2INT, "delay": delay["ia_path"]})
+        connect("ia_int_f->m_e", "ia_int_f", L["ia_int_f"], L["m_e"], IA2RG_P,
+                syn_spec={"synapse_model": "static_synapse", "weight": W_IA_INT2ANT, "delay": delay["ia_int_to_m"]})
 
         # MOD_IA_LOOP: Ia afferents drive the RG reciprocal-inhibition interneurons too.
         # Ia-E (peaks with extensor force/stretch) → InE → inhibits RG-F → reinforces
         # extensor phase. Ia-F (peaks with flexor force/stretch) → InF → inhibits RG-E
         # → reinforces flexor phase. Closed-loop sensory drive sustains the rhythm
         # when BS is low (essential for --debug-small at BS=20 Hz).
-        nest.Connect(L["ia_in_e"], L["in_e"], conn_spec={"rule": "pairwise_bernoulli", "p": P_IA2IN},
-                     syn_spec={"synapse_model": "static_synapse", "weight": W_IA2IN, "delay": delay["ia_path"]})
-        nest.Connect(L["ia_in_f"], L["in_f"], conn_spec={"rule": "pairwise_bernoulli", "p": P_IA2IN},
-                     syn_spec={"synapse_model": "static_synapse", "weight": W_IA2IN, "delay": delay["ia_path"]})
+        connect("ia_in_e->in_e", "ia_in_e", L["ia_in_e"], L["in_e"], P_IA2IN,
+                syn_spec={"synapse_model": "static_synapse", "weight": W_IA2IN, "delay": delay["ia_path"]})
+        connect("ia_in_f->in_f", "ia_in_f", L["ia_in_f"], L["in_f"], P_IA2IN,
+                syn_spec={"synapse_model": "static_synapse", "weight": W_IA2IN, "delay": delay["ia_path"]})
 
         # MOD_IA_RG_STDP: plastic homonymous Ia->RG excitation, always wired (matches the
         # reference architecture diagram's direct Ia->RG-E/F projection, distinct from the
@@ -1636,70 +1714,68 @@ def main():
         # CUT->RG keep training either way). A fixed weight here couldn't represent
         # training/rehabilitation, so this must stay plastic, not a static baseline.
         _p_ia2rg = float(getattr(args, "p_ia2rg", P_IA2RG_STDP))
-        nest.Connect(L["ia_in_e"], L["rg_e"], conn_spec={"rule": "pairwise_bernoulli", "p": _p_ia2rg},
-                     syn_spec={"synapse_model": f"stdp_ia_rge_{side}", "weight": W_INIT_IA, "delay": delay["ia_path"]})
-        nest.Connect(L["ia_in_f"], L["rg_f"], conn_spec={"rule": "pairwise_bernoulli", "p": _p_ia2rg},
-                     syn_spec={"synapse_model": f"stdp_ia_rgf_{side}", "weight": W_INIT_IA, "delay": delay["ia_path"]})
+        connect("ia_in_e->rg_e", "ia_in_e", L["ia_in_e"], L["rg_e"], _p_ia2rg,
+                syn_spec={"synapse_model": f"stdp_ia_rge_{side}", "weight": W_INIT_IA, "delay": delay["ia_path"]})
+        connect("ia_in_f->rg_f", "ia_in_f", L["ia_in_f"], L["rg_f"], _p_ia2rg,
+                syn_spec={"synapse_model": f"stdp_ia_rgf_{side}", "weight": W_INIT_IA, "delay": delay["ia_path"]})
 
         # MOD_PACED_GAIT: external sequential Ia-E groups → InE → inhibits RGF during stance.
         # Reinforces extensor phase while preserving F→E asymmetry (InF→RGE still 6× stronger).
         if PACED_GAIT:
             for pn in L["ia_ext_pg_e"]:
-                nest.Connect(pn, L["in_e"], conn_spec={"rule": "pairwise_bernoulli", "p": P_IA2IN},
-                             syn_spec={"synapse_model": "static_synapse", "weight": W_IA2IN,
-                                       "delay": delay["ia_path"]})
+                connect("ia_ext_e->in_e", "ia_ext_e_group", pn, L["in_e"], P_IA2IN,
+                        syn_spec={"synapse_model": "static_synapse", "weight": W_IA2IN,
+                                  "delay": delay["ia_path"]})
         # MOD_FLEXOR_AFFERENT: swing flexor afferent reinforces the flexor phase
         # symmetrically to the stance extensor drive. Two pathways, mirroring the
         # extensor's (CUT→RG-E direct + Ia-E→InE antagonist suppression):
         #   (i)  ia_ext_pg_f → RG-F  (direct excitation, clocks the flexor burst)
         #   (ii) ia_ext_pg_f → InF   (suppresses RG-E, the antagonist, during swing)
         if PACED_GAIT and L["ia_ext_pg_f"] is not None:
-            nest.Connect(L["ia_ext_pg_f"], L["rg_f"],
-                         conn_spec={"rule": "pairwise_bernoulli", "p": P_IA2IN},
-                         syn_spec={"synapse_model": "static_synapse", "weight": W_FLEX_AFF2RGF,
-                                   "delay": delay["ia_path"]})
-            nest.Connect(L["ia_ext_pg_f"], L["in_f"],
-                         conn_spec={"rule": "pairwise_bernoulli", "p": P_IA2IN},
-                         syn_spec={"synapse_model": "static_synapse", "weight": W_IA2IN,
-                                   "delay": delay["ia_path"]})
+            connect("ia_ext_pg_f->rg_f", "ia_ext_pg_f", L["ia_ext_pg_f"], L["rg_f"], P_IA2IN,
+                    syn_spec={"synapse_model": "static_synapse", "weight": W_FLEX_AFF2RGF,
+                              "delay": delay["ia_path"]})
+            connect("ia_ext_pg_f->in_f", "ia_ext_pg_f", L["ia_ext_pg_f"], L["in_f"], P_IA2IN,
+                    syn_spec={"synapse_model": "static_synapse", "weight": W_IA2IN,
+                              "delay": delay["ia_path"]})
 
-        nest.Connect(L["rg_e"], L["rg_e"], conn_spec={"rule": "pairwise_bernoulli", "p": P_RG_REC},
-                     syn_spec={"synapse_model": "static_synapse", "weight": W_RG_REC_E, "delay": delay["rg_rec"]})  # MOD_FIG10
-        nest.Connect(L["rg_f"], L["rg_f"], conn_spec={"rule": "pairwise_bernoulli", "p": P_RG_REC},
-                     syn_spec={"synapse_model": "static_synapse", "weight": W_RG_REC_F, "delay": delay["rg_rec"]})  # MOD_FIG10
+        connect("rg_e->rg_e", "rg_e", L["rg_e"], L["rg_e"], P_RG_REC,
+                syn_spec={"synapse_model": "static_synapse", "weight": W_RG_REC_E, "delay": delay["rg_rec"]})  # MOD_FIG10
+        connect("rg_f->rg_f", "rg_f", L["rg_f"], L["rg_f"], P_RG_REC,
+                syn_spec={"synapse_model": "static_synapse", "weight": W_RG_REC_F, "delay": delay["rg_rec"]})  # MOD_FIG10
         # MOD_ZHANG_ASYM: asymmetric reciprocal inhibition via inhibitory interneurons (InE, InF).
         # F→InF→E pathway is strong (clean extensor silencing during flexor burst);
         # E→InE→F pathway is weak (preserves flexor's rhythm-leading role).
         # F → InF (strong drive of the extensor-suppressing interneuron)
-        nest.Connect(L["rg_f"], L["in_f"], conn_spec={"rule": "pairwise_bernoulli", "p": P_RG_RECIP_F},
-                     syn_spec={"synapse_model": "static_synapse", "weight": W_RG2INF, "delay": delay["rg_recip"]})
+        connect("rg_f->in_f", "rg_f", L["rg_f"], L["in_f"], P_RG_RECIP_F,
+                syn_spec={"synapse_model": "static_synapse", "weight": W_RG2INF, "delay": delay["rg_recip"]})
         # InF → RG-E (STRONG inhibition: F dominates and silences E)
-        nest.Connect(L["in_f"], L["rg_e"], conn_spec={"rule": "pairwise_bernoulli", "p": P_RG_RECIP_F},
-                     syn_spec={"synapse_model": "static_synapse", "weight": W_INF2RGE, "delay": delay["rg_recip"]})
+        connect("in_f->rg_e", "in_f", L["in_f"], L["rg_e"], P_RG_RECIP_F,
+                syn_spec={"synapse_model": "static_synapse", "weight": W_INF2RGE, "delay": delay["rg_recip"]})
 
         # E → InE (drives the flexor-suppressing interneuron)
-        nest.Connect(L["rg_e"], L["in_e"], conn_spec={"rule": "pairwise_bernoulli", "p": P_RG_RECIP_E},
-                     syn_spec={"synapse_model": "static_synapse", "weight": W_RG2INE, "delay": delay["rg_recip"]})
+        connect("rg_e->in_e", "rg_e", L["rg_e"], L["in_e"], P_RG_RECIP_E,
+                syn_spec={"synapse_model": "static_synapse", "weight": W_RG2INE, "delay": delay["rg_recip"]})
         # InE → RG-F (WEAK inhibition: preserves F's intrinsic rhythm)
-        nest.Connect(L["in_e"], L["rg_f"], conn_spec={"rule": "pairwise_bernoulli", "p": P_RG_RECIP_E},
-                     syn_spec={"synapse_model": "static_synapse", "weight": W_INE2RGF, "delay": delay["rg_recip"]})
+        connect("in_e->rg_f", "in_e", L["in_e"], L["rg_f"], P_RG_RECIP_E,
+                syn_spec={"synapse_model": "static_synapse", "weight": W_INE2RGF, "delay": delay["rg_recip"]})
 
         # MOD_CUT_REFLEX: CUT → InE — cutaneous afferents reinforce the stance-phase
         # extensor reflex by exciting the flexor-suppressing interneuron.
-        nest.Connect(L["cut_in"], L["in_e"], conn_spec={"rule": "pairwise_bernoulli", "p": P_CUT2INE},
-                     syn_spec={"synapse_model": "static_synapse", "weight": W_CUT2INE, "delay": delay["cut_to_rg"]})
+        connect("cut_in->in_e", "cut_in", L["cut_in"], L["in_e"], P_CUT2INE,
+                syn_spec={"synapse_model": "static_synapse", "weight": W_CUT2INE, "delay": delay["cut_to_rg"]})
 
         if USE_STATIC_PARALLEL:
-            nest.Connect(L["bs_in_e"], L["rg_e"], conn_spec={"rule": "pairwise_bernoulli", "p": P_STATIC_IN},
-                         syn_spec={"synapse_model": "static_synapse", "weight": W_STATIC_IN, "delay": delay["base_to_rg"]})
-            nest.Connect(L["bs_in_f"], L["rg_f"], conn_spec={"rule": "pairwise_bernoulli", "p": P_STATIC_IN},
-                         syn_spec={"synapse_model": "static_synapse", "weight": W_STATIC_IN, "delay": delay["base_to_rg"]})
-            nest.Connect(L["cut_in"], L["rg_e"], conn_spec={"rule": "pairwise_bernoulli", "p": P_STATIC_IN},
-                         syn_spec={"synapse_model": "static_synapse", "weight": W_STATIC_IN, "delay": delay["base_to_rg"]})
-            nest.Connect(L["rg_e"], L["m_e"], conn_spec={"rule": "pairwise_bernoulli", "p": P_STATIC_RM},
-                         syn_spec={"synapse_model": "static_synapse", "weight": W_STATIC_RM, "delay": delay["base_to_rg"]})
-            nest.Connect(L["rg_f"], L["m_f"], conn_spec={"rule": "pairwise_bernoulli", "p": P_STATIC_RM},
-                         syn_spec={"synapse_model": "static_synapse", "weight": W_STATIC_RM, "delay": delay["base_to_rg"]})
+            connect("bs_in_e->rg_e:static_parallel", "bs_in_e", L["bs_in_e"], L["rg_e"], P_STATIC_IN,
+                    syn_spec={"synapse_model": "static_synapse", "weight": W_STATIC_IN, "delay": delay["base_to_rg"]})
+            connect("bs_in_f->rg_f:static_parallel", "bs_in_f", L["bs_in_f"], L["rg_f"], P_STATIC_IN,
+                    syn_spec={"synapse_model": "static_synapse", "weight": W_STATIC_IN, "delay": delay["base_to_rg"]})
+            connect("cut_in->rg_e:static_parallel", "cut_in", L["cut_in"], L["rg_e"], P_STATIC_IN,
+                    syn_spec={"synapse_model": "static_synapse", "weight": W_STATIC_IN, "delay": delay["base_to_rg"]})
+            connect("rg_e->m_e:static_parallel", "rg_e", L["rg_e"], L["m_e"], P_STATIC_RM,
+                    syn_spec={"synapse_model": "static_synapse", "weight": W_STATIC_RM, "delay": delay["base_to_rg"]})
+            connect("rg_f->m_f:static_parallel", "rg_f", L["rg_f"], L["m_f"], P_STATIC_RM,
+                    syn_spec={"synapse_model": "static_synapse", "weight": W_STATIC_RM, "delay": delay["base_to_rg"]})
 
         # ---- commissural ----
     if ENABLE_COMMISSURAL:
@@ -1707,15 +1783,29 @@ def main():
         # Main left-right symmetry-breaking mechanism should be spinal, not brainstem.
         # Strengthen mutual inhibition between homologous flexor half-centers and add a weaker
         # extensor-side cross inhibition to suppress mirror-symmetric locking.
-        nest.Connect(LL["rg_f"], RR["rg_f"], conn_spec={"rule": "pairwise_bernoulli", "p": P_COMM_F},
-                     syn_spec={"synapse_model": "static_synapse", "weight": W_COMM_F_INH, "delay": delay["commissural"]})
-        nest.Connect(RR["rg_f"], LL["rg_f"], conn_spec={"rule": "pairwise_bernoulli", "p": P_COMM_F},
-                     syn_spec={"synapse_model": "static_synapse", "weight": W_COMM_F_INH, "delay": delay["commissural"]})
+        connect("rg_f->rg_f:commissural", "rg_f", LL["rg_f"], RR["rg_f"], P_COMM_F,
+                syn_spec={"synapse_model": "static_synapse", "weight": W_COMM_F_INH, "delay": delay["commissural"]})
+        connect("rg_f->rg_f:commissural", "rg_f", RR["rg_f"], LL["rg_f"], P_COMM_F,
+                syn_spec={"synapse_model": "static_synapse", "weight": W_COMM_F_INH, "delay": delay["commissural"]})
 
-        nest.Connect(LL["rg_e"], RR["rg_e"], conn_spec={"rule": "pairwise_bernoulli", "p": P_COMM_E},
-                     syn_spec={"synapse_model": "static_synapse", "weight": W_COMM_E_INH, "delay": delay["commissural"]})
-        nest.Connect(RR["rg_e"], LL["rg_e"], conn_spec={"rule": "pairwise_bernoulli", "p": P_COMM_E},
-                     syn_spec={"synapse_model": "static_synapse", "weight": W_COMM_E_INH, "delay": delay["commissural"]})
+        connect("rg_e->rg_e:commissural", "rg_e", LL["rg_e"], RR["rg_e"], P_COMM_E,
+                syn_spec={"synapse_model": "static_synapse", "weight": W_COMM_E_INH, "delay": delay["commissural"]})
+        connect("rg_e->rg_e:commissural", "rg_e", RR["rg_e"], LL["rg_e"], P_COMM_E,
+                syn_spec={"synapse_model": "static_synapse", "weight": W_COMM_E_INH, "delay": delay["commissural"]})
+
+    if unknown_ovr:
+        raise ConfigError(f"connectivity.indegree_override has unknown projections {sorted(unknown_ovr)} "
+                          f"(known: {sorted(CONN_TABLE)})")
+    # Mean M -> mus in-degree, used to turn relay spike counts into a per-motoneuron rate.
+    # bernoulli keeps the original expression, so rat output is unchanged.
+    if CONN_RULE == "bernoulli":
+        MUS_FANIN = (max(1.0, float(N_MOTOR_E) * float(P_M2MUS)), max(1.0, float(N_MOTOR_F) * float(P_M2MUS)))
+    else:
+        MUS_FANIN = (float(CONN_TABLE["m_e->mus_e"]["k"]), float(CONN_TABLE["m_f->mus_f"]["k"]))
+    if rank == 0 and CONN_RULE == "indegree":
+        _mult = sorted(k for k, v in CONN_TABLE.items() if v.get("multapses"))
+        print(f"[CONN] indegree: {len(CONN_TABLE)} projections, K = p x production source size"
+              + (f"; multapses (source < K) on {len(_mult)}" if _mult else ""))
 
     # ---- BIO-PLAUSIBILITY: lognormal weight heterogeneity on static synapses ----
     # Biological synaptic weights are heterogeneous (lognormal: Song 2005; Buzsaki &
@@ -1922,8 +2012,10 @@ def main():
     # A single shared "cell-wide" prp_pool per pathway/leg is the capture
     # gate -- PRP synthesis is cell-wide in the biology while the tag is
     # synapse-local, so this mirrors that split rather than tracking a pool
-    # per synapse. Initialized post-downsampling so array lengths always match
-    # conns_cache[side][key] exactly. All three pathways (cut->rge, ia->rge,
+    # per synapse. Array lengths always match conns_full_cache[side][key]: the
+    # FULL collection, not the --max-weight-conns stats subset (B13, fixed in
+    # PLAN.md P3b; before, only ~40% of each pathway was consolidated at
+    # production N). All three pathways (cut->rge, ia->rge,
     # ia->rgf, and bs->rge/bs->rgf when not frozen) get real weight writes --
     # BS->RG previously got identical bookkeeping but was never written back
     # (weak literature support for touching WMAX_BS's anti-runaway role was
@@ -1947,7 +2039,7 @@ def main():
     if CONSOLIDATE:
         for side in LEGS:
             for key in consolidate_keys:
-                conns = conns_cache[side][key]
+                conns = conns_full_cache[side][key]
                 if conns is None or len(conns) == 0:
                     baseline[side][key] = np.array([], dtype=float)
                 else:
@@ -1969,7 +2061,7 @@ def main():
             else:
                 prp_pool[side][key] = max(0.0, prp_pool[side][key] - CONSOLIDATE_PRP_GAIN_FORCED)
             if prp_pool[side][key] >= CONSOLIDATE_PRP_THRESHOLD:
-                conns = conns_cache[side][key]
+                conns = conns_full_cache[side][key]
                 if conns is not None and len(conns) > 0:
                     baseline[side][key] = np.asarray(nest.GetStatus(conns, "weight"), dtype=float)
                 prp_pool[side][key] -= CONSOLIDATE_PRP_THRESHOLD
@@ -1997,7 +2089,7 @@ def main():
         within that ceiling)."""
         decay = float(np.exp(-float(args.rate_update_ms) / CONSOLIDATE_TAU_TAG_MS))
         for key in consolidate_behavioral_keys:
-            conns = conns_cache[side][key]
+            conns = conns_full_cache[side][key]
             if conns is None or len(conns) == 0:
                 continue
             w = np.asarray(nest.GetStatus(conns, "weight"), dtype=float)
@@ -2086,8 +2178,7 @@ def main():
         # NOTE: muscle parrot neurons amplify spikes because each muscle cell can receive many motor spikes.
         # Normalize by expected motor->muscle fan-in so proxy activation doesn't saturate in both phases.
         dt_s_safe = max(1e-9, dt_s)
-        fanin_e = max(1.0, float(N_MOTOR_E) * float(P_M2MUS))
-        fanin_f = max(1.0, float(N_MOTOR_F) * float(P_M2MUS))
+        fanin_e, fanin_f = MUS_FANIN  # PLAN.md P3b: the built mean in-degree of M -> mus
 
         r_muse = ((sp_e / max(1, N_MUS_E)) / dt_s_safe) / fanin_e
         r_musf = ((sp_f / max(1, N_MUS_F)) / dt_s_safe) / fanin_f
@@ -2736,6 +2827,17 @@ def main():
             h5.attrs["consolidate_prp_gain_forced"] = float(CONSOLIDATE_PRP_GAIN_FORCED)
             h5.attrs["consolidate_wmax_ia_growth_per_capture"] = float(CONSOLIDATE_WMAX_IA_GROWTH)  # MOD_WMAX_GROWTH
             h5.attrs["consolidate_wmax_ia_ceiling"] = float(CONSOLIDATE_WMAX_IA_CEILING)
+            # B13 (P3b): fraction of each pathway's synapses under consolidation (must be 1.0)
+            _n_full = sum(len(conns_full_cache[sd][k]) for sd in LEGS for k in consolidate_keys)
+            _n_cons = sum(int(baseline[sd][k].size) for sd in LEGS for k in consolidate_keys)
+            h5.attrs["consolidate_frac_synapses"] = float(_n_cons / _n_full) if _n_full else float("nan")
+        # PLAN.md P3b. Written only when not the original wiring, so bernoulli / N x 1 outputs
+        # (the rat golden files) are unchanged: absent means conn_rule=bernoulli, n_scale=1.
+        if CONN_RULE != "bernoulli" or N_SCALE != 1.0:
+            h5.attrs["conn_rule"] = str(CONN_RULE)
+            h5.attrs["n_scale"] = float(N_SCALE)
+            h5.attrs["conn_table_json"] = json.dumps(CONN_TABLE, sort_keys=True)
+            h5.attrs["n_pop_json"] = json.dumps({n: int(globals()[n]) for n in _N_NAMES}, sort_keys=True)
         h5.attrs["muscle_fatigue"] = bool(MUSCLE_FATIGUE)
         if MUSCLE_FATIGUE:
             h5.attrs["fatigue_tau_onset_ms"] = float(FATIGUE_TAU_ONSET_MS)

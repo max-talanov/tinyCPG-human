@@ -13,6 +13,9 @@
 #   constants       module-level constants of cpg_2legs_fast.py, grouped for
 #                   readability. Every name must already exist in the model.
 #   cli_defaults    argparse defaults (dest names). Explicit CLI flags win.
+#   connectivity    optional (PLAN.md P3b): indegree_override: {projection: K*}
+#                   for --conn-rule indegree; projection keys as in the HDF5
+#                   attribute conn_table_json.
 
 species: rat
 description: Two-leg rat spinal CPG (tinyCPG baseline; regression reference).
@@ -49,6 +52,7 @@ constants:
     PACED_TAU_FORCE_DECAY_MS: 80.0
 
 cli_defaults:
+  conn_rule: bernoulli         # P3b: original fixed-p wiring, kept for the rat regression baseline
   gait_scheduler: halfcycle    # original rat scheduler: legs alternate half-strides, no double support
   step_period_ms: 1000.0
   stance_fraction: 0.5

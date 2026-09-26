@@ -174,7 +174,7 @@ def main():
     fig.text(0.06, 1.0, f"{args.species}: force and plastic weights at three stages, five locomotion modes",
              ha="left", va="bottom", fontsize=12.5, fontweight="bold", color=INK)
     fig.text(0.06, 0.995,
-             f"species={attrs.get('species', '?')}  {scale}  sim={attrs.get('sim_ms', 0) / 1000:.0f} s  "
+             f"species={attrs.get('species', '?')}  {scale}  wiring={attrs.get('conn_rule', 'bernoulli')}  sim={attrs.get('sim_ms', 0) / 1000:.0f} s  "
              f"λ={attrs.get('stdp_lambda', attrs.get('lambda', '?'))}  seed={attrs.get('seed', '?')}   {note}"
              f"Force panels: left leg; r(E,F) for both legs.",
              ha="left", va="top", fontsize=8.5, color=INK_2)

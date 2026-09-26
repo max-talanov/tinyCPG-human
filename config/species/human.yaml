@@ -43,6 +43,7 @@ constants:
     PACED_TAU_FORCE_DECAY_MS: 80.0
 
 cli_defaults:                  # P3: phase scheduler + stance 0.60; P5: human strides, rescaled caps/τ
+  conn_rule: indegree          # P3b: size-invariant wiring, K* = p x production source size
   gait_scheduler: phase        # P3: per-leg phase schedule (double support when stance > 0.5)
   step_period_ms: 1000.0       # P5 sets human strides per mode
   stance_fraction: 0.60        # comfortable human walking: ~60% stance, ~10% double support per transition

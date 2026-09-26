@@ -20,6 +20,8 @@ reference runs.
 >   time.
 > - Mentions of "partition acc" below are historical.
 > - Human production: `sbatch run_modes_mn5.sh` (MN5 check A).
+> - **2026-09-26:** human runs use the fixed in-degree wiring by default
+>   (PLAN.md P3b). Phase 3b size sweep: `sbatch run_p3b_mn5.sh` (§0b).
 
 What to upload to MN5, what to submit, and what to bring back for local plotting.
 Plotting is done **locally** (after `scp`-ing results back), not on MN5.
@@ -129,6 +131,46 @@ python3 scripts/cpg_modes_stages.py --species rat --indir results/modes_mn5/rat 
 ```bash
 python3 scripts/cpg_gait_phase_metrics.py results/modes_mn5/human/*.h5
 ```
+
+## 0b. Human Phase 3b — size sweep at 3× and 10× (`run_p3b_mn5.sh`)
+
+PLAN.md Phase 3b: does the human network behave the same at any population
+size under the fixed in-degree wiring (`--conn-rule indegree`, the human
+default since 2026-09-26)? The 0.3× and 1× runs and the bernoulli-vs-indegree
+switch check run locally (`./run_p3b_local.sh`). This job runs the sizes too
+large for a laptop: human medium at N × {1, 3, 10}, seeds 1–3, 120 s. It is
+one 9-task array, CPU partition, 64 threads, 2 h per task.
+
+**Files.** The same as §0, plus the two scripts:
+
+```bash
+rsync -av --relative cpg_2legs_fast.py species_config.py config/species/ run_p3b_local.sh run_p3b_mn5.sh <user>@<mn5-login>:/path/to/tinyCPG-human/
+```
+
+**Run** (from the upload directory; cheap first check is task 0):
+
+```bash
+sbatch --array=0 run_p3b_mn5.sh
+```
+
+```bash
+sbatch run_p3b_mn5.sh
+```
+
+**Bring back** into the same folder as the local runs:
+
+```bash
+rsync -av '<user>@<mn5-login>:/path/to/tinyCPG-human/results/p3b/' results/p3b/
+```
+
+**Summary and figure** (all local and MN5 runs together):
+
+```bash
+python3 scripts/p3b_size_invariance.py results/p3b/*.h5
+```
+
+Each task's `.log` ends with a `[Timing]` line (NEST vs Python bookkeeping):
+the first cost-vs-N data point for MN5 check B.
 
 > **NOTE — architecture fix + unloading-rescue exploration (2026-09-14,
 > `feature/ia-rge-direct-pathway`).** `Ia→RG-E`/`Ia→RG-F` (a direct excitatory

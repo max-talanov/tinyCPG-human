@@ -90,9 +90,11 @@ The model inherits these mechanisms from tinyCPG:
 |---|---|
 | Rat tinyCPG model, STDP and consolidation imported | done |
 | YAML species configs with delays tied to species (`config/`, `species_config.py`) | done (P1) |
-| Human conduction/synaptic delay values (`delays:` in `config/species/human.yaml`) | present; still rat-like, replaced in Phase 2 |
+| Human conduction/synaptic delay values (`delays:` in `config/species/human.yaml`) | done (P2; reflex probe 30.2 ms) |
 | Species-dependent flexor BS gain (`FLEXOR_BS_GAIN` in the species YAML) | present, currently 1.0 for both species |
 | Human stance fraction with double support (`--gait-scheduler phase`, stance 0.60) | done (P3) |
+| Size-invariant wiring (`--conn-rule indegree`, human default) and consolidation of every plastic synapse (B13) | done (P3b); 3×/10× size check on MN5 pending |
+| Vanilla STDP retired for human: force-trigger + tag-and-capture consolidation by default | to do (P5, after the P4 muscle) |
 | Human gait timing: stride period and cadence per mode | to do (P5) |
 | Human bio-plausibility constraint table, replacing the rat table in `CLAUDE.md` | to do |
 | Human locomotion modes (slow/normal/fast walking, reduced body-weight support) | to do |
