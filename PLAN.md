@@ -195,6 +195,32 @@ and §4):
   Descending-arm consolidation results from before that date need
   re-confirmation.
 
+**Plasticity roadmap for the human model (agreed 2026-09-26).** Everything is
+already implemented, but no human run has used consolidation yet: all human
+runs so far (P2, P3, MN5 check A) are **vanilla STDP** under the timer-paced
+gait. `--consolidate` requires `--cut-trigger force`, because capture depends
+on whether a stance bout ended on a genuine force threshold or on the failsafe
+timer, and that signal does not exist in paced mode. So:
+
+1. **Phase 3b:** fix B13 (consolidate the full synapse collection) and run a
+   mechanics smoke test of force-trigger + `--consolidate` on human. This is
+   not yet an operating point.
+2. **Phase 4:** human muscle so that Force-E reaches the CUT-OFF threshold
+   within human stance. This is the precondition for force-trigger, and so
+   for consolidation.
+3. **Phase 5: vanilla STDP is retired for human.** The human default becomes
+   force-trigger + consolidation (`human.yaml`: `cut_trigger: force`,
+   `consolidate: true`), and the P5 operating points are tuned with the full
+   rule. Vanilla STDP stays only as the rat baseline and as an explicit
+   human ablation control (`--no-consolidate`).
+4. **Phases 5–6:** rescale τ_tag and the gate cadence to human bouts and
+   strides. P6 adds weight save/restore for multi-session training.
+5. **Phase 7:** the human SCI pieces:
+   - serotonergic gating of consolidation (spec §2.1);
+   - EES as its driver;
+   - a check of Ia→RG plasticity against human operant H-reflex conditioning
+     (Thompson et al. 2013, to verify).
+
 ---
 
 ## 2. Migration phases
@@ -662,6 +688,12 @@ size dependent.
   be a few percent of the pathway.
 - Record `conn_rule` and the K* table in the HDF5 attributes and the
   `.config.yaml` sidecar.
+- **Consolidation smoke test on human** (roadmap step 1, §1.4): human
+  medium, debug-small, `--cut-trigger force --consolidate`, with the rat force-
+  trigger settings scaled by bout length. It only checks the mechanics under
+  human delays: capture events occur, baselines move, and both legs step. It
+  does not fix an operating point, because human force-trigger needs the
+  Phase 4 muscle. Human consolidation is not made the default here.
 
 **Acceptance**
 - `./regress.sh` passes (rat unchanged).
@@ -673,8 +705,10 @@ size dependent.
 - **Size sweep.** Human medium, 120 s, N scale × {0.3, 1, 3}: the same metrics
   within the seed spread of N = 100. N × 0.3 and × 1 run locally; × 3 runs on
   MN5 (it can share the MN5 check B job).
-- B13: consolidated fraction 1.0 at production N. Re-run the consolidate
+- B13: consolidated fraction 1.0 at production N. Re-run the rat consolidate
   operating point once to measure the behavioural change.
+- The human consolidation smoke test runs without errors and logs capture
+  events on both legs.
 
 **Risks**
 - Fixed in-degree removes the binomial spread of in-degrees, so neurons are a
@@ -706,7 +740,8 @@ size dependent.
 **Acceptance**
 - Force-E rises through stance and reaches the CUT-OFF threshold within the
   human stance window. Force-trigger mode needs this; see the rat "Muscle
-  fatigue" notes.
+  fatigue" notes. It is also the gate for retiring vanilla STDP in Phase 5,
+  since consolidation requires force-trigger.
 - Ia and CUT rates stay within the sourced human ranges.
 
 ### Phase 5 — Human locomotion modes and force-trigger operating point (L)
@@ -731,6 +766,13 @@ conditions.
   and `--consolidate-tau-tag-ms`. The first guess for each is the rat value
   × (human bout ÷ rat bout). After that, run a small local sweep like rat
   rounds 3–5, at `--debug-small`.
+- **Retire vanilla STDP for human** (roadmap step 3, §1.4). Set
+  `cut_trigger: force` and `consolidate: true` in `human.yaml` `cli_defaults`,
+  and add `--no-consolidate` (argparse `BooleanOptionalAction`) for the
+  ablation control; a `store_true` flag cannot be switched off once the YAML
+  sets it. From here on, every human operating point is tuned with
+  tag-and-capture consolidation. Vanilla STDP remains the rat baseline and a
+  human ablation arm only.
 - The consolidation mechanism is unchanged from the tinyCPG plasticity
   branch. Only τ_tag is re-confirmed per human mode, following the rat rule
   that τ_tag scales with bout length and loading.
@@ -740,6 +782,9 @@ conditions.
 
 **Acceptance, per mode, force-trigger, debug-small then production:**
 - `frac_at_cap` ≈ 0 on both legs, confirmed with `cut_on` ground truth.
+- Consolidation on: capture events on both legs, and no over-consolidation
+  (no L/R synchronisation, spec §2.4). A `--no-consolidate` control at the
+  same settings is run for comparison.
 - corr(Force-E, Force-F) and corr(Force-E_L, Force-E_R) in the rat-recalibrated
   target band (−0.6 to −0.8), with no L/R synchronisation.
 - Measured stride period and stance fraction within ±5% of the mode target.
@@ -759,10 +804,8 @@ conditions.
   training studies, not absolute days.
 - Keep STDP λ in 5e-4 to 5e-3, which is species-agnostic. Re-confirm
   `tau_tag_ms` per human mode (Phase 5).
-- Map the protocol onto the spec's gating signals. For example, a
-  serotonergic-gating "supply" parameter per session (spec §2.1) is the model
-  counterpart of adjuvants such as intermittent hypoxia (Hayes et al. 2014).
-  This is optional and must be flagged before it is implemented.
+- Keep the gating signal hooks per session, so that the serotonergic
+  gating added in Phase 7 can vary between sessions.
 
 **Acceptance:** a 5-session chain on the incomplete-SCI configuration
 (Phase 7b) improves gait metrics gradually and monotonically, not in one
@@ -780,6 +823,17 @@ populations, not phase-gated. A later option is spatiotemporal (phase-gated)
 EES (Wagner et al. 2018). The existing external Ia-E heel→toe ramp, described
 in the code as epidural-stim pacing, must be clearly separated from the new
 tonic EES.
+
+**Shared change: plasticity for SCI** (roadmap step 5, §1.4).
+- **Serotonergic gating of consolidation:** a per-leg "supply" parameter that
+  scales the capture accumulator gain (spec §2.1). It is lowered after SCI,
+  where descending 5-HT is lost. It can be raised by EES, as its model driver,
+  and per session by adjuvants such as intermittent hypoxia (Hayes et al.
+  2014). This is a change to the gating, not to the STDP rule, so it is
+  flagged in the commit and checked against the spec.
+- **Ia→RG plasticity check:** compare the Ia pathway's time course with human
+  operant H-reflex conditioning after incomplete SCI (Thompson et al. 2013, to
+  verify), which is the human counterpart of the Wolpaw mapping.
 
 - **7a — Healthy.** Full BS drive and full loading, at all Phase 5 modes.
   This is the reference every SCI result is compared against.
