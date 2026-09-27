@@ -42,6 +42,8 @@ constants:
     TAU_FORCE_DECAY_MS: 30.0
     FORCE_MAX: 25.0
     FORCE_SAT_K: 1.0
+    MUSCLE_TAU_SCALE_E: 1.0      # P4: per-pool τ scale (extensor)
+    MUSCLE_TAU_SCALE_F: 1.0      # P4: per-pool τ scale (flexor)
     TAU_LENGTH_MS: 260.0
     SHORTEN_GAIN: 0.010
     STRETCH_GAIN: 0.35
@@ -52,6 +54,7 @@ constants:
     PACED_TAU_FORCE_DECAY_MS: 80.0
 
 cli_defaults:
+  afferent_model: pooled       # P4: original single force+stretch "Ia" signal (regression baseline)
   conn_rule: bernoulli         # P3b: original fixed-p wiring, kept for the rat regression baseline
   gait_scheduler: halfcycle    # original rat scheduler: legs alternate half-strides, no double support
   step_period_ms: 1000.0

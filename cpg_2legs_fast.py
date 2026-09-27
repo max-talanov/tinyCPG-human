@@ -324,6 +324,11 @@ PACED_TAU_ACT_RISE_MS = 40.0
 PACED_TAU_ACT_DECAY_MS = 40.0
 PACED_TAU_FORCE_RISE_MS = 80.0
 PACED_TAU_FORCE_DECAY_MS = 80.0
+# PLAN.md P4 (D3): per-pool speed. Every activation and force τ above (paced or not) is
+# multiplied by the pool's scale: extensor = soleus (slow), flexor = tibialis anterior
+# (faster). 1.0 = the shared rat τ (rat output unchanged); set per species in the YAML.
+MUSCLE_TAU_SCALE_E = 1.0
+MUSCLE_TAU_SCALE_F = 1.0
 
 # MOD_CUT_FORCE_TRIGGER: initial seed for the per-leg adaptive peak-force tracker
 # (fraction of FORCE_MAX), before any real burst has been observed. 0.4*FORCE_MAX=10
@@ -354,6 +359,22 @@ IA_BASE_HZ = 10.0
 IA_K_FORCE = 6.0
 IA_K_STRETCH = 250.0
 IA_RATE_MAX_HZ = 500.0
+# PLAN.md P4: --afferent-model split. `pooled` (rat, original) drives one "Ia" population
+# with base + force + stretch, i.e. spindle and tendon-organ load feedback in one signal.
+# `split` separates them:
+#   Ia (spindle primary): IA_BASE_HZ + IA_K_STRETCH*stretch + IA_K_VEL*lengthening velocity
+#       -> Ia->IaInt (reciprocal inhibition), Ia->RG (plastic; Wolpaw H-reflex mapping)
+#   Ib (Golgi tendon organ): IB_BASE_HZ + IB_K_FORCE*force
+#       -> Ib->InE/InF (the group-I load loop, MOD_IA_LOOP), Ib->RG (static load facilitation)
+# The loading gain (--ia-feedback-gain) scales both. Values are set per species in the YAML.
+IA_K_VEL = 0.0           # Hz per (length unit / s) of lengthening; used only by `split`
+N_IB_E = 100
+N_IB_F = 100
+IB_BASE_HZ = 0.0
+IB_K_FORCE = 6.0
+IB_RATE_MAX_HZ = 150.0
+P_IB2RG = 0.5            # Ib -> RG in-degree density (as Ia -> RG)
+W_IB2RG = 4.5            # pA; the pooled Ia -> RG weight the force term drove at the end of learning
 
 
 def clamp(x: float, lo: float, hi: float) -> float:
@@ -605,6 +626,11 @@ def main():
                          "fixed_indegree with K* = p * (production source size), so every neuron gets the "
                          "same mean input at any N. Default from the species config (human: indegree, "
                          "rat: bernoulli).")
+    ap.add_argument("--afferent-model", type=str, default="pooled", choices=["pooled", "split"],
+                    help="PLAN.md P4. pooled = one 'Ia' population driven by force + stretch (rat, "
+                         "original). split = separate Ia (spindle: stretch + lengthening velocity) and Ib "
+                         "(tendon organ: force) populations; Ib takes the group-I load loop (-> InE/InF) "
+                         "and a static Ib -> RG projection. Default from the species config.")
     ap.add_argument("--n-scale", type=float, default=1.0,
                     help="PLAN.md P3b. Multiply every population size by this factor (production "
                          "sizes x s, rounded). For the size-invariance sweep; with --conn-rule indegree "
@@ -1380,10 +1406,11 @@ def main():
     # every projection's in-degree is K* = p * N_REF[source], i.e. the mean input a
     # neuron gets in the production network, whatever the actual population size.
     global N_CUT, N_BS, N_RG_E, N_RG_F, N_MOTOR_E, N_MOTOR_F
-    global N_MUS_E, N_MUS_F, N_IA_E, N_IA_F, N_IA_INT, N_INE, N_INF
+    global N_MUS_E, N_MUS_F, N_IA_E, N_IA_F, N_IA_INT, N_INE, N_INF, N_IB_E, N_IB_F
     global BS_REGULAR_HZ
     _N_NAMES = ("N_CUT", "N_BS", "N_RG_E", "N_RG_F", "N_MOTOR_E", "N_MOTOR_F", "N_MUS_E", "N_MUS_F",
-                "N_IA_E", "N_IA_F", "N_IA_INT", "N_INE", "N_INF")
+                "N_IA_E", "N_IA_F", "N_IA_INT", "N_INE", "N_INF", "N_IB_E", "N_IB_F")
+    AFFERENT_SPLIT = (str(args.afferent_model) == "split")
     N_REF = {n: int(globals()[n]) for n in _N_NAMES}
     CONN_RULE = str(args.conn_rule)
     N_SCALE = float(args.n_scale)
@@ -1406,6 +1433,8 @@ def main():
         N_MUS_F = 30
         N_IA_E = 30
         N_IA_F = 30
+        N_IB_E = 30
+        N_IB_F = 30
         N_IA_INT = 20
         N_INE = 20  # E→F pathway: keep sparse (preserves F's rhythm-leading role; doubling hurt correlation)
         N_INF = 40  # F→E pathway: doubled for adequate RGE silencing during F burst at small N
@@ -1484,6 +1513,18 @@ def main():
         nest.Connect(ia_pg_f, ia_in_f, conn_spec={"rule": "one_to_one"})
         nest.SetStatus(ia_pg_f, {"rate": IA_BASE_HZ})
 
+        # PLAN.md P4: tendon-organ (Ib) populations, only under --afferent-model split
+        ib_pg_e = ib_in_e = ib_pg_f = ib_in_f = None
+        if AFFERENT_SPLIT:
+            ib_pg_e = nest.Create("poisson_generator", N_IB_E)
+            ib_in_e = nest.Create("parrot_neuron", N_IB_E)
+            nest.Connect(ib_pg_e, ib_in_e, conn_spec={"rule": "one_to_one"})
+            nest.SetStatus(ib_pg_e, {"rate": IB_BASE_HZ})
+            ib_pg_f = nest.Create("poisson_generator", N_IB_F)
+            ib_in_f = nest.Create("parrot_neuron", N_IB_F)
+            nest.Connect(ib_pg_f, ib_in_f, conn_spec={"rule": "one_to_one"})
+            nest.SetStatus(ib_pg_f, {"rate": IB_BASE_HZ})
+
         # MOD_PACED_GAIT: external sequential Ia-E groups (heel→mid→toe)
         ia_ext_pg_e_groups = []
         ia_ext_in_e_groups = []
@@ -1551,6 +1592,7 @@ def main():
             base_pg=base_pg, base_in=base_in,
             ia_pg_e=ia_pg_e, ia_in_e=ia_in_e,
             ia_pg_f=ia_pg_f, ia_in_f=ia_in_f,
+            ib_pg_e=ib_pg_e, ib_in_e=ib_in_e, ib_pg_f=ib_pg_f, ib_in_f=ib_in_f,  # P4 split (or None)
             ia_ext_pg_e=ia_ext_pg_e_groups,   # MOD_PACED_GAIT: list of sequential Ia-E groups
             ia_ext_pg_f=ia_ext_pg_f,          # MOD_FLEXOR_AFFERENT: swing flexor afferent (or None)
             rg_e=rg_e, rg_f=rg_f, m_e=m_e, m_f=m_f,
@@ -1598,6 +1640,7 @@ def main():
     # Production (reference) size of each source population, by the leg-dict name.
     SRC_REF = {"cut_in": N_REF["N_CUT"], "bs_in_e": N_REF["N_BS"], "bs_in_f": N_REF["N_BS"],
                "base_in": N_REF["N_BS"], "ia_in_e": N_REF["N_IA_E"], "ia_in_f": N_REF["N_IA_F"],
+               "ib_in_e": N_REF["N_IB_E"], "ib_in_f": N_REF["N_IB_F"],
                "ia_ext_e_group": max(1, N_REF["N_IA_E"] // N_IA_GROUPS_PACED) if PACED_GAIT else 0,
                "ia_ext_pg_f": N_REF["N_IA_F"],
                "rg_e": N_REF["N_RG_E"], "rg_f": N_REF["N_RG_F"],
@@ -1701,10 +1744,21 @@ def main():
         # extensor phase. Ia-F (peaks with flexor force/stretch) → InF → inhibits RG-E
         # → reinforces flexor phase. Closed-loop sensory drive sustains the rhythm
         # when BS is low (essential for --debug-small at BS=20 Hz).
-        connect("ia_in_e->in_e", "ia_in_e", L["ia_in_e"], L["in_e"], P_IA2IN,
+        # PLAN.md P4: under --afferent-model split this load loop is carried by the force-driven
+        # Ib population (same p, weight and delay); Ia keeps reciprocal inhibition and Ia->RG.
+        _grp = "ib" if AFFERENT_SPLIT else "ia"
+        connect(f"{_grp}_in_e->in_e", f"{_grp}_in_e", L[f"{_grp}_in_e"], L["in_e"], P_IA2IN,
                 syn_spec={"synapse_model": "static_synapse", "weight": W_IA2IN, "delay": delay["ia_path"]})
-        connect("ia_in_f->in_f", "ia_in_f", L["ia_in_f"], L["in_f"], P_IA2IN,
+        connect(f"{_grp}_in_f->in_f", f"{_grp}_in_f", L[f"{_grp}_in_f"], L["in_f"], P_IA2IN,
                 syn_spec={"synapse_model": "static_synapse", "weight": W_IA2IN, "delay": delay["ia_path"]})
+        # PLAN.md P4: static Ib -> homonymous RG (extensor load facilitation during locomotion,
+        # Conway et al. 1987; Gossard et al. 1994 -- to verify). Replaces the force-driven part
+        # of the pooled Ia -> RG drive; the flexor side is kept symmetric (weaker evidence).
+        if AFFERENT_SPLIT:
+            connect("ib_in_e->rg_e", "ib_in_e", L["ib_in_e"], L["rg_e"], P_IB2RG,
+                    syn_spec={"synapse_model": "static_synapse", "weight": W_IB2RG, "delay": delay["ia_path"]})
+            connect("ib_in_f->rg_f", "ib_in_f", L["ib_in_f"], L["rg_f"], P_IB2RG,
+                    syn_spec={"synapse_model": "static_synapse", "weight": W_IB2RG, "delay": delay["ia_path"]})
 
         # MOD_IA_RG_STDP: plastic homonymous Ia->RG excitation, always wired (matches the
         # reference architecture diagram's direct Ia->RG-E/F projection, distinct from the
@@ -1884,8 +1938,8 @@ def main():
             ("Ia-F->IaInt-F", L["ia_in_f"], L["ia_int_f"]),
             ("IaInt-E->M-F", L["ia_int_e"], L["m_f"]),
             ("IaInt-F->M-E", L["ia_int_f"], L["m_e"]),
-            ("Ia-E->InE",  L["ia_in_e"],  L["in_e"]),
-            ("Ia-F->InF",  L["ia_in_f"],  L["in_f"]),
+            ("Ia-E->InE",  L["ia_in_e"],  L["in_e"]) if not AFFERENT_SPLIT else ("Ib-E->InE", L["ib_in_e"], L["in_e"]),
+            ("Ia-F->InF",  L["ia_in_f"],  L["in_f"]) if not AFFERENT_SPLIT else ("Ib-F->InF", L["ib_in_f"], L["in_f"]),
             # --- commissural (interlimb; abstracts V0v/V0d/V2a/In1 classes) ---
             ("commiss F (L->R)", leg["L"]["rg_f"], leg["R"]["rg_f"]),
             ("commiss E (L->R)", leg["L"]["rg_e"], leg["R"]["rg_e"]),
@@ -1895,6 +1949,9 @@ def main():
             projset.append(("flexAff->InF",  L["ia_ext_pg_f"], L["in_f"]))
         projset.append(("Ia-E->RG-E", L["ia_in_e"], L["rg_e"]))
         projset.append(("Ia-F->RG-F", L["ia_in_f"], L["rg_f"]))
+        if AFFERENT_SPLIT:  # PLAN.md P4
+            projset.append(("Ib-E->RG-E", L["ib_in_e"], L["rg_e"]))
+            projset.append(("Ib-F->RG-F", L["ib_in_f"], L["rg_f"]))
         if rank == 0:
             with h5py.File(args.dump_connectivity, "w") as hc:
                 hc.attrs["species"] = str(getattr(args, "species", "rat"))
@@ -2111,7 +2168,8 @@ def main():
                        ine=[], inf=[], iaint_e=[], iaint_f=[],  # MOD_NET_RECORD
                        act_e=[], act_f=[], force_e=[], force_f=[],
                        fatigue_e=[], fatigue_f=[], cut_on=[],
-                       len_e=[], len_f=[], ia_e=[], ia_f=[]) for side in LEGS}
+                       len_e=[], len_f=[], ia_e=[], ia_f=[],
+                       **({"ib_e": [], "ib_f": []} if AFFERENT_SPLIT else {})) for side in LEGS}
     if CONSOLIDATE:  # MOD_CONSOLIDATE: +1 genuine / -1 forced / +-2 same-with-capture / 0 no-event
         for side in LEGS:
             logs[side]["consolidation_event"] = []
@@ -2221,8 +2279,8 @@ def main():
 
         tau_rise_s = TAU_ACT_RISE_MS / 1000.0
         tau_decay_s = TAU_ACT_DECAY_MS / 1000.0
-        tau_e = tau_rise_s if target_ae > S["act_e"] else tau_decay_s
-        tau_f = tau_rise_s if target_af > S["act_f"] else tau_decay_s
+        tau_e = (tau_rise_s if target_ae > S["act_e"] else tau_decay_s) * MUSCLE_TAU_SCALE_E
+        tau_f = (tau_rise_s if target_af > S["act_f"] else tau_decay_s) * MUSCLE_TAU_SCALE_F
 
         kAe = 1.0 - np.exp(-dt_s_safe / max(1e-9, tau_e))
         kAf = 1.0 - np.exp(-dt_s_safe / max(1e-9, tau_f))
@@ -2255,14 +2313,17 @@ def main():
         tau_decay_s = TAU_FORCE_DECAY_MS / 1000.0
 
         # Stable force dynamics (rise/decay) for large dt
-        kFe = 1.0 - np.exp(-dt_s_safe / max(1e-9, (tau_rise_s if target_fe > S["force_e"] else tau_decay_s)))
-        kFf = 1.0 - np.exp(-dt_s_safe / max(1e-9, (tau_rise_s if target_ff > S["force_f"] else tau_decay_s)))
+        kFe = 1.0 - np.exp(-dt_s_safe / max(1e-9, (tau_rise_s if target_fe > S["force_e"] else tau_decay_s)
+                                             * MUSCLE_TAU_SCALE_E))
+        kFf = 1.0 - np.exp(-dt_s_safe / max(1e-9, (tau_rise_s if target_ff > S["force_f"] else tau_decay_s)
+                                             * MUSCLE_TAU_SCALE_F))
         S["force_e"] += kFe * (target_fe - S["force_e"])
         S["force_f"] += kFf * (target_ff - S["force_f"])
 
         S["force_e"] = clamp(S["force_e"], 0.0, FORCE_MAX)
         S["force_f"] = clamp(S["force_f"], 0.0, FORCE_MAX)
 
+        len_e_prev, len_f_prev = S["len_e"], S["len_f"]  # PLAN.md P4: Ia velocity term (split)
         tauL_s = TAU_LENGTH_MS / 1000.0
         kL = 1.0 - np.exp(-dt_s_safe / max(1e-9, tauL_s))
         S["len_e"] += kL * (L0 - S["len_e"])
@@ -2276,8 +2337,17 @@ def main():
 
         stretch_e = max(0.0, S["len_e"] - L0)
         stretch_f = max(0.0, S["len_f"] - L0)
-        ia_e = IA_BASE_HZ + IA_K_FORCE * S["force_e"] + IA_K_STRETCH * stretch_e
-        ia_f = IA_BASE_HZ + IA_K_FORCE * S["force_f"] + IA_K_STRETCH * stretch_f
+        if AFFERENT_SPLIT:
+            # PLAN.md P4: spindle Ia = length + lengthening velocity; tendon-organ Ib = force.
+            vel_e = max(0.0, (S["len_e"] - len_e_prev) / dt_s_safe)
+            vel_f = max(0.0, (S["len_f"] - len_f_prev) / dt_s_safe)
+            ia_e = IA_BASE_HZ + IA_K_STRETCH * stretch_e + IA_K_VEL * vel_e
+            ia_f = IA_BASE_HZ + IA_K_STRETCH * stretch_f + IA_K_VEL * vel_f
+            ib_e = clamp(IA_FEEDBACK_GAIN * (IB_BASE_HZ + IB_K_FORCE * S["force_e"]), 0.0, IB_RATE_MAX_HZ)
+            ib_f = clamp(IA_FEEDBACK_GAIN * (IB_BASE_HZ + IB_K_FORCE * S["force_f"]), 0.0, IB_RATE_MAX_HZ)
+        else:
+            ia_e = IA_BASE_HZ + IA_K_FORCE * S["force_e"] + IA_K_STRETCH * stretch_e
+            ia_f = IA_BASE_HZ + IA_K_FORCE * S["force_f"] + IA_K_STRETCH * stretch_f
         # Graded sensory feedback: scale by Ia gain (1.0 baseline / 0.5 toe / 0.1 air).
         # Mimics partial loading after SCI rehab (Lavrov 2008; Edgerton 2008).
         ia_e = IA_FEEDBACK_GAIN * ia_e
@@ -2287,6 +2357,9 @@ def main():
         if do_rate_update:
             nest.SetStatus(L["ia_pg_e"], {"rate": ia_e})
             nest.SetStatus(L["ia_pg_f"], {"rate": ia_f})
+            if AFFERENT_SPLIT:
+                nest.SetStatus(L["ib_pg_e"], {"rate": ib_e})
+                nest.SetStatus(L["ib_pg_f"], {"rate": ib_f})
 
         P["act_e"].append(S["act_e"]);
         P["act_f"].append(S["act_f"])
@@ -2298,6 +2371,9 @@ def main():
         P["len_f"].append(S["len_f"])
         P["ia_e"].append(ia_e);
         P["ia_f"].append(ia_f)
+        if AFFERENT_SPLIT:  # PLAN.md P4 (keys exist only in split runs)
+            P["ib_e"].append(ib_e)
+            P["ib_f"].append(ib_f)
 
     # Keep last sampled mean/std so we can append smoothly without resampling every step
     last_wstats = {side: {k: (np.nan, np.nan) for k in plastic_keys} for side in LEGS}
@@ -2833,6 +2909,8 @@ def main():
             h5.attrs["consolidate_frac_synapses"] = float(_n_cons / _n_full) if _n_full else float("nan")
         # PLAN.md P3b. Written only when not the original wiring, so bernoulli / N x 1 outputs
         # (the rat golden files) are unchanged: absent means conn_rule=bernoulli, n_scale=1.
+        if AFFERENT_SPLIT:  # PLAN.md P4; absent = pooled
+            h5.attrs["afferent_model"] = "split"
         if CONN_RULE != "bernoulli" or N_SCALE != 1.0:
             h5.attrs["conn_rule"] = str(CONN_RULE)
             h5.attrs["n_scale"] = float(N_SCALE)

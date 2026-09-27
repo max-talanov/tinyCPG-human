@@ -7,7 +7,7 @@ conduction delays, reflex probe at 30 ms), Phase 3 (phase scheduler, human
 stance 0.60 with double support) and MN5 check A (five modes at production N).
 Phase 3b (size-invariant connectivity, B13 fix) is done locally (2026-09-26);
 its 3×/10× MN5 runs are pending.
-**Next:** Phase 4, with MN5 check B (scaling benchmark and MPI-safe loop)
+**Now:** Phase 4 (in progress: soleus/TA τ and Ia/Ib split done), with MN5 check B (scaling benchmark and MPI-safe loop)
 alongside it. P3b and check B were moved forward on 2026-09-26 so that
 everything tuned from P4 on carries over to the adult-size model (P9)
 without re-tuning.
@@ -828,6 +828,52 @@ Open:
   since consolidation requires force-trigger.
 - Ia and CUT rates stay within the sourced human ranges.
 
+**Status: in progress (2026-09-26).** Done so far:
+
+- **Measured first** (human, production N, timer-paced and force-trigger):
+  - the pooled "Ia" ran at ~100–125 Hz in stance, and ~90% of that was the
+    force term: in effect spindle Ia plus tendon-organ Ib load feedback in
+    one signal. The 500 Hz cap was never reached.
+  - Human spindles fire far lower: ~10 Hz at rest, with little fusimotor drive
+    (Macefield & Knellwolf 2018). They can fall silent in shortening
+    contractions. No direct recordings exist during walking.
+  - Force-trigger at the human stride with the rat fatigue settings: stance
+    lasts ~400 ms (fatigue-set) and swing runs into the 900 ms cap, so the
+    loop is not closed at human timing. That is the Phase 5 rescale
+    (fatigue τ, caps).
+- **Soleus/TA timing (D3):** `MUSCLE_TAU_SCALE_E/F` multiply every activation
+  and force τ per pool. Human: E ×1.25 (paced force τ 100 ms, soleus; to
+  verify), F ×0.625 (50 ms; TA motor-unit time-to-peak ~46 ms). Rat 1.0.
+  In the paced test the network barely changed.
+- **Ia/Ib split (decided 2026-09-26: split now).** `--afferent-model
+  {pooled, split}`; human `split`, rat `pooled` (byte-identical).
+  - Ia = base 10 Hz + stretch + lengthening velocity, capped at 100 Hz. It
+    keeps reciprocal inhibition and the plastic Ia→RG (Wolpaw mapping).
+  - New Ib populations: force, capped at 150 Hz. They take the group-I load
+    loop (→ InE/InF) and a new static Ib→RG (4.5 pA, K 50): extensor load
+    facilitation (Conway et al. 1987; Gossard et al. 1994; to verify). The
+    flexor side is kept symmetric.
+  - Logs `ib_e`/`ib_f`, attribute `afferent_model`.
+- **Result** (human medium, production N, 120 s, 3 seeds; pooled vs split,
+  both with soleus/TA τ):
+  - steady r(E,F) −0.845 → −0.861, r(E_L,E_R) −0.824 both, forces and end
+    weights unchanged;
+  - Ia now 25–39 Hz in stance and ~12 Hz in swing (Ib-E ~90 Hz);
+  - reflex probe 30.0 ms (target 28–35);
+  - **early learning is slower:** r(E,F) at 4–9 s −0.45 → −0.13.
+- **Cause of the slower start:** the flexor has no stretch input. Only the
+  extensor is stretched (by CUT), so Ia-F sits flat at its 10 Hz base and
+  carries no phase information. In a real ankle, soleus and TA are
+  antagonists on one joint: when one shortens, the other lengthens.
+
+Next in P4:
+1. Antagonist length coupling (a one-joint ankle), so TA is stretched when
+   soleus shortens and vice versa; with it, rescale `TAU_LENGTH_MS`,
+   `SHORTEN_GAIN`, `STRETCH_GAIN` to the human stance.
+2. Re-check early learning and the stance/swing Ia profiles.
+3. The P4 acceptance on force-trigger (Force-E reaching CUT-OFF within the
+   human stance) needs the fatigue rescale, so it moves into P5.
+
 ### Phase 5 — Human locomotion modes and force-trigger operating point (L)
 
 **Goal:** stable, genuinely closed-loop human gait across speeds and loading
@@ -1093,6 +1139,10 @@ checked against PubMed:
 - Kennedy & Inglis 2002
 - Winter 2009
 - Thompson et al. 2013
+- Macefield & Knellwolf 2018 (human spindle rates; P4)
+- Conway et al. 1987; Gossard et al. 1994 (extensor Ib facilitation in locomotion; P4)
+- Human soleus twitch contraction time ~100 ms (P4, source still needed); TA
+  motor-unit time-to-peak ~46 ms (Can J Appl Physiol 1997, doi 10.1139/h97-038)
 - Schreiber & Moissenet 2019
 - Lencioni et al. 2019
 - Fukuchi et al. 2018

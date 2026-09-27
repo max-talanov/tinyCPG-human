@@ -23,7 +23,12 @@ constants:
     IA_BASE_HZ: 10.0
     IA_K_FORCE: 6.0
     IA_K_STRETCH: 250.0
-    IA_RATE_MAX_HZ: 500.0
+    IA_RATE_MAX_HZ: 100.0      # P4 split: spindle Ia ceiling (human rates are low; to verify)
+    IA_K_VEL: 100.0            # P4 split: Hz per length-unit/s of lengthening (primary ending dynamic term; to verify)
+    IB_BASE_HZ: 0.0            # P4 split: tendon organs ~silent at rest
+    IB_K_FORCE: 6.0            # P4 split: = the old pooled force term (keeps the load-loop drive)
+    IB_RATE_MAX_HZ: 150.0      # to verify
+    W_IB2RG: 4.5               # P4 split: static Ib -> RG (pA), ~ the end-of-learning pooled Ia -> RG weight
   muscle:                      # Phase 4: soleus (E) / tibialis anterior (F), D3
     TAU_ACT_RISE_MS: 20.0
     TAU_ACT_DECAY_MS: 20.0
@@ -33,6 +38,8 @@ constants:
     TAU_FORCE_DECAY_MS: 30.0
     FORCE_MAX: 25.0
     FORCE_SAT_K: 1.0
+    MUSCLE_TAU_SCALE_E: 1.25     # P4: soleus (slow): paced force τ 80 -> 100 ms (twitch ~100 ms; to verify)
+    MUSCLE_TAU_SCALE_F: 0.625    # P4: tibialis anterior: 80 -> 50 ms (MU time-to-peak ~46 ms)
     TAU_LENGTH_MS: 260.0
     SHORTEN_GAIN: 0.010
     STRETCH_GAIN: 0.35
@@ -43,6 +50,7 @@ constants:
     PACED_TAU_FORCE_DECAY_MS: 80.0
 
 cli_defaults:                  # P3: phase scheduler + stance 0.60; P5: human strides, rescaled caps/τ
+  afferent_model: split        # P4: separate spindle Ia (length/velocity) and tendon-organ Ib (force)
   conn_rule: indegree          # P3b: size-invariant wiring, K* = p x production source size
   gait_scheduler: phase        # P3: per-leg phase schedule (double support when stance > 0.5)
   step_period_ms: 1000.0       # P5 sets human strides per mode
