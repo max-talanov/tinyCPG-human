@@ -40,9 +40,9 @@ constants:
     FORCE_SAT_K: 1.0
     MUSCLE_TAU_SCALE_E: 1.25     # P4: soleus (slow): paced force τ 80 -> 100 ms (twitch ~100 ms; to verify)
     MUSCLE_TAU_SCALE_F: 0.625    # P4: tibialis anterior: 80 -> 50 ms (MU time-to-peak ~46 ms)
-    TAU_LENGTH_MS: 260.0
-    SHORTEN_GAIN: 0.010
-    STRETCH_GAIN: 0.35
+    TAU_LENGTH_MS: 400.0         # P4: 260 x (human ~600 ms / rat ~390 ms stance)
+    SHORTEN_GAIN: 0.0065         # P4: x 260/400, same equilibrium excursion (gain x tau)
+    STRETCH_GAIN: 0.2275         # P4: x 260/400
   muscle_paced_gait:
     PACED_TAU_ACT_RISE_MS: 40.0
     PACED_TAU_ACT_DECAY_MS: 40.0
@@ -50,6 +50,7 @@ constants:
     PACED_TAU_FORCE_DECAY_MS: 80.0
 
 cli_defaults:                  # P3: phase scheduler + stance 0.60; P5: human strides, rescaled caps/τ
+  muscle_length_model: ankle   # P4: soleus/TA share one ankle angle (antagonist length coupling)
   afferent_model: split        # P4: separate spindle Ia (length/velocity) and tendon-organ Ib (force)
   conn_rule: indegree          # P3b: size-invariant wiring, K* = p x production source size
   gait_scheduler: phase        # P3: per-leg phase schedule (double support when stance > 0.5)

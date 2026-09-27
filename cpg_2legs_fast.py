@@ -631,6 +631,11 @@ def main():
                          "original). split = separate Ia (spindle: stretch + lengthening velocity) and Ib "
                          "(tendon organ: force) populations; Ib takes the group-I load loop (-> InE/InF) "
                          "and a static Ib -> RG projection. Default from the species config.")
+    ap.add_argument("--muscle-length-model", type=str, default="independent", choices=["independent", "ankle"],
+                    help="PLAN.md P4. independent = original: each muscle's length relaxes on its own, only "
+                         "the extensor is stretched by stance loading (rat). ankle = soleus and TA share one "
+                         "ankle angle (antagonists): one lengthens as the other shortens. Default from the "
+                         "species config.")
     ap.add_argument("--n-scale", type=float, default=1.0,
                     help="PLAN.md P3b. Multiply every population size by this factor (production "
                          "sizes x s, rounded). For the size-invariance sweep; with --conn-rule indegree "
@@ -1411,6 +1416,7 @@ def main():
     _N_NAMES = ("N_CUT", "N_BS", "N_RG_E", "N_RG_F", "N_MOTOR_E", "N_MOTOR_F", "N_MUS_E", "N_MUS_F",
                 "N_IA_E", "N_IA_F", "N_IA_INT", "N_INE", "N_INF", "N_IB_E", "N_IB_F")
     AFFERENT_SPLIT = (str(args.afferent_model) == "split")
+    ANKLE_JOINT = (str(args.muscle_length_model) == "ankle")  # PLAN.md P4
     N_REF = {n: int(globals()[n]) for n in _N_NAMES}
     CONN_RULE = str(args.conn_rule)
     N_SCALE = float(args.n_scale)
@@ -2175,7 +2181,7 @@ def main():
             logs[side]["consolidation_event"] = []
     state = {side: dict(act_e=0.0, act_f=0.0, force_e=0.0, force_f=0.0,
                         fatigue_e=0.0, fatigue_f=0.0,
-                        len_e=L0, len_f=L0,
+                        len_e=L0, len_f=L0, ankle=0.0,
                         last_muse=0, last_musf=0,
                         last_rge=0, last_rgf=0,
                         last_ine=0, last_inf=0, last_iainte=0, last_iaintf=0) for side in LEGS}
@@ -2326,14 +2332,29 @@ def main():
         len_e_prev, len_f_prev = S["len_e"], S["len_f"]  # PLAN.md P4: Ia velocity term (split)
         tauL_s = TAU_LENGTH_MS / 1000.0
         kL = 1.0 - np.exp(-dt_s_safe / max(1e-9, tauL_s))
-        S["len_e"] += kL * (L0 - S["len_e"])
-        S["len_f"] += kL * (L0 - S["len_f"])
-        S["len_e"] -= SHORTEN_GAIN * S["force_e"] * dt_s
-        S["len_f"] -= SHORTEN_GAIN * S["force_f"] * dt_s
-        if cut_active_frac > 0.0:
-            S["len_e"] += STRETCH_GAIN * cut_active_frac * dt_s
-        S["len_e"] = clamp(S["len_e"], L_MIN, L_MAX)
-        S["len_f"] = clamp(S["len_f"], L_MIN, L_MAX)
+        if ANKLE_JOINT:
+            # PLAN.md P4 (MOD_ANKLE_JOINT): soleus (E) and TA (F) are antagonists on one joint.
+            # One angle th per leg (dorsiflexion > 0): len_e = L0 + th, len_f = L0 - th. Passive
+            # return to neutral with TAU_LENGTH_MS; soleus force plantarflexes, TA force
+            # dorsiflexes, stance loading (CUT) dorsiflexes (stretches soleus, shortens TA).
+            th = S["ankle"]
+            th += kL * (0.0 - th)
+            th += SHORTEN_GAIN * (S["force_f"] - S["force_e"]) * dt_s
+            if cut_active_frac > 0.0:
+                th += STRETCH_GAIN * cut_active_frac * dt_s
+            th = clamp(th, max(L_MIN - L0, L0 - L_MAX), min(L_MAX - L0, L0 - L_MIN))
+            S["ankle"] = th
+            S["len_e"] = L0 + th
+            S["len_f"] = L0 - th
+        else:
+            S["len_e"] += kL * (L0 - S["len_e"])
+            S["len_f"] += kL * (L0 - S["len_f"])
+            S["len_e"] -= SHORTEN_GAIN * S["force_e"] * dt_s
+            S["len_f"] -= SHORTEN_GAIN * S["force_f"] * dt_s
+            if cut_active_frac > 0.0:
+                S["len_e"] += STRETCH_GAIN * cut_active_frac * dt_s
+            S["len_e"] = clamp(S["len_e"], L_MIN, L_MAX)
+            S["len_f"] = clamp(S["len_f"], L_MIN, L_MAX)
 
         stretch_e = max(0.0, S["len_e"] - L0)
         stretch_f = max(0.0, S["len_f"] - L0)
@@ -2907,10 +2928,12 @@ def main():
             _n_full = sum(len(conns_full_cache[sd][k]) for sd in LEGS for k in consolidate_keys)
             _n_cons = sum(int(baseline[sd][k].size) for sd in LEGS for k in consolidate_keys)
             h5.attrs["consolidate_frac_synapses"] = float(_n_cons / _n_full) if _n_full else float("nan")
-        # PLAN.md P3b. Written only when not the original wiring, so bernoulli / N x 1 outputs
-        # (the rat golden files) are unchanged: absent means conn_rule=bernoulli, n_scale=1.
         if AFFERENT_SPLIT:  # PLAN.md P4; absent = pooled
             h5.attrs["afferent_model"] = "split"
+        if ANKLE_JOINT:  # PLAN.md P4; absent = independent
+            h5.attrs["muscle_length_model"] = "ankle"
+        # PLAN.md P3b. Written only when not the original wiring, so bernoulli / N x 1 outputs
+        # (the rat golden files) are unchanged: absent means conn_rule=bernoulli, n_scale=1.
         if CONN_RULE != "bernoulli" or N_SCALE != 1.0:
             h5.attrs["conn_rule"] = str(CONN_RULE)
             h5.attrs["n_scale"] = float(N_SCALE)

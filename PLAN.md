@@ -866,13 +866,38 @@ Open:
   carries no phase information. In a real ankle, soleus and TA are
   antagonists on one joint: when one shortens, the other lengthens.
 
-Next in P4:
-1. Antagonist length coupling (a one-joint ankle), so TA is stretched when
-   soleus shortens and vice versa; with it, rescale `TAU_LENGTH_MS`,
-   `SHORTEN_GAIN`, `STRETCH_GAIN` to the human stance.
-2. Re-check early learning and the stance/swing Ia profiles.
-3. The P4 acceptance on force-trigger (Force-E reaching CUT-OFF within the
-   human stance) needs the fatigue rescale, so it moves into P5.
+- **Five modes after part 1** (production N, 120 s; `plots/modes/p4a/`), end
+  r(E,F) L/R vs P3b:
+  - slow −0.79/−0.78 (P3b −0.88/−0.83), medium −0.85/−0.86 (−0.90/−0.91),
+    fast −0.79/−0.78 (−0.97/−0.97);
+  - **toe −0.73/−0.72 (−0.39/−0.34)**: with human-range Ia, Ia→RG-F no longer
+    runs away under unloading (7 pA vs 18), so the flexor co-contraction is
+    gone at 0.5 loading;
+  - air −0.25/−0.32 (−0.31/−0.23), still collapsed.
+- **Ankle-joint coupling (2026-09-27, `MOD_ANKLE_JOINT`):**
+  `--muscle-length-model ankle` (human), one angle per leg, soleus and TA
+  lengths move in opposite directions. Length constants rescaled to human
+  stance (`TAU_LENGTH_MS` 400, `SHORTEN_GAIN` 0.0065, `STRETCH_GAIN` 0.2275;
+  gain × τ kept).
+  - Human medium, 3 seeds: steady r(E,F) −0.860 (split alone −0.861),
+    r(E_L,E_R) unchanged; early r(E,F) at 4–9 s −0.22 (split alone −0.13;
+    pooled −0.45).
+  - With the rat length constants the coupling does worse early (+0.01, one
+    seed), so the rescale matters.
+  - Ia-F now carries phase information: 12–27 Hz in swing; soleus Ia ~20 Hz
+    in swing when TA dorsiflexes.
+
+- **Five modes with the ankle coupling** (`plots/modes/p4b/`), end r(E,F)
+  L/R (early r at 4–9 s) vs part 1: slow −0.78/−0.78 (−0.48 vs −0.40),
+  medium −0.85/−0.85 (−0.13 vs −0.13), fast −0.79/−0.79 (−0.54 vs −0.45),
+  toe −0.72/−0.74, air −0.34/−0.29. End states unchanged; early alternation
+  slightly better at slow and fast.
+
+Still open in P4:
+- Early learning is slower than pooled (−0.22 vs −0.45 at 4–9 s); steady
+  state is unaffected.
+- The P4 acceptance on force-trigger (Force-E reaching CUT-OFF within the
+  human stance) needs the fatigue rescale, so it moves into P5.
 
 ### Phase 5 — Human locomotion modes and force-trigger operating point (L)
 
