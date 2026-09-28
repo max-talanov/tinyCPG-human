@@ -367,6 +367,9 @@ IA_RATE_MAX_HZ = 500.0
 #   Ib (Golgi tendon organ): IB_BASE_HZ + IB_K_FORCE*force
 #       -> Ib->InE/InF (the group-I load loop, MOD_IA_LOOP), Ib->RG (static load facilitation)
 # The loading gain (--ia-feedback-gain) scales both. Values are set per species in the YAML.
+# PLAN.md P5 (--swing-end flexor): the flexor burst must reach this fraction of FORCE_MAX
+# (x the loading scale) before its fall can end swing -- stops a swing ending at its onset.
+SWING_F_MIN_PEAK_FRAC = 0.1
 IA_K_VEL = 0.0           # Hz per (length unit / s) of lengthening; used only by `split`
 N_IB_E = 100
 N_IB_F = 100
@@ -684,6 +687,22 @@ def main():
                     help="MOD_CUT_FORCE_TRIGGER: stance-ON threshold as a fraction of the "
                          "leg's adaptive running peak force_e. Close to 1.0 = only near "
                          "the very peak of the burst.")
+    ap.add_argument("--swing-end", type=str, default="extensor", choices=["extensor", "flexor"],
+                    help="PLAN.md P5, --cut-trigger force: what ends swing. extensor = original: touchdown "
+                         "when Force-E climbs back to --cut-force-on-frac of the last stance peak (in "
+                         "practice the extensor stays low without CUT, so swing ends on the cap). flexor = "
+                         "also touchdown when the flexor burst ends: Force-F falls to --swing-end-f-frac of "
+                         "its own swing peak (after rising above SWING_F_MIN_PEAK_FRAC of FORCE_MAX); stance "
+                         "can then only end once the extensor has built up force. Default from the species "
+                         "config (human: flexor).")
+    ap.add_argument("--swing-end-f-frac", type=float, default=0.35,
+                    help="PLAN.md P5: with --swing-end flexor, touchdown when Force-F <= this fraction of "
+                         "its swing peak (mirror of --cut-force-off-frac for stance).")
+    ap.add_argument("--swing-afferent-tau-ms", type=float, default=0.0,
+                    help="PLAN.md P5, --cut-trigger force: 0 = the swing flexor afferent (--ia-ext-f-hz) "
+                         "stays on for the whole swing (original). > 0 = it decays exponentially from swing "
+                         "onset with this time constant (the hip-flexor stretch signal falls as the hip "
+                         "flexes). Default from the species config.")
     ap.add_argument("--cut-force-off-frac", type=float, default=0.20,
                     help="MOD_CUT_FORCE_TRIGGER: stance-OFF threshold as a fraction of "
                          "the leg's adaptive running peak force_e. Must be < "
@@ -792,7 +811,7 @@ def main():
     # Wolpaw two-phase H-reflex conditioning on Ia->motor). Opt-in, OFF by default,
     # and requires --cut-trigger force (the only mode with a genuine-vs-failsafe-
     # forced bout-boundary signal to gate captures on).
-    ap.add_argument("--consolidate", action="store_true",
+    ap.add_argument("--consolidate", action=argparse.BooleanOptionalAction, default=False,
                     help="MOD_CONSOLIDATE: replace vanilla unconditional STDP "
                          "retention with tag-and-capture consolidation on "
                          "CUT->RG-E, Ia->RG-E/F, and BS->RG-E/F (when not "
@@ -985,6 +1004,9 @@ def main():
     CUT_FORCE_FILTER_TAU_MS = float(getattr(args, "cut_force_filter_tau_ms", 0.0))
     LEADING_LEG = str(getattr(args, "leading_leg", "R"))
     LEAD_OFFSET_MS = float(args.lead_offset_ms)
+    SWING_END_FLEXOR = (str(args.swing_end) == "flexor")          # PLAN.md P5
+    SWING_END_F_FRAC = float(args.swing_end_f_frac)
+    SWING_AFF_TAU_MS = float(args.swing_afferent_tau_ms)
     CUT_MAX_STANCE_MS = float(args.cut_max_stance_ms)
     CUT_MAX_SWING_MS = float(args.cut_max_swing_ms)
     MUSCLE_FATIGUE = bool(args.muscle_fatigue)
@@ -2521,6 +2543,10 @@ def main():
         # back to swing the instant priming ends.
         lag_side = "L" if LEADING_LEG == "R" else "R"
         cut_state = {side: True for side in LEGS}
+        # PLAN.md P5 (--swing-end flexor): per-swing running peak of Force-F, and whether the
+        # current stance has built up extensor force (only then may it end on the force rule).
+        peak_f_swing = {side: 0.0 for side in LEGS}
+        stance_armed = {side: True for side in LEGS}
         # MOD_IA_RG_LOADING_GAIN: scale the peak-force seed down with loading too, not
         # just the Ia->RG weight cap -- otherwise a fixed full-loading seed stays
         # permanently above the achievable force ceiling under reduced
@@ -2552,7 +2578,10 @@ def main():
                 for g in leg[side]["ia_ext_pg_e"]:
                     nest.SetStatus(g, {"rate": 0.0})
                 if leg[side]["ia_ext_pg_f"] is not None:
-                    nest.SetStatus(leg[side]["ia_ext_pg_f"], {"rate": IA_EXT_F_HZ})
+                    rate_f = IA_EXT_F_HZ
+                    if SWING_AFF_TAU_MS > 0.0:  # PLAN.md P5: phasic swing afferent
+                        rate_f = IA_EXT_F_HZ * float(np.exp(-max(0.0, t_now - phase_onset_ms[side]) / SWING_AFF_TAU_MS))
+                    nest.SetStatus(leg[side]["ia_ext_pg_f"], {"rate": rate_f})
 
         def cut_force_gate(side, t_now):
             # Reads force_e computed by THIS chunk's update_leg() call, which itself
@@ -2595,7 +2624,25 @@ def main():
                 is_on = True
             else:
                 is_on = was_on
-                if not was_on and fe >= on_thr:
+                if SWING_END_FLEXOR:
+                    # PLAN.md P5: stance ends on force only once armed (extensor built up);
+                    # swing also ends when the flexor burst has risen and fallen again.
+                    ff = float(state[side]["force_f"])
+                    if was_on:
+                        # armed once the extensor has clearly built up above the release
+                        # level (a quarter of the way from off_thr to on_thr); human force
+                        # stays below the seed-based on_thr, so arming at on_thr never happens.
+                        if fe >= off_thr + 0.25 * (on_thr - off_thr):
+                            stance_armed[side] = True
+                        if stance_armed[side] and fe <= off_thr:
+                            is_on = False
+                    else:
+                        peak_f_swing[side] = max(ff, peak_f_swing[side])
+                        f_min = FORCE_MAX * SWING_F_MIN_PEAK_FRAC * _seed_loading_scale
+                        if fe >= on_thr or (peak_f_swing[side] >= f_min
+                                            and ff <= SWING_END_F_FRAC * peak_f_swing[side]):
+                            is_on = True
+                elif not was_on and fe >= on_thr:
                     is_on = True
                 elif was_on and fe <= off_thr:
                     is_on = False
@@ -2635,6 +2682,9 @@ def main():
                     # the (loading-scaled) seed, so its OFF threshold isn't biased by
                     # history.
                     peak_e_est[side] = peak_e_seed
+                    stance_armed[side] = not SWING_END_FLEXOR  # PLAN.md P5
+                else:
+                    peak_f_swing[side] = 0.0                   # PLAN.md P5: fresh swing peak
                 # MOD_CONSOLIDATE: gate on real bout-boundary events only --
                 # priming and the lag-side's artificial priming-end reset are
                 # experimental symmetry-breaking, not trained outcomes.
@@ -2916,6 +2966,10 @@ def main():
             h5.attrs["lead_offset_ms"] = float(LEAD_OFFSET_MS)
             h5.attrs["cut_max_stance_ms"] = float(CUT_MAX_STANCE_MS)
             h5.attrs["cut_max_swing_ms"] = float(CUT_MAX_SWING_MS)
+            if SWING_END_FLEXOR or SWING_AFF_TAU_MS > 0.0:  # PLAN.md P5; absent = original
+                h5.attrs["swing_end"] = "flexor" if SWING_END_FLEXOR else "extensor"
+                h5.attrs["swing_end_f_frac"] = float(SWING_END_F_FRAC)
+                h5.attrs["swing_afferent_tau_ms"] = float(SWING_AFF_TAU_MS)
         h5.attrs["consolidate"] = bool(CONSOLIDATE)  # MOD_CONSOLIDATE
         if CONSOLIDATE:
             h5.attrs["consolidate_tau_tag_ms"] = float(CONSOLIDATE_TAU_TAG_MS)

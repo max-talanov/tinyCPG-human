@@ -1,0 +1,70 @@
+# Human locomotion modes (PLAN.md Phase 5). Read by run_human_modes.sh and
+# scripts/cpg_modes_stages.py --modes-config.
+#
+# stride_ms / stance_fraction: healthy adult walking (Perry & Burnfield 2010;
+# Winter 2009 -- to verify): slow ~1300-1500 ms / 0.62-0.65, comfortable
+# (self-selected, ~1.2-1.4 m/s) ~1000-1200 ms / 0.60, fast ~900 ms / 0.57.
+# Strides are shifted ~1% off multiples of the 100 ms gate tick (--rate-update-ms;
+# rat "tick-alignment fragility", CLAUDE.md), and so are the derived durations.
+#
+# loading: --ia-feedback-gain and --cut-feedback-gain. Body-weight-supported (BWS)
+# treadmill stepping replaces the rat toe/air stepping: loading = 1 - BWS fraction.
+#
+# force: first-guess force-trigger timing (--cut-trigger force), the rat medium
+# operating point (stride 1000, cap 450, fatigue onset/recovery 260/600, lead 150,
+# tau_tag 2000; measured rat stance ~390 ms) scaled by the mode's human stance
+# (stride x stance_fraction) / 390 ms. tau_tag x10 when unloaded (rat toe rule:
+# tau_tag scales with bout length and loading). off_frac kept at the rat 0.35.
+# Tuned at debug-small, comfortable (PLAN.md P5 rounds 1-5, 2026-09-27): swing ends
+# on the flexor burst (--swing-end flexor, swing_end_f_frac 0.65) with a phasic swing
+# afferent (tau 150 ms); fatigue recovery is NOT scaled (600 ms, the rat value; the
+# scaled 1020 ms kept the extensor fatigued through swing); fatigue onset 520 ms at
+# comfortable, scaled by stance for the other modes. Round 7: caps = 1.5 x the mode's
+# longest target bout (a true failsafe, not the operating point); fast adds the rat
+# fast-mode leg fatigue asymmetry (0.04) against L/R synchronisation; BWS tries an
+# earlier onset and a higher release fraction. Rounds 8-9: slow onset 620, fast
+# onset 330 / recovery 300 (a 300 ms swing needs faster extensor recovery), BWS onset
+# 460 / off_frac 0.40.
+
+modes:
+  slow:
+    label: "slow walk"
+    stride_ms: 1410
+    stance_fraction: 0.63
+    loading: 1.0
+    force: {cap_ms: 1330, fatigue_onset_ms: 620, fatigue_recovery_ms: 600, lead_offset_ms: 340,
+            off_frac: 0.35, tau_tag_ms: 4600,
+            swing_end_f_frac: 0.65, swing_afferent_tau_ms: 150}
+  comfortable:
+    label: "comfortable walk"
+    stride_ms: 1110
+    stance_fraction: 0.60
+    loading: 1.0
+    force: {cap_ms: 1000, fatigue_onset_ms: 480, fatigue_recovery_ms: 600, lead_offset_ms: 260,
+            off_frac: 0.35, tau_tag_ms: 3400,
+            swing_end_f_frac: 0.65, swing_afferent_tau_ms: 150}
+  fast:
+    label: "fast walk"
+    stride_ms: 890
+    stance_fraction: 0.57
+    loading: 1.0
+    force: {cap_ms: 760, fatigue_onset_ms: 330, fatigue_recovery_ms: 300, lead_offset_ms: 210,
+            off_frac: 0.35, tau_tag_ms: 2600,
+            swing_end_f_frac: 0.65, swing_afferent_tau_ms: 150,
+            leg_fatigue_asym_frac: 0.04}
+  bws50:
+    label: "BWS 50%"
+    stride_ms: 1110
+    stance_fraction: 0.60
+    loading: 0.5
+    force: {cap_ms: 1000, fatigue_onset_ms: 460, fatigue_recovery_ms: 600, lead_offset_ms: 260,
+            off_frac: 0.4, tau_tag_ms: 34200,
+            swing_end_f_frac: 0.65, swing_afferent_tau_ms: 150}
+  bws90:
+    label: "BWS 90% (air)"
+    stride_ms: 1110
+    stance_fraction: 0.60
+    loading: 0.1
+    force: {cap_ms: 1000, fatigue_onset_ms: 460, fatigue_recovery_ms: 600, lead_offset_ms: 260,
+            off_frac: 0.4, tau_tag_ms: 34200,
+            swing_end_f_frac: 0.65, swing_afferent_tau_ms: 150}

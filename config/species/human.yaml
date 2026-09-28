@@ -50,6 +50,8 @@ constants:
     PACED_TAU_FORCE_DECAY_MS: 80.0
 
 cli_defaults:                  # P3: phase scheduler + stance 0.60; P5: human strides, rescaled caps/τ
+  swing_end: flexor            # P5: force-trigger touchdown also when the flexor burst ends
+  swing_afferent_tau_ms: 150.0 # P5: swing flexor afferent decays over swing (hip-flexor stretch falls; to verify)
   muscle_length_model: ankle   # P4: soleus/TA share one ankle angle (antagonist length coupling)
   afferent_model: split        # P4: separate spindle Ia (length/velocity) and tendon-organ Ib (force)
   conn_rule: indegree          # P3b: size-invariant wiring, K* = p x production source size

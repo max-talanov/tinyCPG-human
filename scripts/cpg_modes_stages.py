@@ -16,10 +16,14 @@ Layout: one row per mode (slow, medium, fast, toe, air), 4 columns:
             Pathways without plasticity in the run (e.g. BS->RG under
             --freeze-bs-rg) are not recorded and so not shown.
 
-Input: results/modes/<species>/<mode>.h5 from ./run_modes_local.sh.
+Input: results/modes/<species>/<mode>.h5 from ./run_modes_local.sh, or with
+--modes-config config/modes/human.yaml the human modes (PLAN.md Phase 5) from
+./run_human_modes.sh.
 
 Usage:
   python3 scripts/cpg_modes_stages.py --species human
+  python3 scripts/cpg_modes_stages.py --modes-config config/modes/human.yaml \
+      --indir results/human_modes/paced --out plots/modes/p5_paced/human_modes_stages.png
   python3 scripts/cpg_modes_stages.py --species rat --stage beginning:4000:9000 \
       --stage middle:40000:45000 --stage end:115000:120000
 """
@@ -73,7 +77,16 @@ def main():
     ap.add_argument("--indir", default=None, help="default results/modes/<species>")
     ap.add_argument("--out", default=None, help="default plots/modes/<species>_modes_stages.png")
     ap.add_argument("--stage", action="append", help="name:lo_ms:hi_ms, exactly 3")
+    ap.add_argument("--modes-config", default=None,
+                    help="modes YAML (e.g. config/modes/human.yaml): mode names, order and labels")
     args = ap.parse_args()
+    global MODES
+    if args.modes_config:
+        import yaml
+        cfg = yaml.safe_load(open(args.modes_config))["modes"]
+        MODES = [(name, f"{m.get('label', name)}\nstride {m['stride_ms']} ms, stance {m['stance_fraction']:.2f}"
+                  + (f"\nloading {m['loading']}" if m.get("loading", 1.0) != 1.0 else ""))
+                 for name, m in cfg.items()]
     indir = args.indir or os.path.join("results", "modes", args.species)
     out = args.out or os.path.join("plots", "modes", f"{args.species}_modes_stages.png")
     os.makedirs(os.path.dirname(out) or ".", exist_ok=True)
@@ -175,7 +188,8 @@ def main():
              ha="left", va="bottom", fontsize=12.5, fontweight="bold", color=INK)
     fig.text(0.06, 0.995,
              f"species={attrs.get('species', '?')}  {scale}  wiring={attrs.get('conn_rule', 'bernoulli')}  "
-             f"afferents={attrs.get('afferent_model', 'pooled')}  length={attrs.get('muscle_length_model', 'independent')}  sim={attrs.get('sim_ms', 0) / 1000:.0f} s  "
+             f"afferents={attrs.get('afferent_model', 'pooled')}  length={attrs.get('muscle_length_model', 'independent')}  "
+             f"trigger={attrs.get('cut_trigger', 'timer')}{'+consolidation' if attrs.get('consolidate') else ''}  sim={attrs.get('sim_ms', 0) / 1000:.0f} s  "
              f"λ={attrs.get('stdp_lambda', attrs.get('lambda', '?'))}  seed={attrs.get('seed', '?')}   {note}"
              f"Force panels: left leg; r(E,F) for both legs.",
              ha="left", va="top", fontsize=8.5, color=INK_2)

@@ -7,7 +7,7 @@ conduction delays, reflex probe at 30 ms), Phase 3 (phase scheduler, human
 stance 0.60 with double support) and MN5 check A (five modes at production N).
 Phase 3b (size-invariant connectivity, B13 fix) is done locally (2026-09-26);
 its 3×/10× MN5 runs are pending.
-**Now:** Phase 4 (in progress: soleus/TA τ and Ia/Ib split done), with MN5 check B (scaling benchmark and MPI-safe loop)
+**Now:** Phase 5 (in progress: human modes, force-trigger + consolidation; comfortable and slow pass at debug-small). Phase 4 done apart from its force-trigger acceptance, which moved to P5. MN5 check B (scaling benchmark and MPI-safe loop)
 alongside it. P3b and check B were moved forward on 2026-09-26 so that
 everything tuned from P4 on carries over to the adult-size model (P9)
 without re-tuning.
@@ -893,9 +893,16 @@ Open:
   toe −0.72/−0.74, air −0.34/−0.29. End states unchanged; early alternation
   slightly better at slow and fast.
 
+On learning speed (2026-09-27, user): the slower early learning under the
+split is **not a defect**. Real recovery of stepping takes weeks: in rats
+roughly 40 weeks after complete injury, and still weeks after incomplete
+injury; in humans rehabilitation also takes weeks to months. A 120 s run is
+already far faster than biology, so faster early alternation is not a
+target. Learning speed is judged in Phase 6 against the shape of the human
+recovery curve (sessions to criterion), not against the rat-scaled
+simulation.
+
 Still open in P4:
-- Early learning is slower than pooled (−0.22 vs −0.45 at 4–9 s); steady
-  state is unaffected.
 - The P4 acceptance on force-trigger (Force-E reaching CUT-OFF within the
   human stance) needs the fatigue rescale, so it moves into P5.
 
@@ -943,6 +950,87 @@ conditions.
 - corr(Force-E, Force-F) and corr(Force-E_L, Force-E_R) in the rat-recalibrated
   target band (−0.6 to −0.8), with no L/R synchronisation.
 - Measured stride period and stance fraction within ±5% of the mode target.
+
+**Status: in progress (2026-09-27).**
+
+Built:
+- `config/modes/human.yaml`: five human modes. slow 1410 ms / 0.63, comfortable
+  1110 / 0.60, fast 890 / 0.57, BWS 50% and BWS 90% (air) at comfortable timing
+  with loading 0.5 / 0.1. Strides are ~1% off multiples of the 100 ms tick. Each
+  mode has a `force:` block (cap, fatigue onset/recovery, lead offset, release
+  fraction, τ_tag, swing-end fraction, swing-afferent τ, leg asymmetry).
+- `run_human_modes.sh` (local and MN5 array; `TRIGGER=paced|force`,
+  `SIZE=production|debug`, `CONSOLIDATE=0|1`), `scripts/mode_params.py`,
+  `scripts/p5_force_summary.py` (acceptance table: mean stride and stance vs
+  target, capped stance *and* swing bouts, correlations, captures).
+  `scripts/cpg_modes_stages.py --modes-config`.
+- `--consolidate` is now `BooleanOptionalAction` (`--no-consolidate`).
+
+Paced five modes at human strides (production, 120 s; `plots/modes/p5_paced/`):
+end r(E,F) slow −0.76/−0.77, comfortable −0.75/−0.76, fast −0.71/−0.72, BWS 50%
+−0.70/−0.66, BWS 90% −0.23/−0.24.
+
+**Finding: force-triggered swing never ended on its own, in rat too.**
+- Touchdown required Force-E to climb back to 80% of the stance peak. Without
+  CUT the extensor stays near zero through swing, so every swing ended on the
+  failsafe cap.
+- The rat medium operating point has genuine stance (400 ms) but every swing
+  capped (500 ms vs cap 450). The old diagnostics checked stance only.
+- The P5 summary uses `duration >= cap` as the capped test: bouts end on
+  100 ms ticks, so a capped bout ends at the first tick at or after the cap.
+
+Fix (user decision 2026-09-27: flexor end + phasic afferent), human only, rat
+byte-identical (`MOD_SWING_END`):
+- `--swing-end flexor`: touchdown also when the flexor burst ends: Force-F
+  falls to `--swing-end-f-frac` of its swing peak, after rising above
+  `SWING_F_MIN_PEAK_FRAC` × FORCE_MAX.
+- Stance may then end on force only once armed: the extensor has risen a
+  quarter of the way from the release level to the touchdown level.
+- `--swing-afferent-tau-ms`: the swing flexor afferent decays from swing onset
+  (human 150 ms; to verify) instead of staying on.
+
+Tuning (debug-small, 60 s, rounds 1–9):
+- Fatigue recovery must **not** be scaled with stance: 600 ms (the rat value).
+  The scaled 1020 ms kept the extensor fatigued through swing. Fast needs
+  300 ms for its 300 ms swing.
+- Swing-end fraction 0.65.
+- Caps are 1.5 × the mode's longest target bout, so they stay failsafes.
+- Fatigue onset sets stance length (slow 620, comfortable 480, fast 330,
+  BWS 460).
+
+| Mode (debug-small) | Stride (target) | Stance fraction | Capped st/sw | r(E,F) L/R | r(E_L,E_R) | Verdict |
+|---|---|---|---|---|---|---|
+| slow | 1358 (1410) | 0.64 (0.63) | 0.00 / 0.00 | −0.74 / −0.70 | −0.52 | pass |
+| comfortable | 1067 (1110) | 0.59 (0.60) | 0.00 / 0.00 | −0.71 / −0.69 | −0.59 | pass |
+| fast | 845 (890) | 0.59 (0.57) | 0.07 / 0.00 | −0.57 / −0.54 | −0.12 | near: r just outside the band, weak L/R anti-phase |
+| BWS 50% | 1085 (1110) | 0.60 (0.60) | 0.00 / 0.00 | −0.37 / −0.40 | −0.57 | timing passes, r(E,F) too weak |
+| BWS 90% | 1444 (1110) | 0.70 (0.60) | 1.00 / 0.02 | −0.04 / −0.02 | −0.44 | collapses (as in paced and rat) |
+
+**Production (N = 100, 120 s, force-trigger + consolidation, t > 30 s;
+`plots/modes/p5_force/`):**
+
+| Mode | Stride (target) | Stance fraction | Capped st/sw | r(E,F) L/R | r(E_L,E_R) | Captures L/R | Verdict |
+|---|---|---|---|---|---|---|---|
+| slow | 1400 (1410) | 0.64 (0.63) | 0.00 / 0.00 | −0.74 / −0.74 | −0.46 | 129 / 129 | pass |
+| comfortable | 1088 (1110) | 0.58 (0.60) | 0.02 / 0.00 | −0.69 / −0.71 | −0.55 | 163 / 164 | pass |
+| fast | 833 (890) | 0.58 (0.57) | 0.05 / 0.00 | −0.63 / −0.57 | −0.11 | 205 / 218 | stride −6%, weak L/R |
+| BWS 50% | 1082 (1110) | 0.61 (0.60) | 0.00 / 0.00 | −0.54 / −0.51 | −0.53 | 166 / 167 | timing passes, r(E,F) below band (end window −0.73/−0.68) |
+| BWS 90% | 1481 (1110) | 0.68 (0.60) | 1.00 / 0.12 | −0.06 / +0.03 | −0.48 | 57 / 55 | collapses |
+
+- The debug-small tuning carried over to production (Phase 3b size
+  invariance at work).
+- **Vanilla STDP is retired for human force-trigger runs:** consolidation is on
+  in all of them. The species default (`cut_trigger`, `consolidate`) is not
+  switched yet; `run_human_modes.sh TRIGGER=force` sets it.
+- Cost: consolidation bookkeeping is now 53–66% of wall time (120 s:
+  ~8–19 min at 4 threads). This is the MN5 check B item.
+- Force amplitudes are lower than in paced runs (extensor peak ~6–7 vs ~17):
+  fatigue now shapes every stance. The extensor profile is a fast rise and a
+  fatigue decay through stance.
+
+Next: fast L/R coordination (−0.11), BWS 50% r(E,F), the air-stepping
+collapse (flagged since MN5 check A; P7 builds on unloading), 3 seeds per
+mode, and switching the human species defaults to force + consolidation.
 
 ### Phase 6 — Plasticity time course and multi-session rehabilitation (M)
 
