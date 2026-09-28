@@ -29,6 +29,14 @@ constants:
     IB_K_FORCE: 6.0            # P4 split: = the old pooled force term (keeps the load-loop drive)
     IB_RATE_MAX_HZ: 150.0      # to verify
     W_IB2RG: 4.5               # P4 split: static Ib -> RG (pA), ~ the end-of-learning pooled Ia -> RG weight
+  rge_gate:                    # P5 MOD_RGE_LOAD_GATE (scripts/p5_rge_gate_probe.py): without ground
+                               # contact (CUT) RG-E stays subthreshold -- BS, Ia, Ib and any mix of them,
+                               # at the Ia/Ib caps and worst-case rates. Rate regime unchanged (the
+                               # learned CUT drive still saturates RG-E), so the RG-rate activation
+                               # readout and the RG-E -> InE drive keep their calibration.
+    I_E_RGE: -35.0             # hyperpolarising bias (rat +1.0): threshold ~36 mV/ms mean drive
+    RGE_GATE_SCALE_IA: 0.3     # Ia -> RG-E init 3.5 -> 1.05, Wmax 10 -> 3 (x loading adjustment)
+    RGE_GATE_SCALE_IB: 0.6667  # Ib-E -> RG-E 4.5 -> 3.0 (Ib-F -> RG-F keeps W_IB2RG)
   muscle:                      # Phase 4: soleus (E) / tibialis anterior (F), D3
     TAU_ACT_RISE_MS: 20.0
     TAU_ACT_DECAY_MS: 20.0
@@ -52,6 +60,7 @@ constants:
 cli_defaults:                  # P3: phase scheduler + stance 0.60; P5: human strides, rescaled caps/τ
   swing_end: flexor            # P5: force-trigger touchdown also when the flexor burst ends
   swing_afferent_tau_ms: 150.0 # P5: swing flexor afferent decays over swing (hip-flexor stretch falls; to verify)
+  liftoff_needs_contra_stance: true  # P5: a leg lifts off only while the other is in stance (interlimb load rule)
   muscle_length_model: ankle   # P4: soleus/TA share one ankle angle (antagonist length coupling)
   afferent_model: split        # P4: separate spindle Ia (length/velocity) and tendon-organ Ib (force)
   conn_rule: indegree          # P3b: size-invariant wiring, K* = p x production source size

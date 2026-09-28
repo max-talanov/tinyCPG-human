@@ -378,6 +378,17 @@ IB_K_FORCE = 6.0
 IB_RATE_MAX_HZ = 150.0
 P_IB2RG = 0.5            # Ib -> RG in-degree density (as Ia -> RG)
 W_IB2RG = 4.5            # pA; the pooled Ia -> RG weight the force term drove at the end of learning
+# PLAN.md P5 MOD_RGE_LOAD_GATE: the extensor half-centre fires only on the coincidence of
+# ground contact (CUT) with the descending drive (BS) and proprioception (Ia, Ib); every
+# input combination without contact stays subthreshold, so unloading ends stance and Ib
+# (force) only reinforces a loaded extensor. A sum-threshold gate: I_E_RGE sets the
+# threshold, these scale RG-E's own excitatory inputs (RG-F keeps the unscaled ones).
+# Calibrated with scripts/p5_rge_gate_probe.py; 1.0 / 0.0 = off (rat).
+RGE_GATE_SCALE_BS = 1.0   # x BS -> RG-E init weight and its Wmax_BS
+RGE_GATE_SCALE_IA = 1.0   # x Ia -> RG-E init weight and its (loading-adjusted) Wmax
+RGE_GATE_SCALE_IB = 1.0   # x W_IB2RG on Ib-E -> RG-E
+RGE_GATE_SCALE_CUT = 1.0  # x CUT -> RG-E init weight
+WMAX_CUT_RGE = 0.0        # CUT -> RG-E Wmax; 0 = WMAX
 
 
 def clamp(x: float, lo: float, hi: float) -> float:
@@ -695,6 +706,17 @@ def main():
                          "its own swing peak (after rising above SWING_F_MIN_PEAK_FRAC of FORCE_MAX); stance "
                          "can then only end once the extensor has built up force. Default from the species "
                          "config (human: flexor).")
+    ap.add_argument("--liftoff-needs-contra-stance", action=argparse.BooleanOptionalAction, default=False,
+                    help="PLAN.md P5, --cut-trigger force: a leg may end stance on force only while the other "
+                         "leg is in stance (interlimb load rule: a limb is not unloaded for swing until the "
+                         "contralateral limb bears weight; Duysens & Pearson 1980, Pearson 2004 -- to "
+                         "verify). Prevents flight phases in walking. The stance cap still applies.")
+    ap.add_argument("--load-transfer-tau-ms", type=float, default=0.0,
+                    help="PLAN.md P5, --cut-trigger force: bipedal weight transfer. 0 = off (original). > 0 = "
+                         "when the other leg touches down during this leg's stance, this (trailing) leg's "
+                         "plantar CUT input decays with this time constant as body weight moves to the "
+                         "leading leg; the resulting extensor unloading ends stance through the normal force "
+                         "rule (unloading of extensors/sole triggers swing: Duysens & Pearson 1980 -- to verify).")
     ap.add_argument("--swing-end-f-frac", type=float, default=0.35,
                     help="PLAN.md P5: with --swing-end flexor, touchdown when Force-F <= this fraction of "
                          "its swing peak (mirror of --cut-force-off-frac for stance).")
@@ -1007,6 +1029,8 @@ def main():
     SWING_END_FLEXOR = (str(args.swing_end) == "flexor")          # PLAN.md P5
     SWING_END_F_FRAC = float(args.swing_end_f_frac)
     SWING_AFF_TAU_MS = float(args.swing_afferent_tau_ms)
+    LIFTOFF_NEEDS_CONTRA = bool(args.liftoff_needs_contra_stance)  # PLAN.md P5
+    LOAD_TRANSFER_TAU_MS = float(args.load_transfer_tau_ms)          # PLAN.md P5
     CUT_MAX_STANCE_MS = float(args.cut_max_stance_ms)
     CUT_MAX_SWING_MS = float(args.cut_max_swing_ms)
     MUSCLE_FATIGUE = bool(args.muscle_fatigue)
@@ -1391,6 +1415,30 @@ def main():
         min(float(args.stdp_winit_max), EFFECTIVE_WMAX_IA),
     )
 
+    # MOD_RGE_LOAD_GATE: RG-E's own init weights and Wmax (the same objects when the gate is off).
+    WMAX_CUT_RGE_EFF = float(WMAX_CUT_RGE) if WMAX_CUT_RGE > 0.0 else float(WMAX)
+    WMAX_BS_RGE = float(WMAX_BS) * RGE_GATE_SCALE_BS
+    WMAX_IA_RGE = float(EFFECTIVE_WMAX_IA) * RGE_GATE_SCALE_IA
+    RGE_GATE = (RGE_GATE_SCALE_BS, RGE_GATE_SCALE_IA, RGE_GATE_SCALE_IB, RGE_GATE_SCALE_CUT) != (1.0,) * 4 \
+        or WMAX_CUT_RGE_EFF != float(WMAX)
+
+    def _rge_init(mean_mul, std_mul, g, wmax):
+        std_g = g if str(args.stdp_winit_dist).lower().strip() == "normal" else 1.0  # CV / sigma are scale-free
+        return make_stdp_init_weight_param(
+            args.stdp_winit_dist,
+            float(args.stdp_winit_mean) * mean_mul * g,
+            float(args.stdp_winit_std) * std_mul * std_g,
+            float(args.stdp_winit_min) * g,
+            min(float(args.stdp_winit_max), wmax),
+        )
+
+    W_INIT_CUT_RGE = W_INIT_CUT if (RGE_GATE_SCALE_CUT == 1.0 and WMAX_CUT_RGE_EFF == float(WMAX)) \
+        else _rge_init(1.0, 1.0, RGE_GATE_SCALE_CUT, WMAX_CUT_RGE_EFF)
+    W_INIT_BS_RGE = W_INIT_BS if RGE_GATE_SCALE_BS == 1.0 else _rge_init(
+        float(getattr(args, "stdp_winit_bs_mean_mul", 1.0)), float(getattr(args, "stdp_winit_bs_std_mul", 1.0)),
+        RGE_GATE_SCALE_BS, WMAX_BS_RGE)
+    W_INIT_IA_RGE = W_INIT_IA if RGE_GATE_SCALE_IA == 1.0 else _rge_init(1.0, 1.0, RGE_GATE_SCALE_IA, WMAX_IA_RGE)
+
     # Robust rank/proc detection:
     # - under Slurm, SLURM_PROCID/SLURM_NTASKS are the most reliable
     # - otherwise, fall back to NEST helpers if present
@@ -1652,8 +1700,8 @@ def main():
             else:
                 nest.CopyModel("stdp_synapse", name, params)
 
-        copy(f"stdp_cut_rge_{side}", stdp_defaults, make_weight_recorder_safe())
-        copy(f"stdp_bs_rge_{side}", stdp_bs_defaults, make_weight_recorder_safe())   # MOD_COACT: capped Wmax
+        copy(f"stdp_cut_rge_{side}", {**stdp_defaults, "Wmax": WMAX_CUT_RGE_EFF}, make_weight_recorder_safe())
+        copy(f"stdp_bs_rge_{side}", {**stdp_bs_defaults, "Wmax": WMAX_BS_RGE}, make_weight_recorder_safe())   # MOD_COACT: capped Wmax
         copy(f"stdp_bs_rgf_{side}", stdp_bs_defaults, make_weight_recorder_safe())   # MOD_COACT: capped Wmax
         # MOD_IA_RG_STDP: plastic homonymous Ia->RG models, always created -- the third
         # standing plastic pathway alongside BS->RG and CUT->RG, matching the reference
@@ -1661,7 +1709,7 @@ def main():
         # loading-adjusted EFFECTIVE_WMAX_IA (MOD_IA_RG_LOADING_GAIN), not the raw
         # --wmax-ia -- relaxes as --cut-feedback-gain drops.
         stdp_ia_defaults = {**stdp_defaults, "Wmax": float(EFFECTIVE_WMAX_IA)}
-        copy(f"stdp_ia_rge_{side}", stdp_ia_defaults, make_weight_recorder_safe())
+        copy(f"stdp_ia_rge_{side}", {**stdp_ia_defaults, "Wmax": WMAX_IA_RGE}, make_weight_recorder_safe())
         copy(f"stdp_ia_rgf_{side}", stdp_ia_defaults, make_weight_recorder_safe())
 
     # ---- PLAN.md P3b: size-invariant connectivity ----
@@ -1711,7 +1759,7 @@ def main():
         L = leg[side]
 
         connect("cut_in->rg_e", "cut_in", L["cut_in"], L["rg_e"], P_IN_STDP,
-                syn_spec={"synapse_model": f"stdp_cut_rge_{side}", "weight": W_INIT_CUT, "delay": delay["cut_to_rg"]})
+                syn_spec={"synapse_model": f"stdp_cut_rge_{side}", "weight": W_INIT_CUT_RGE, "delay": delay["cut_to_rg"]})
 
         # MOD_COACT: static CUT → RGE pathway — present from t=0 before STDP bootstraps.
         # CUT 100 Hz × W=14 × ~35 conns alone is subthreshold; combined with BS 60 Hz it
@@ -1727,7 +1775,7 @@ def main():
         _bs_rge_model = "static_synapse" if getattr(args, "freeze_bs_rg", False) else f"stdp_bs_rge_{side}"
         _bs_rgf_model = "static_synapse" if getattr(args, "freeze_bs_rg", False) else f"stdp_bs_rgf_{side}"
         connect("bs_in_e->rg_e", "bs_in_e", L["bs_in_e"], L["rg_e"], P_IN_STDP,
-                syn_spec={"synapse_model": _bs_rge_model, "weight": W_INIT_BS, "delay": delay["bs_to_rg"]})
+                syn_spec={"synapse_model": _bs_rge_model, "weight": W_INIT_BS_RGE, "delay": delay["bs_to_rg"]})
         connect("bs_in_f->rg_f", "bs_in_f", L["bs_in_f"], L["rg_f"], P_IN_STDP,
                 syn_spec={"synapse_model": _bs_rgf_model, "weight": W_INIT_BS, "delay": delay["bs_to_rg"]})
 
@@ -1784,7 +1832,8 @@ def main():
         # of the pooled Ia -> RG drive; the flexor side is kept symmetric (weaker evidence).
         if AFFERENT_SPLIT:
             connect("ib_in_e->rg_e", "ib_in_e", L["ib_in_e"], L["rg_e"], P_IB2RG,
-                    syn_spec={"synapse_model": "static_synapse", "weight": W_IB2RG, "delay": delay["ia_path"]})
+                    syn_spec={"synapse_model": "static_synapse", "weight": W_IB2RG * RGE_GATE_SCALE_IB,
+                              "delay": delay["ia_path"]})
             connect("ib_in_f->rg_f", "ib_in_f", L["ib_in_f"], L["rg_f"], P_IB2RG,
                     syn_spec={"synapse_model": "static_synapse", "weight": W_IB2RG, "delay": delay["ia_path"]})
 
@@ -1797,7 +1846,7 @@ def main():
         # training/rehabilitation, so this must stay plastic, not a static baseline.
         _p_ia2rg = float(getattr(args, "p_ia2rg", P_IA2RG_STDP))
         connect("ia_in_e->rg_e", "ia_in_e", L["ia_in_e"], L["rg_e"], _p_ia2rg,
-                syn_spec={"synapse_model": f"stdp_ia_rge_{side}", "weight": W_INIT_IA, "delay": delay["ia_path"]})
+                syn_spec={"synapse_model": f"stdp_ia_rge_{side}", "weight": W_INIT_IA_RGE, "delay": delay["ia_path"]})
         connect("ia_in_f->rg_f", "ia_in_f", L["ia_in_f"], L["rg_f"], _p_ia2rg,
                 syn_spec={"synapse_model": f"stdp_ia_rgf_{side}", "weight": W_INIT_IA, "delay": delay["ia_path"]})
 
@@ -2120,7 +2169,8 @@ def main():
     # adjusted EFFECTIVE_WMAX_IA and only ever moves if
     # --consolidate-wmax-ia-growth-per-capture > 0 (default 0.0 = no-op).
     wmax_ia_growth_keys = tuple(k for k in ("ia->rge", "ia->rgf") if k in consolidate_keys)
-    wmax_ia_current = {side: {k: float(EFFECTIVE_WMAX_IA) for k in wmax_ia_growth_keys} for side in LEGS}
+    wmax_ia_current = {side: {k: (WMAX_IA_RGE if k == "ia->rge" else float(EFFECTIVE_WMAX_IA))
+                              for k in wmax_ia_growth_keys} for side in LEGS}
     if CONSOLIDATE:
         for side in LEGS:
             for key in consolidate_keys:
@@ -2563,8 +2613,16 @@ def main():
         force_e_filt = {side: None for side in LEGS}
 
         def cut_force_apply(side, is_on, t_now):
-            nest.SetStatus(leg[side]["cut_pg"],
-                           {"rate": CUT_FEEDBACK_GAIN * CUT_RATE_ON_HZ if is_on else CUT_RATE_OFF_HZ})
+            cut_rate = CUT_FEEDBACK_GAIN * CUT_RATE_ON_HZ if is_on else CUT_RATE_OFF_HZ
+            unload = 1.0
+            if is_on and LOAD_TRANSFER_TAU_MS > 0.0:
+                # PLAN.md P5 (MOD_LOAD_TRANSFER): trailing leg -- the other leg touched down
+                # after this one did and is bearing weight -> this foot unloads: the plantar
+                # CUT input and the heel->toe stance load groups decay together.
+                other = "R" if side == "L" else "L"
+                if cut_state[other] and stance_onset_ms[other] > stance_onset_ms[side]:
+                    unload = float(np.exp(-max(0.0, t_now - stance_onset_ms[other]) / LOAD_TRANSFER_TAU_MS))
+            nest.SetStatus(leg[side]["cut_pg"], {"rate": cut_rate * unload})
             if is_on:
                 # Stance: Ia-E heel->mid->toe sub-group sequenced by elapsed time
                 # since this leg's own stance onset (self-timed, not clock-scheduled).
@@ -2573,7 +2631,7 @@ def main():
                 elapsed = max(0.0, t_now - stance_onset_ms[side])
                 g_idx = min(N_IA_GROUPS_PACED - 1, int(elapsed // max(1e-9, SUB_STANCE_MS)))
                 for gi, g in enumerate(leg[side]["ia_ext_pg_e"]):
-                    nest.SetStatus(g, {"rate": IA_EXT_HZ[gi] if gi == g_idx else 0.0})
+                    nest.SetStatus(g, {"rate": IA_EXT_HZ[gi] * unload if gi == g_idx else 0.0})
             else:
                 for g in leg[side]["ia_ext_pg_e"]:
                     nest.SetStatus(g, {"rate": 0.0})
@@ -2646,6 +2704,11 @@ def main():
                     is_on = True
                 elif was_on and fe <= off_thr:
                     is_on = False
+                # PLAN.md P5 (MOD_INTERLIMB_LOAD): no lift-off while the other leg is in swing.
+                if LIFTOFF_NEEDS_CONTRA and was_on and not is_on:
+                    other = "R" if side == "L" else "L"
+                    if not cut_state[other]:
+                        is_on = True
                 is_on_pre_failsafe = is_on  # MOD_CONSOLIDATE: classification point
 
                 # Failsafe timeout: without adaptation/fatigue, CUT->RG-E->force_e is
@@ -2970,6 +3033,15 @@ def main():
                 h5.attrs["swing_end"] = "flexor" if SWING_END_FLEXOR else "extensor"
                 h5.attrs["swing_end_f_frac"] = float(SWING_END_F_FRAC)
                 h5.attrs["swing_afferent_tau_ms"] = float(SWING_AFF_TAU_MS)
+            if LIFTOFF_NEEDS_CONTRA:  # PLAN.md P5; absent = off
+                h5.attrs["liftoff_needs_contra_stance"] = True
+            if LOAD_TRANSFER_TAU_MS > 0.0:  # PLAN.md P5; absent = off
+                h5.attrs["load_transfer_tau_ms"] = float(LOAD_TRANSFER_TAU_MS)
+        if RGE_GATE:  # PLAN.md P5 MOD_RGE_LOAD_GATE; absent = off
+            h5.attrs["rge_gate_json"] = json.dumps(dict(
+                i_e_rge=float(I_E_RGE), scale_bs=RGE_GATE_SCALE_BS, scale_ia=RGE_GATE_SCALE_IA,
+                scale_ib=RGE_GATE_SCALE_IB, scale_cut=RGE_GATE_SCALE_CUT, wmax_cut_rge=WMAX_CUT_RGE_EFF,
+                wmax_bs_rge=WMAX_BS_RGE, wmax_ia_rge=WMAX_IA_RGE), sort_keys=True)
         h5.attrs["consolidate"] = bool(CONSOLIDATE)  # MOD_CONSOLIDATE
         if CONSOLIDATE:
             h5.attrs["consolidate_tau_tag_ms"] = float(CONSOLIDATE_TAU_TAG_MS)

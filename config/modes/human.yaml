@@ -24,7 +24,9 @@
 # fast-mode leg fatigue asymmetry (0.04) against L/R synchronisation; BWS tries an
 # earlier onset and a higher release fraction. Rounds 8-9: slow onset 620, fast
 # onset 330 / recovery 300 (a 300 ms swing needs faster extensor recovery), BWS onset
-# 460 / off_frac 0.40.
+# 460 / off_frac 0.40. Round 10 (P5 fast L/R, 2026-09-28): the RG-E load gate
+# (MOD_RGE_LOAD_GATE) and the interlimb liftoff rule (species default) replace the
+# fast-mode leg fatigue asymmetry, which set the two legs to different cadences (drift).
 
 modes:
   slow:
@@ -50,8 +52,7 @@ modes:
     loading: 1.0
     force: {cap_ms: 760, fatigue_onset_ms: 330, fatigue_recovery_ms: 300, lead_offset_ms: 210,
             off_frac: 0.35, tau_tag_ms: 2600,
-            swing_end_f_frac: 0.65, swing_afferent_tau_ms: 150,
-            leg_fatigue_asym_frac: 0.04}
+            swing_end_f_frac: 0.65, swing_afferent_tau_ms: 150}
   bws50:
     label: "BWS 50%"
     stride_ms: 1110

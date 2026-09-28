@@ -1028,8 +1028,85 @@ Tuning (debug-small, 60 s, rounds 1–9):
   fatigue now shapes every stance. The extensor profile is a fast rise and a
   fatigue decay through stance.
 
-Next: fast L/R coordination (−0.11), BWS 50% r(E,F), the air-stepping
-collapse (flagged since MN5 check A; P7 builds on unloading), 3 seeds per
+**Round 10 (2026-09-28): fast-walk L/R and the extensor load gate.**
+
+Fast-walk diagnosis (debug-small; right-foot touchdown phase in the left stride):
+0.34 ± 0.26, flight 0.20 (walking has none), the legs stepping at different
+rates. Commissural inhibition ×1.5 / ×2 did not help. A liftoff rule removed
+flight but locked the phase at 0.31. Weight transfer (trailing-leg CUT decays
+after the other foot lands) did not move it. Longer stances reached 0.50 only
+with 82–88% of stances ending on the cap.
+
+Root cause (isolated RG-E, production in-degrees, end-of-run weights, stance
+rates, no inhibition): **no input needed a partner.** BS alone 36 Hz/neuron,
+Ib alone 31, BS+Ib 59, BS+Ia+Ib (foot unloaded) 83, BS+CUT 946. After unloading,
+BS+Ia+Ib kept RG-E up, and RG-E → InE kept the flexor down, so only the cap
+ended stance. RG-E does not latch through its recurrent excitation (removing
+the inputs silences it).
+
+Fix (user decision 2026-09-28, `MOD_RGE_LOAD_GATE`; human only, rat
+byte-identical): RG-E fires only when ground contact (CUT) coincides with BS and
+proprioception. Every input mix without contact is subthreshold, at the Ia/Ib
+caps and worst-case rates. Ib reinforces a loaded extensor but cannot hold it.
+`I_E_RGE` −35 (threshold ~36 mV/ms mean drive), Ia→RG-E ×0.3 (init 1.05, Wmax 3),
+Ib-E→RG-E ×0.667 (3.0). Checked by `scripts/p5_rge_gate_probe.py` (gate PASS).
+
+- Ib (answer to the user, 2026-09-28): the "switch off on overload" role is the
+  resting autogenic inhibition. During locomotion the extensor Ib pathway reverses
+  to excitation of the extensor half-centre, which prolongs loaded stance
+  (Conway et al. 1987; Pearson & Collins 1993; Gossard et al. 1994; McCrea et al.
+  1995). Unloading allows swing (Duysens & Pearson 1980). Humans: Sinkjær et al.
+  2000; Grey et al. 2007; af Klint et al. 2010. All to verify. The pooled rat "Ia"
+  was already ~90% this force signal. The overload-inhibition path is not modelled.
+- Deviation from the agreed design: CUT alone is subthreshold at its initial weight
+  only. A gate at physiological RG-E rates was tried first (I_E −10, all four
+  inputs scaled, CUT Wmax 1.55; RG-E 11.5 Hz in stance). Activation fell to 0.02,
+  because the RG-rate activation readout has its logistic mid-point at 60 Hz. The
+  flexor fired through stance (RG-F 77 Hz), because RG-E → InE became too weak.
+  The gate therefore keeps the model's rate regime: the learned CUT drive saturates
+  RG-E. Physiological RG rates need the E and F readouts recalibrated together,
+  which belongs with the adult profile (Phase 9).
+- Interlimb: `--liftoff-needs-contra-stance` (`MOD_INTERLIMB_LOAD`) is the human
+  default. The fast-mode leg fatigue asymmetry (0.04, a rat fix for bistability)
+  is removed, because it set the two legs to different cadences.
+  `--load-transfer-tau-ms` (`MOD_LOAD_TRANSFER`) stays off: no gain, weaker r(E,F).
+
+Fast, debug-small, 60 s:
+
+| Variant | R phase in L stride | Flight | r(E_L,E_R) | Capped stance |
+|---|---|---|---|---|
+| before | 0.34 ± 0.26 | 0.20 | −0.12 | — |
+| gate | 0.33 ± 0.22 | 0.13 | −0.01 | 0.00 |
+| gate, no asymmetry | 0.51 ± 0.13 | 0.03 | −0.22 | 0.00 |
+| gate, no asymmetry, liftoff rule (**adopted**) | 0.47 ± 0.07 | 0.00 | −0.54 | 0.00 |
+| + load transfer τ 100 | 0.53 ± 0.03 | 0.00 | −0.53 | 0.00 (r(E,F) R −0.40) |
+
+**Production (N = 100, 120 s, force + consolidation, t > 30 s;
+`plots/modes/p5_gate/`):**
+
+| Mode | Stride (target) | Stance fraction | Capped st/sw | r(E,F) L/R | r(E_L,E_R) | R phase | Verdict |
+|---|---|---|---|---|---|---|---|
+| slow | 1399 (1410) | 0.65 (0.63) | 0.00 / 0.00 | −0.70 / −0.71 | −0.52 | 0.55 ± 0.06 | pass |
+| comfortable | 1108 (1110) | 0.62 (0.60) | 0.01 / 0.00 | −0.68 / −0.64 | −0.53 | 0.45 ± 0.09 | pass |
+| fast | 830 (890) | 0.64 (0.57) | 0.04 / 0.00 | −0.64 / −0.59 | **−0.54** (was −0.11) | 0.49 ± 0.06 | L/R fixed; stride −7%, stance too long |
+| BWS 50% | 1446 (1110) | 0.69 | 1.00 / 0.00 | +0.13 / +0.13 | +0.05 | 0.43 ± 0.16 | **regressed**: gate never opens |
+| BWS 90% | 1785 (1110) | 0.56 | 1.00 / 0.38 | +0.24 / +0.25 | −0.28 | — | collapses (as before) |
+
+- All three walking modes now have no flight phase. Double support is 0.23–0.29
+  of the stride (human: ~0.2 at comfortable speed).
+- The extensor is silent at the beginning and appears as CUT→RG-E learns
+  (4–9 s window). This is the gate: stance extensor activity has to be learned.
+- **BWS 50% regression:** at half loading, CUT 50 Hz + Ia + BS at the initial
+  weights stays below threshold (RG-E 3.5 Hz in stance, Force-E 0.2). With
+  (almost) no postsynaptic spikes CUT→RG-E barely learns (3.5 → 5.1 pA in 120 s),
+  so the extensor never switches on and every stance hits the cap. Options:
+  scale the gate threshold with loading (like `MOD_IA_RG_LOADING_GAIN`); start BWS
+  from weights learned at full loading (the P6 multi-session path; a healthy adult
+  is not naive); or accept it as the untrained state that BWS training must
+  overcome (a P6/P7 question).
+
+Next: BWS 50% under the gate (above), fast stance fraction (0.64 vs 0.57; swing is
+quantised to 300 ms by the 100 ms tick), the air-stepping collapse, 3 seeds per
 mode, and switching the human species defaults to force + consolidation.
 
 ### Phase 6 — Plasticity time course and multi-session rehabilitation (M)
@@ -1254,6 +1331,10 @@ checked against PubMed:
 - Thompson et al. 2013
 - Macefield & Knellwolf 2018 (human spindle rates; P4)
 - Conway et al. 1987; Gossard et al. 1994 (extensor Ib facilitation in locomotion; P4)
+- Pearson & Collins 1993; McCrea et al. 1995; Duysens & Pearson 1980 (Ib reversal and
+  unloading-triggered swing; P5 load gate)
+- Sinkjær et al. 2000; Grey et al. 2007; af Klint et al. 2010 (human positive force
+  feedback in stance; P5)
 - Human soleus twitch contraction time ~100 ms (P4, source still needed); TA
   motor-unit time-to-peak ~46 ms (Can J Appl Physiol 1997, doi 10.1139/h97-038)
 - Schreiber & Moissenet 2019
