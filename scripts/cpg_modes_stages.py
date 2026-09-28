@@ -106,7 +106,10 @@ def main():
             # synapse count (~5000 per leg at production N=100, a few hundred at debug-small).
             n_cut = int(dict(f["stats"].attrs).get("L_stdp_cut_rge", 0)) if "stats" in f else 0
             scale = "production N=100" if n_cut >= 2500 else ("debug-small" if n_cut else "size ?")
-            d = {"t": f["times_ms"][()], "wt": f["weights_times_ms"][()]}
+            d = {"t": f["times_ms"][()], "wt": f["weights_times_ms"][()],
+                 # MOD_INIT_WEIGHTS: a trained start (weights from an earlier run)
+                 "init_from": os.path.splitext(os.path.basename(str(f.attrs["init_weights_from"])))[0]
+                 if "init_weights_from" in f.attrs else None}
             for side in ("L", "R"):
                 g = f[f"leg_{side}"]
                 d[side] = {"fe": g["force_e"][()], "ff": g["force_f"][()],
@@ -135,6 +138,8 @@ def main():
                             ha="center", color=MUTED)
             continue
         d = data[mode]
+        if d["init_from"]:
+            label += f"\ntrained start ({d['init_from']})"
         for c, (sname, lo, hi) in enumerate(stages):
             ax = axes[r, c]
             m = (d["t"] >= lo) & (d["t"] <= hi)

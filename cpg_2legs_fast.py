@@ -711,6 +711,13 @@ def main():
                          "leg is in stance (interlimb load rule: a limb is not unloaded for swing until the "
                          "contralateral limb bears weight; Duysens & Pearson 1980, Pearson 2004 -- to "
                          "verify). Prevents flight phases in walking. The stance cap still applies.")
+    ap.add_argument("--init-weights-from", default=None, metavar="H5",
+                    help="PLAN.md P5/P6 (MOD_INIT_WEIGHTS): start every plastic pathway from the end-of-run "
+                         "weights of an earlier run (its full_weights, last snapshot) instead of the naive "
+                         "lognormal init: a trained walker, and the session carry-over P6 needs. The earlier "
+                         "run must be the same network (species, size, wiring rule, seed, threads; checked "
+                         "synapse by synapse). Weights above this run's Wmax are clipped. Consolidation "
+                         "baselines start at the loaded weights (already captured).")
     ap.add_argument("--load-transfer-tau-ms", type=float, default=0.0,
                     help="PLAN.md P5, --cut-trigger force: bipedal weight transfer. 0 = off (original). > 0 = "
                          "when the other leg touches down during this leg's stance, this (trailing) leg's "
@@ -2122,6 +2129,39 @@ def main():
             except Exception:
                 conns_endpoints[side][key] = (np.array([], dtype=np.int64), np.array([], dtype=np.int64))
 
+    # PLAN.md P5/P6 MOD_INIT_WEIGHTS: start from an earlier run's end-of-run weights.
+    # Same seed/size/wiring/threads -> the same synapses in the same sorted order, so the
+    # saved (source, target) arrays must match exactly; the weights are set positionally.
+    init_weights_info = {}
+    if getattr(args, "init_weights_from", None):
+        with h5py.File(args.init_weights_from, "r") as f0:
+            for side in LEGS:
+                for key in plastic_keys:
+                    conns = conns_full_cache[side][key]
+                    if conns is None or len(conns) == 0:
+                        continue
+                    gk = f"leg_{side}/full_weights/{key.replace('->', '_to_')}"
+                    if gk + "/w" not in f0:
+                        raise SystemExit(f"[init-weights] {args.init_weights_from}: no {gk} "
+                                         f"(run it with --save-weights snapshots or final)")
+                    src, tgt = conns_endpoints[side][key]
+                    if not (np.array_equal(f0[gk + "/source"][()], src)
+                            and np.array_equal(f0[gk + "/target"][()], tgt)):
+                        raise SystemExit(f"[init-weights] {args.init_weights_from}: {side} {key} synapses differ "
+                                         f"from this network (species, size, wiring rule, seed and threads must match)")
+                    wmax = float(nest.GetDefaults(_stdp_model(key, side), "Wmax"))
+                    w0 = np.asarray(f0[gk + "/w"][-1], dtype=float)
+                    w = np.minimum(w0, wmax)
+                    nest.SetStatus(conns, [{"weight": float(v)} for v in w])
+                    got = np.asarray(nest.GetStatus(conns, "weight"), dtype=float)
+                    if np.max(np.abs(got - w)) > 1e-4:
+                        raise SystemExit(f"[init-weights] {side} {key}: weights did not take")
+                    init_weights_info[f"{side}:{key}"] = dict(n=int(len(w)), mean=float(np.mean(w)),
+                                                              clipped=int(np.sum(w0 > wmax)))
+        print(f"[init-weights] loaded from {args.init_weights_from}: "
+              + ", ".join(f"{k} mean {v['mean']:.2f} (n {v['n']}, clipped {v['clipped']})"
+                          for k, v in init_weights_info.items()))
+
     # Optional connection downsampling for faster weight trend stats (mean/std)
     # This reduces the size of the weight arrays pulled via nest.GetStatus(conns, "weight")
     # without changing the simulated network.
@@ -3037,6 +3077,9 @@ def main():
                 h5.attrs["liftoff_needs_contra_stance"] = True
             if LOAD_TRANSFER_TAU_MS > 0.0:  # PLAN.md P5; absent = off
                 h5.attrs["load_transfer_tau_ms"] = float(LOAD_TRANSFER_TAU_MS)
+        if init_weights_info:  # PLAN.md P5/P6 MOD_INIT_WEIGHTS; absent = naive init
+            h5.attrs["init_weights_from"] = str(args.init_weights_from)
+            h5.attrs["init_weights_json"] = json.dumps(init_weights_info, sort_keys=True)
         if RGE_GATE:  # PLAN.md P5 MOD_RGE_LOAD_GATE; absent = off
             h5.attrs["rge_gate_json"] = json.dumps(dict(
                 i_e_rge=float(I_E_RGE), scale_bs=RGE_GATE_SCALE_BS, scale_ia=RGE_GATE_SCALE_IA,

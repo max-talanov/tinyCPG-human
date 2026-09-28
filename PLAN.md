@@ -1105,9 +1105,37 @@ Fast, debug-small, 60 s:
   is not naive); or accept it as the untrained state that BWS training must
   overcome (a P6/P7 question).
 
-Next: BWS 50% under the gate (above), fast stance fraction (0.64 vs 0.57; swing is
-quantised to 300 ms by the 100 ms tick), the air-stepping collapse, 3 seeds per
-mode, and switching the human species defaults to force + consolidation.
+**Trained start for BWS (user decision 2026-09-28, `MOD_INIT_WEIGHTS`).** A healthy
+adult on a BWS treadmill is a trained walker, not a naive network. `--init-weights-from`
+loads every plastic weight from the end of an earlier run on the same network (checked
+synapse by synapse; a different seed is refused). This is the session carry-over P6
+needs. `config/modes/human.yaml` gives BWS 50% and BWS 90% `init_from: comfortable`;
+`TRAINED=0` keeps the naive start as the untrained/SCI-like control. A lower gate
+threshold at reduced loading was the alternative. It was rejected because the relaxed
+unloaded Ia cap would reopen the no-contact path, and the cord cannot sense the harness
+setting.
+
+Production, trained from the production comfortable run (`plots/modes/p5_trained/`;
+walking rows are the `p5_gate` runs; t > 30 s):
+
+| Mode | Stride (target) | Stance fraction | Capped st/sw | r(E,F) L/R | r(E_L,E_R) | R phase | Verdict |
+|---|---|---|---|---|---|---|---|
+| BWS 50%, naive | 1446 (1110) | 0.69 | 1.00 / 0.00 | +0.13 / +0.13 | +0.05 | 0.43 ± 0.16 | gate never opens |
+| **BWS 50%, trained** | 1102 (1110) | 0.64 (0.60) | 0.00 / 0.00 | −0.66 / −0.63 | −0.46 | 0.36 ± 0.00 | **pass** (r(E,F) back in the band; stance +7%) |
+| BWS 90%, naive | 1785 (1110) | 0.56 | 1.00 / 0.38 | +0.24 / +0.25 | −0.28 | — | collapses |
+| BWS 90%, trained | 1558 (1110) | 0.61 (0.60) | 0.51 / 0.17 | −0.10 / +0.05 | +0.09 | 0.42 ± 0.29 | improved, still fails |
+
+- BWS 50% trained: r(E,F) is in the target band from the first window (−0.65/−0.69
+  at 4–9 s). There is nothing to learn first, and the extensor switches on at the
+  first touchdown. CUT→RG-E stays at the loaded ~67 pA. The L/R phase is locked at
+  0.36 (deterministic, not 0.5): an off-centre lock to look at.
+- BWS 90% trained: the learned CUT drive at 10 Hz opens the gate (RG-E 116 Hz in
+  stance, Force-E up to ~7). The rhythm is extensor-dominated, the flexor weak
+  (Force-F p90 3.5), and half the stances hit the cap. Air stepping stays the P7 case.
+
+Next: BWS 50% L/R lock at 0.36, fast stance fraction (0.64 vs 0.57; swing is
+quantised to 300 ms by the 100 ms tick), air stepping (P7), 3 seeds per mode, and
+switching the human species defaults to force + consolidation.
 
 ### Phase 6 — Plasticity time course and multi-session rehabilitation (M)
 

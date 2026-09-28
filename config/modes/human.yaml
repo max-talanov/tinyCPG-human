@@ -27,6 +27,11 @@
 # 460 / off_frac 0.40. Round 10 (P5 fast L/R, 2026-09-28): the RG-E load gate
 # (MOD_RGE_LOAD_GATE) and the interlimb liftoff rule (species default) replace the
 # fast-mode leg fatigue asymmetry, which set the two legs to different cadences (drift).
+#
+# init_from: <mode> -- a trained start (MOD_INIT_WEIGHTS): the run begins from the
+# end-of-run weights of that mode (same TAG directory, run first). BWS stepping is done by
+# trained adults; from a naive start the load gate never opens at half loading (P5 round
+# 10). TRAINED=0 in run_human_modes.sh gives the naive start.
 
 modes:
   slow:
@@ -58,6 +63,7 @@ modes:
     stride_ms: 1110
     stance_fraction: 0.60
     loading: 0.5
+    init_from: comfortable
     force: {cap_ms: 1000, fatigue_onset_ms: 460, fatigue_recovery_ms: 600, lead_offset_ms: 260,
             off_frac: 0.4, tau_tag_ms: 34200,
             swing_end_f_frac: 0.65, swing_afferent_tau_ms: 150}
@@ -66,6 +72,7 @@ modes:
     stride_ms: 1110
     stance_fraction: 0.60
     loading: 0.1
+    init_from: comfortable
     force: {cap_ms: 1000, fatigue_onset_ms: 460, fatigue_recovery_ms: 600, lead_offset_ms: 260,
             off_frac: 0.4, tau_tag_ms: 34200,
             swing_end_f_frac: 0.65, swing_afferent_tau_ms: 150}

@@ -20,9 +20,14 @@
 #                  (+ tag-and-capture consolidation unless CONSOLIDATE=0)
 #   SIZE=production (N=100; default) | debug (--debug-small)
 #   TAG            output subfolder name (default: $TRIGGER)
+#   TRAINED=1 (default): modes with `init_from: <mode>` (BWS) start from that mode's
+#                  end-of-run weights, $OUTDIR/<mode>.h5, which must exist (run it first,
+#                  same SIZE/SEED/THREADS). TRAINED=0: naive start for every mode.
 #   SIM_MS, SEED, LAMBDA, EXTRA (extra model flags, appended last)
 #
 # MN5:    sbatch run_human_modes.sh            (array 0-4 = modes in file order)
+#         BWS needs comfortable first: jid=$(sbatch --parsable --array=0-2 run_human_modes.sh)
+#                                      sbatch --array=3-4 --dependency=afterok:$jid run_human_modes.sh
 # Local (plain bash, so your usual python3 is used; the -l login shell may not see NEST):
 #         THREADS=4 bash run_human_modes.sh comfortable fast
 #         THREADS=4 bash run_human_modes.sh     (all five, one after another)
@@ -45,6 +50,7 @@ SIM_MS=${SIM_MS:-120000}
 SEED=${SEED:-12345}
 LAMBDA=${LAMBDA:-1e-4}
 CONSOLIDATE=${CONSOLIDATE:-1}
+TRAINED=${TRAINED:-1}
 THREADS=${THREADS:-${SLURM_CPUS_PER_TASK:-4}}
 EXTRA=${EXTRA:-}
 
@@ -89,6 +95,12 @@ for MODE in "${MODES[@]}"; do
   fi
   SIZE_FLAGS=()
   [ "$SIZE" = "debug" ] && SIZE_FLAGS=(--debug-small)
+  INIT_FLAGS=()
+  if [ -n "$INITFROM" ] && [ "$TRAINED" = "1" ]; then
+    [ -f "$OUTDIR/$INITFROM.h5" ] || { echo "[human-modes] $MODE starts trained from $OUTDIR/$INITFROM.h5: run $INITFROM first (or TRAINED=0)" >&2; exit 1; }
+    INIT_FLAGS=(--init-weights-from "$OUTDIR/$INITFROM.h5")
+    echo "[human-modes]   trained start: weights from $INITFROM"
+  fi
   echo "[human-modes] mode=$MODE trigger=$TRIGGER size=$SIZE stride=${STRIDE}ms stance=$STANCE loading=$GAIN sim=${SIM_MS}ms seed=$SEED -> $OUTDIR/$MODE.h5"
   start=$(date +%s)
   # shellcheck disable=SC2086
@@ -126,6 +138,7 @@ for MODE in "${MODES[@]}"; do
     --long-run \
     "${SIZE_FLAGS[@]+"${SIZE_FLAGS[@]}"}" \
     "${TRIG_FLAGS[@]}" \
+    "${INIT_FLAGS[@]+"${INIT_FLAGS[@]}"}" \
     $EXTRA \
     > "$OUTDIR/$MODE.log" 2>&1
   echo "[human-modes]   done in $(( $(date +%s) - start )) s"
