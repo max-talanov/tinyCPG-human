@@ -39,6 +39,9 @@
 # Round 13: BWS strides were short (BWS 90% -37%): the loading gain also scaled the flexor
 # Ia, so the swing burst sagged and swing ended early. Species default
 # flexor_afferent_loading: ib; BWS 50% swing_end_f_frac 0.47.
+# P6 (2026-09-29): capture calibration (species PRP threshold 10; BWS tau_tag 3400, was
+# 34200): 2-3 captures per session, recovery builds over sessions. Walking modes start
+# trained (init_from itself: its converged P5 run in SRC_DIR); BWS injured, as before.
 #
 # Round 11 (P5 BWS L/R phase lock, 2026-09-28): with fatigue ending each stance, the
 # liftoff rule allows any phase 0.36-0.64 and nothing centres it (BWS 50% locked at
@@ -55,6 +58,7 @@ modes:
     stride_ms: 1410
     stance_fraction: 0.63
     loading: 1.0
+    init_from: slow         # P6: healthy = trained (its own converged P5 run, SRC_DIR)
     force: {cap_ms: 1330, fatigue_onset_ms: 620, fatigue_recovery_ms: 600, lead_offset_ms: 340,
             off_frac: 0.4, tau_tag_ms: 4600,
             swing_end_f_frac: 0.55, swing_afferent_tau_ms: 150}
@@ -63,6 +67,7 @@ modes:
     stride_ms: 1110
     stance_fraction: 0.60
     loading: 1.0
+    init_from: comfortable         # P6: healthy = trained (its own converged P5 run, SRC_DIR)
     force: {cap_ms: 1000, fatigue_onset_ms: 480, fatigue_recovery_ms: 600, lead_offset_ms: 260,
             off_frac: 0.75, tau_tag_ms: 3400,
             swing_end_f_frac: 0.55, swing_afferent_tau_ms: 150}
@@ -72,6 +77,7 @@ modes:
     stance_fraction: 0.57
     loading: 1.0
     tick_ms: 25              # round 12: the post-touchdown delay floor is ~2 ticks; fast needs ~60 ms
+    init_from: fast         # P6: healthy = trained (its own converged P5 run, SRC_DIR)
     force: {cap_ms: 760, fatigue_onset_ms: 330, fatigue_recovery_ms: 300, lead_offset_ms: 210,
             off_frac: 0.78, tau_tag_ms: 2600,
             swing_end_f_frac: 0.55, swing_afferent_tau_ms: 150}
@@ -83,7 +89,7 @@ modes:
     init_from: comfortable
     init_scale: 0.25          # round 12: injured start, trained weights x0.25 (gate just opens)
     force: {cap_ms: 1000, fatigue_onset_ms: 460, fatigue_recovery_ms: 600, lead_offset_ms: 260,
-            off_frac: 0.75, tau_tag_ms: 34200,
+            off_frac: 0.75, tau_tag_ms: 3400,
             swing_end_f_frac: 0.47, swing_afferent_tau_ms: 150}
   bws90:
     label: "BWS 90% (air)"
@@ -93,5 +99,5 @@ modes:
     init_from: comfortable
     init_scale: 0.65          # round 12: injured start, trained weights x0.65 (gate just opens)
     force: {cap_ms: 1000, fatigue_onset_ms: 460, fatigue_recovery_ms: 600, lead_offset_ms: 260,
-            off_frac: 0.75, tau_tag_ms: 34200,
+            off_frac: 0.75, tau_tag_ms: 3400,
             swing_end_f_frac: 0.55, swing_afferent_tau_ms: 150}
