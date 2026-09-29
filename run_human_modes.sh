@@ -27,6 +27,7 @@
 #                  tick_ms, else 50 (P5 round 11). Below 100 the
 #                  --long-run preset (which forces >= 100 ms) is replaced by its other
 #                  settings, given explicitly.
+#   SRC_DIR        directory of the init_from runs (default: the output directory)
 #   SIM_MS, SEED, LAMBDA, EXTRA (extra model flags, appended last)
 #
 # MN5:    sbatch run_human_modes.sh            (array 0-4 = modes in file order)
@@ -55,6 +56,7 @@ SEED=${SEED:-12345}
 LAMBDA=${LAMBDA:-1e-4}
 CONSOLIDATE=${CONSOLIDATE:-1}
 TRAINED=${TRAINED:-1}
+SRC_DIR=${SRC_DIR:-}   # where init_from runs live (default: the output directory)
 TICK_ENV=${TICK:-}   # explicit TICK overrides the mode's tick_ms (default 50)
 THREADS=${THREADS:-${SLURM_CPUS_PER_TASK:-4}}
 EXTRA=${EXTRA:-}
@@ -108,8 +110,9 @@ for MODE in "${MODES[@]}"; do
   fi
   INIT_FLAGS=()
   if [ -n "$INITFROM" ] && [ "$TRAINED" = "1" ]; then
-    [ -f "$OUTDIR/$INITFROM.h5" ] || { echo "[human-modes] $MODE starts trained from $OUTDIR/$INITFROM.h5: run $INITFROM first (or TRAINED=0)" >&2; exit 1; }
-    INIT_FLAGS=(--init-weights-from "$OUTDIR/$INITFROM.h5" --init-weights-scale "$INITSCALE")
+    SRC="${SRC_DIR:-$OUTDIR}/$INITFROM.h5"
+    [ -f "$SRC" ] || { echo "[human-modes] $MODE starts trained from $SRC: run $INITFROM first (or TRAINED=0)" >&2; exit 1; }
+    INIT_FLAGS=(--init-weights-from "$SRC" --init-weights-scale "$INITSCALE")
     echo "[human-modes]   trained start: weights from $INITFROM x$INITSCALE"
   fi
   echo "[human-modes] mode=$MODE trigger=$TRIGGER size=$SIZE tick=${TICK}ms stride=${STRIDE}ms stance=$STANCE loading=$GAIN sim=${SIM_MS}ms seed=$SEED -> $OUTDIR/$MODE.h5"

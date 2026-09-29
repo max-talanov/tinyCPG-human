@@ -1416,9 +1416,38 @@ baselines):
 - At ~3.5 pA per session, reaching the trained level (~60 pA) takes ~10 more
   sessions.
 
-Next: adopt the calibration as the human default (P5 walking modes then start
-trained); a 15-session chain for the full recovery curve and sessions to criterion;
-the chain at production size; λ (5e-4–5e-3) with the calibrated gating.
+Adopted as the human default (2026-09-29, branch `p6-calibration`): species PRP
+threshold 10, BWS τ_tag 3400 (was 34200). Walking modes start trained: each loads its
+own converged P5 run (`init_from` itself; `run_human_modes.sh` `SRC_DIR`). Production,
+five modes (`plots/modes/p6_cal/`, weights now plotted as lines over the run): slow,
+comfortable and fast walk well from the first window (r(E,F) −0.75 to −0.82,
+r(E_L,E_R) −0.89 to −0.95; fast stride 938/890, +5%), with the weights flat at the
+trained level. BWS 50% gains ~6 pA CUT→RG-E in one session (5 captures), with r(E,F)
+unchanged within it.
+
+**15-session chains** (debug-small, 60 s sessions; `plots/p6/chain15_stages.png`,
+`scripts/p6_chain_stages.py`):
+
+| Session | 1 | 3 | 5 | 8 | 10 | 12 | 15 |
+|---|---|---|---|---|---|---|---|
+| BWS 50%: r(E,F) end of session | −0.24 | −0.35 | −0.38 | −0.47 | −0.52 | −0.58 | −0.56 |
+| BWS 50%: CUT→RG-E captured (pA) | 16.8 | 24.0 | 32.1 | 43.7 | 50.5 | 55.6 | 61.1 |
+| BWS 90%: r(E,F) end of session | −0.27 | −0.20 | −0.14 | −0.16 | −0.16 | −0.18 | −0.23 |
+| BWS 90%: CUT→RG-E captured (pA) | 37.9 | 38.6 | 39.3 | 40.3 | 40.9 | 41.5 | 42.4 |
+
+- BWS 50% recovers gradually and keeps each gain. The captured CUT→RG-E rises
+  ~3–4 pA per session, slowing as it nears the trained level (~62 pA). r(E,F) reaches
+  the P5 BWS 50% level (−0.56) by session ~11 and then plateaus. Sessions to criterion
+  (r(E,F) ≤ −0.5): 10. Within any session r(E,F) moves by ≤ 0.08. This meets the P6
+  acceptance shape at debug-small (still on the BWS 50% injured start, not yet the P7b
+  configuration).
+- BWS 90%: +0.3 pA per session and no gait improvement in 15 sessions. Loading drives
+  recovery, and at 10% loading CUT fires at 10 Hz, ~10x fewer learning events.
+  Consistent with the clinical role of loading (to verify); P7c (EES).
+
+Next: the chain at production size (+ 3 seeds); λ in 5e-4–5e-3 with the calibrated
+gating; compare the curve shape with human training studies (sessions to criterion,
+retention).
 
 ### Phase 7 — Healthy → incomplete SCI → complete SCI, with epidural stimulation (L)
 

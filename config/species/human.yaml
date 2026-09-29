@@ -92,6 +92,7 @@ cli_defaults:                  # P3: phase scheduler + stance 0.60; P5: human st
   consolidate_prp_gain_genuine: 0.25
   consolidate_prp_gain_forced: 0.10
   consolidate_tau_tag_ms: 3400.0
+  consolidate_prp_threshold: 10.0  # P6: 2-3 captures per session (P5: 1.0, a capture every ~0.5 s)
   rate_update_ms: 50.0
   simulate_chunk_ms: 50.0
   stance_fraction: 0.60        # comfortable human walking: ~60% stance, ~10% double support per transition
