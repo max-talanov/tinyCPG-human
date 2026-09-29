@@ -247,3 +247,7 @@ tempCodeRunnerFile.py
 
 # macOS Finder metadata
 .DS_Store
+
+# Raw/large data tables (e.g. results/human_data Trigno exports); files already
+# tracked (paper/*.csv, plots/archive) stay tracked.
+*.csv
