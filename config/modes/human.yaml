@@ -32,6 +32,15 @@
 # end-of-run weights of that mode (same TAG directory, run first). BWS stepping is done by
 # trained adults; from a naive start the load gate never opens at half loading (P5 round
 # 10). TRAINED=0 in run_human_modes.sh gives the naive start.
+#
+# Round 11 (P5 BWS L/R phase lock, 2026-09-28): with fatigue ending each stance, the
+# liftoff rule allows any phase 0.36-0.64 and nothing centres it (BWS 50% locked at
+# 0.36). Stance now ends on weight transfer (species default load_transfer_tau_ms 20,
+# extensor fatigue onset 1000 ms), at a 50 ms gate tick (run_human_modes.sh TICK=50; at
+# 100 ms the post-touchdown delay cannot drop below 200 ms). Stride = 2 x (delay + swing)
+# and stance = 50% + delay, so off_frac sets the delay (double support) and
+# swing_end_f_frac the swing. Fast stays at stance ~0.63: the delay floor is ~100 ms
+# at a 50 ms tick, fast walking needs ~60 ms.
 
 modes:
   slow:
@@ -40,24 +49,24 @@ modes:
     stance_fraction: 0.63
     loading: 1.0
     force: {cap_ms: 1330, fatigue_onset_ms: 620, fatigue_recovery_ms: 600, lead_offset_ms: 340,
-            off_frac: 0.35, tau_tag_ms: 4600,
-            swing_end_f_frac: 0.65, swing_afferent_tau_ms: 150}
+            off_frac: 0.4, tau_tag_ms: 4600,
+            swing_end_f_frac: 0.55, swing_afferent_tau_ms: 150}
   comfortable:
     label: "comfortable walk"
     stride_ms: 1110
     stance_fraction: 0.60
     loading: 1.0
     force: {cap_ms: 1000, fatigue_onset_ms: 480, fatigue_recovery_ms: 600, lead_offset_ms: 260,
-            off_frac: 0.35, tau_tag_ms: 3400,
-            swing_end_f_frac: 0.65, swing_afferent_tau_ms: 150}
+            off_frac: 0.75, tau_tag_ms: 3400,
+            swing_end_f_frac: 0.55, swing_afferent_tau_ms: 150}
   fast:
     label: "fast walk"
     stride_ms: 890
     stance_fraction: 0.57
     loading: 1.0
     force: {cap_ms: 760, fatigue_onset_ms: 330, fatigue_recovery_ms: 300, lead_offset_ms: 210,
-            off_frac: 0.35, tau_tag_ms: 2600,
-            swing_end_f_frac: 0.65, swing_afferent_tau_ms: 150}
+            off_frac: 0.78, tau_tag_ms: 2600,
+            swing_end_f_frac: 0.55, swing_afferent_tau_ms: 150}
   bws50:
     label: "BWS 50%"
     stride_ms: 1110
@@ -65,8 +74,8 @@ modes:
     loading: 0.5
     init_from: comfortable
     force: {cap_ms: 1000, fatigue_onset_ms: 460, fatigue_recovery_ms: 600, lead_offset_ms: 260,
-            off_frac: 0.4, tau_tag_ms: 34200,
-            swing_end_f_frac: 0.65, swing_afferent_tau_ms: 150}
+            off_frac: 0.75, tau_tag_ms: 34200,
+            swing_end_f_frac: 0.55, swing_afferent_tau_ms: 150}
   bws90:
     label: "BWS 90% (air)"
     stride_ms: 1110
@@ -74,5 +83,5 @@ modes:
     loading: 0.1
     init_from: comfortable
     force: {cap_ms: 1000, fatigue_onset_ms: 460, fatigue_recovery_ms: 600, lead_offset_ms: 260,
-            off_frac: 0.4, tau_tag_ms: 34200,
-            swing_end_f_frac: 0.65, swing_afferent_tau_ms: 150}
+            off_frac: 0.75, tau_tag_ms: 34200,
+            swing_end_f_frac: 0.55, swing_afferent_tau_ms: 150}

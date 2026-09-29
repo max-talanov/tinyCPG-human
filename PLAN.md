@@ -1133,9 +1133,61 @@ walking rows are the `p5_gate` runs; t > 30 s):
   stance, Force-E up to ~7). The rhythm is extensor-dominated, the flexor weak
   (Force-F p90 3.5), and half the stances hit the cap. Air stepping stays the P7 case.
 
-Next: BWS 50% L/R lock at 0.36, fast stance fraction (0.64 vs 0.57; swing is
-quantised to 300 ms by the 100 ms tick), air stepping (P7), 3 seeds per mode, and
-switching the human species defaults to force + consolidation.
+**Round 11 (2026-09-28): stance ends on weight transfer; L/R phase centred.**
+
+Diagnosis of the BWS 50% lock at 0.36 (± 0.00): the right leg lifted off in the
+same tick the left touched down, every stride (double support 0 ms after L
+touchdown, 300 ms after R touchdown). Both legs had the same stance (700 ms, ended
+by fatigue) and swing (400 ms). With that timing the liftoff rule allows any phase
+0.36–0.64, and nothing pulls it to 0.5, so it sits at the edge. Comfortable walking
+sat near the same edge (0.45 ± 0.09).
+
+Fix (user decision 2026-09-28: test a 50 ms tick): stance ends a fixed delay after
+the other foot lands, so the legs are forced symmetric. Stride = 2 × (delay + swing),
+stance = 50% + delay, phase 0.5.
+- `MOD_LOAD_TRANSFER` is the human default (τ 20 ms). Two lag fixes:
+  - the unloading uses the mid-point of the coming tick, so weight starts moving at
+    touchdown rather than one tick later;
+  - it is re-applied after both gates run, because L is evaluated first.
+- `MOD_FATIGUE_E`: extensor fatigue onset 1000 ms, so weight transfer, not
+  fatigue, ends stance (soleus is fatigue-resistant; to verify). The flexor keeps
+  the mode onset.
+- 50 ms gate tick (`run_human_modes.sh` `TICK=50`). At 100 ms the delay cannot drop
+  below ~200 ms: CUT conduction (23.6 ms) keeps the touchdown-tick RG-E rate above
+  the 60 Hz activation mid-point, and force falls a tick later. Stance was then
+  0.67–0.69 in every mode. A 50 ms tick on its own (no transfer) runs cleanly: no
+  chattering, walking strides within 5%.
+- Per mode: `off_frac` sets the delay (double support), `swing_end_f_frac` the swing
+  (0.65 → 350 ms, 0.45 → 550 ms, 0.30 → 875 ms). slow 0.40/0.55, comfortable
+  0.75/0.55, fast 0.78/0.55, BWS 0.75/0.55.
+- Not adopted: τ 50–150 at the 100 ms tick (lock moved 0.33–0.45 but stayed);
+  a later common fatigue onset (swing grew to 600 ms, stride 1600); touchdown level
+  0.90 for fast (capped stances, weaker r).
+
+**Production (N = 100, 120 s, 50 ms tick, force + consolidation, BWS trained from
+this comfortable run, t > 30 s; `plots/modes/p5_transfer/`):**
+
+| Mode | Stride (target) | Stance fraction | Capped st/sw | r(E,F) L/R | r(E_L,E_R) | R phase | DS | Verdict |
+|---|---|---|---|---|---|---|---|---|
+| slow | 1388 (1410) | 0.64 (0.63) | 0.00 / 0.00 | −0.79 / −0.77 | −0.90 | 0.50 ± 0.01 | 0.28 | pass |
+| comfortable | 1132 (1110) | 0.59 (0.60) | 0.03 / 0.00 | −0.72 / −0.73 | −0.89 | 0.49 ± 0.04 | 0.18 | pass |
+| fast | 855 (890) | 0.63 (0.57) | 0.03 / 0.00 | −0.57 / −0.59 | −0.81 | 0.49 ± 0.05 | 0.26 | stance +10% (delay floor) |
+| BWS 50% | 1042 (1110) | 0.61 (0.60) | 0.00 / 0.00 | −0.72 / −0.69 | −0.87 | 0.52 ± 0.07 | 0.21 | **lock fixed**; stride −6% |
+| BWS 90% | 789 (1110) | 0.65 (0.60) | 0.00 / 0.00 | −0.39 / −0.37 | −0.88 | 0.51 ± 0.10 | 0.29 | no capped bouts now; short stride, jittery flexor |
+
+- L/R anti-phase is now strong in every mode (−0.81 to −0.90; was −0.46 to −0.54),
+  and every mode has zero or near-zero capped bouts.
+- Slow and comfortable pass all criteria, with r(E,F) up to −0.79. Human double
+  support is ~0.2 at comfortable speed; the model gives 0.18.
+- Fast: the post-touchdown delay floor at a 50 ms tick is ~100 ms, and fast
+  walking needs ~60 ms, so stance stays 0.63.
+- BWS 50%: stride 6% short. BWS 90%: first air-stepping run without capped
+  bouts, but the stride is 29% short and the flexor force oscillates within swing.
+- Cost: 50 ms tick, 12–16 min per mode at 2 threads (bookkeeping 68–74%).
+
+Next: 3 seeds per mode; BWS 50% stride (−6%) and BWS 90% flexor; fast stance
+(needs a finer tick or a faster unload path); switching the human species
+defaults to force + consolidation.
 
 ### Phase 6 — Plasticity time course and multi-session rehabilitation (M)
 

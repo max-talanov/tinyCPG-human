@@ -23,6 +23,9 @@
 #   TRAINED=1 (default): modes with `init_from: <mode>` (BWS) start from that mode's
 #                  end-of-run weights, $OUTDIR/<mode>.h5, which must exist (run it first,
 #                  same SIZE/SEED/THREADS). TRAINED=0: naive start for every mode.
+#   TICK=50 (default; P5 round 11): gate/rate-update tick and simulate chunk (ms). Below 100 the
+#                  --long-run preset (which forces >= 100 ms) is replaced by its other
+#                  settings, given explicitly.
 #   SIM_MS, SEED, LAMBDA, EXTRA (extra model flags, appended last)
 #
 # MN5:    sbatch run_human_modes.sh            (array 0-4 = modes in file order)
@@ -51,6 +54,12 @@ SEED=${SEED:-12345}
 LAMBDA=${LAMBDA:-1e-4}
 CONSOLIDATE=${CONSOLIDATE:-1}
 TRAINED=${TRAINED:-1}
+TICK=${TICK:-50}
+if [ "$TICK" -lt 100 ]; then
+  TICK_FLAGS=(--print-every 200)
+else
+  TICK_FLAGS=(--long-run)
+fi
 THREADS=${THREADS:-${SLURM_CPUS_PER_TASK:-4}}
 EXTRA=${EXTRA:-}
 
@@ -119,8 +128,8 @@ for MODE in "${MODES[@]}"; do
     --max-weight-conns 2000 \
     --save-weights snapshots \
     --weight-sample-ms 1000 \
-    --rate-update-ms 100 \
-    --simulate-chunk-ms 100 \
+    --rate-update-ms "$TICK" \
+    --simulate-chunk-ms "$TICK" \
     --bs-base-hz 6 \
     --bs-noise-std-hz 0.25 \
     --enforce-tonic-bs \
@@ -135,7 +144,7 @@ for MODE in "${MODES[@]}"; do
     --stdp-lambda "$LAMBDA" \
     --freeze-bs-rg \
     --wmax-ia 10 \
-    --long-run \
+    "${TICK_FLAGS[@]}" \
     "${SIZE_FLAGS[@]+"${SIZE_FLAGS[@]}"}" \
     "${TRIG_FLAGS[@]}" \
     "${INIT_FLAGS[@]+"${INIT_FLAGS[@]}"}" \

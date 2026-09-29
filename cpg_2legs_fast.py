@@ -711,6 +711,11 @@ def main():
                          "leg is in stance (interlimb load rule: a limb is not unloaded for swing until the "
                          "contralateral limb bears weight; Duysens & Pearson 1980, Pearson 2004 -- to "
                          "verify). Prevents flight phases in walking. The stance cap still applies.")
+    ap.add_argument("--fatigue-tau-onset-e-ms", type=float, default=0.0,
+                    help="PLAN.md P5 (MOD_FATIGUE_E): extensor-only fatigue onset tau (ms); 0 = "
+                         "--fatigue-tau-onset-ms for both pools (original). Soleus is mostly slow-twitch "
+                         "and fatigue-resistant, so its stance can end on unloading (weight transfer) with "
+                         "fatigue as the backup, while the flexor burst keeps the common tau.")
     ap.add_argument("--init-weights-from", default=None, metavar="H5",
                     help="PLAN.md P5/P6 (MOD_INIT_WEIGHTS): start every plastic pathway from the end-of-run "
                          "weights of an earlier run (its full_weights, last snapshot) instead of the naive "
@@ -1042,6 +1047,7 @@ def main():
     CUT_MAX_SWING_MS = float(args.cut_max_swing_ms)
     MUSCLE_FATIGUE = bool(args.muscle_fatigue)
     FATIGUE_TAU_ONSET_MS = float(args.fatigue_tau_onset_ms)
+    FATIGUE_TAU_ONSET_E_MS = float(getattr(args, "fatigue_tau_onset_e_ms", 0.0))  # MOD_FATIGUE_E; 0 = common
     FATIGUE_TAU_RECOVERY_MS = float(args.fatigue_tau_recovery_ms)
     FATIGUE_MAX_FRAC = float(args.fatigue_max_frac)
     if not (0.0 <= FATIGUE_MAX_FRAC <= 1.0):
@@ -2417,8 +2423,10 @@ def main():
             drive_e = S["act_e"] / max(1e-9, ACT_MAX)
             drive_f = S["act_f"] / max(1e-9, ACT_MAX)
             tau_on_s = FATIGUE_TAU_ONSET_MS_BY_SIDE[side] / 1000.0
+            tau_on_e_s = tau_on_s if FATIGUE_TAU_ONSET_E_MS <= 0.0 else (  # MOD_FATIGUE_E
+                FATIGUE_TAU_ONSET_E_MS * FATIGUE_TAU_ONSET_MS_BY_SIDE[side] / FATIGUE_TAU_ONSET_MS / 1000.0)
             tau_rec_s = FATIGUE_TAU_RECOVERY_MS / 1000.0
-            S["fatigue_e"] += dt_s * (drive_e * (FATIGUE_MAX_FRAC - S["fatigue_e"]) / tau_on_s
+            S["fatigue_e"] += dt_s * (drive_e * (FATIGUE_MAX_FRAC - S["fatigue_e"]) / tau_on_e_s
                                        - (1.0 - drive_e) * S["fatigue_e"] / tau_rec_s)
             S["fatigue_f"] += dt_s * (drive_f * (FATIGUE_MAX_FRAC - S["fatigue_f"]) / tau_on_s
                                        - (1.0 - drive_f) * S["fatigue_f"] / tau_rec_s)
@@ -2661,7 +2669,10 @@ def main():
                 # CUT input and the heel->toe stance load groups decay together.
                 other = "R" if side == "L" else "L"
                 if cut_state[other] and stance_onset_ms[other] > stance_onset_ms[side]:
-                    unload = float(np.exp(-max(0.0, t_now - stance_onset_ms[other]) / LOAD_TRANSFER_TAU_MS))
+                    # load during the coming gate tick (its mid-point): weight starts moving at
+                    # the other foot's touchdown, not one tick later
+                    t_mid = t_now + 0.5 * float(args.rate_update_ms)
+                    unload = float(np.exp(-max(0.0, t_mid - stance_onset_ms[other]) / LOAD_TRANSFER_TAU_MS))
             nest.SetStatus(leg[side]["cut_pg"], {"rate": cut_rate * unload})
             if is_on:
                 # Stance: Ia-E heel->mid->toe sub-group sequenced by elapsed time
@@ -2850,6 +2861,11 @@ def main():
                         # the existing Ia sensor delay -- see cut_force_gate).
                         logs[side]["consolidation_event"][-1] = float(pending_consolidation_event[side])
                         pending_consolidation_event[side] = 0
+                if LOAD_TRANSFER_TAU_MS > 0.0:
+                    # MOD_LOAD_TRANSFER: the other leg may have touched down after this leg's
+                    # gate ran (L is evaluated first); re-apply so the unloading starts this tick.
+                    for side in LEGS:
+                        cut_force_apply(side, cut_state[side], t_ms)
             book_accum += (time.perf_counter() - t_book0)
 
             if rank == 0 and (
@@ -3077,6 +3093,8 @@ def main():
                 h5.attrs["liftoff_needs_contra_stance"] = True
             if LOAD_TRANSFER_TAU_MS > 0.0:  # PLAN.md P5; absent = off
                 h5.attrs["load_transfer_tau_ms"] = float(LOAD_TRANSFER_TAU_MS)
+        if FATIGUE_TAU_ONSET_E_MS > 0.0:  # PLAN.md P5 MOD_FATIGUE_E; absent = common tau
+            h5.attrs["fatigue_tau_onset_e_ms"] = float(FATIGUE_TAU_ONSET_E_MS)
         if init_weights_info:  # PLAN.md P5/P6 MOD_INIT_WEIGHTS; absent = naive init
             h5.attrs["init_weights_from"] = str(args.init_weights_from)
             h5.attrs["init_weights_json"] = json.dumps(init_weights_info, sort_keys=True)
