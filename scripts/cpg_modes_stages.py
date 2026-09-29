@@ -10,9 +10,11 @@ Layout: one row per mode (slow, medium, fast, toe, air), 4 columns:
   cols 1-3  force in the stage window, left leg: Force-E (extensor, ink) and
             Force-F (flexor, gray). Title: in-window r(E,F) for left and right
             leg.
-  col 4     plastic weights (mean over synapses, full-weight snapshots inside
-            each window): one bar group per pathway, three bars light -> dark =
-            beginning -> middle -> end (left leg); a dot marks the right leg.
+  col 4     plastic weights. --weights-style lines (default): mean weight over the
+            whole run per pathway (left leg solid, right leg dashed), the three stage
+            windows shaded; CUT/BS on the left axis, Ia on the right axis (~10x
+            smaller). --weights-style bars: the mean inside each window, one bar
+            group per pathway, light -> dark = beginning -> end; a dot = right leg.
             Pathways without plasticity in the run (e.g. BS->RG under
             --freeze-bs-rg) are not recorded and so not shown.
 
@@ -47,6 +49,8 @@ PATHWAYS = [("bs_to_rge", "BS→E", ["#b7d0f0", "#6fa3e3", "#2a78d6"]),
             ("ia_to_rge", "Ia→E", ["#a6e0c9", "#5fc7a0", "#1baf7a"]),
             ("bs_to_rgf", "BS→F", ["#b7d0f0", "#6fa3e3", "#2a78d6"]),
             ("ia_to_rgf", "Ia→F", ["#a6e0c9", "#5fc7a0", "#1baf7a"])]
+LINE_COL = {"bs_to_rge": "#2a78d6", "bs_to_rgf": "#8fb6e8", "cut_to_rge": "#eb6834",
+            "ia_to_rge": "#1baf7a", "ia_to_rgf": "#8e6bd6"}
 DEFAULT_STAGES = [("beginning", 4000.0, 9000.0), ("middle", 40000.0, 45000.0), ("end", 115000.0, 120000.0)]
 
 
@@ -77,6 +81,7 @@ def main():
     ap.add_argument("--indir", default=None, help="default results/modes/<species>")
     ap.add_argument("--out", default=None, help="default plots/modes/<species>_modes_stages.png")
     ap.add_argument("--stage", action="append", help="name:lo_ms:hi_ms, exactly 3")
+    ap.add_argument("--weights-style", choices=["lines", "bars"], default="lines")
     ap.add_argument("--modes-config", default=None,
                     help="modes YAML (e.g. config/modes/human.yaml): mode names, order and labels")
     args = ap.parse_args()
@@ -127,6 +132,11 @@ def main():
                            for k, _, _ in present if k in d[side]["full"]}
                           for _, lo, hi in stages] for side in ("L", "R")}
     wtop = max(v for m in W.values() for side in m.values() for st in side for v in st.values()) * 1.18
+    full_max = lambda pred: max([float(np.nanmax(np.nanmean(d[side]["full"][k], axis=1)))
+                                 for d in data.values() for side in ("L", "R") for k in d[side]["full"] if pred(k)]
+                                or [1.0]) * 1.12
+    wtop_cut = full_max(lambda k: not k.startswith("ia"))
+    wtop_ia = full_max(lambda k: k.startswith("ia")) * 1.8  # Ia lines below the CUT line
 
     fig, axes = plt.subplots(len(MODES), 4, figsize=(15, 2.35 * len(MODES)), facecolor=SURFACE,
                              gridspec_kw={"width_ratios": [1, 1, 1, 1.15], "hspace": 0.62, "wspace": 0.16})
@@ -158,6 +168,34 @@ def main():
                 ax.set_xlabel("time in window (s)", fontsize=8, color=INK_2)
 
         ax = axes[r, 3]
+        if args.weights_style == "lines":
+            ax2 = ax.twinx()
+            ax2.spines["top"].set_visible(False); ax2.spines["right"].set_color(MUTED)
+            ax2.tick_params(colors=INK_2, labelsize=7.5, length=2.5)
+            for _, lo, hi in stages:
+                ax.axvspan(lo / 1000.0, hi / 1000.0, color=GRID, alpha=0.8, zorder=0)
+            for k, lab, steps in present:
+                tgt = ax2 if k.startswith("ia") else ax
+                col = LINE_COL.get(k, steps[2])
+                for side, ls in (("L", "-"), ("R", "--")):
+                    if k in d[side]["full"]:
+                        tgt.plot(d["wt"] / 1000.0, np.nanmean(d[side]["full"][k], axis=1), ls, color=col,
+                                 linewidth=1.4 if side == "L" else 1.0,
+                                 label=lab if side == "L" else None)
+            ax.set_ylim(0, wtop_cut); ax2.set_ylim(0, wtop_ia)
+            ax.set_xlim(0, d["wt"][-1] / 1000.0)
+            ax.set_ylabel("CUT, BS (pA)", fontsize=7.5, color=INK_2)
+            ax2.set_ylabel("Ia (pA)", fontsize=7.5, color=INK_2)
+            hs = ax.get_legend_handles_labels(); hs2 = ax2.get_legend_handles_labels()
+            ax.legend(hs[0] + hs2[0], hs[1] + hs2[1], fontsize=6.5, frameon=False, loc="center right",
+                      labelcolor=INK_2)
+            ax.set_title("weights over the run (L solid, R dashed)", fontsize=8.5, color=INK, loc="left")
+            if r == len(MODES) - 1:
+                ax.set_xlabel("time (s)", fontsize=8, color=INK_2)
+            if r == 0:
+                ax.text(0.0, 1.38, "PLASTIC WEIGHTS (pA)", transform=ax.transAxes, fontsize=10.5,
+                        fontweight="bold", color=INK)
+            continue
         xs = []
         for gi, (k, lab, steps) in enumerate(present):
             for si in range(3):
@@ -182,9 +220,12 @@ def main():
                     fontweight="bold", color=INK)
 
     h, l = axes[0, 0].get_legend_handles_labels()
-    h += [plt.Rectangle((0, 0), 1, 1, color=c) for c in ("#dcdad3", "#a9a79f", "#52514e")]
-    l += ["beginning", "middle", "end (bar = left leg; light→dark)"]
-    h.append(plt.Line2D([], [], marker="o", linestyle="", color=INK, markersize=4)); l.append("right leg")
+    if args.weights_style == "lines":
+        h.append(plt.Rectangle((0, 0), 1, 1, color=GRID)); l.append("stage windows (weights panel)")
+    else:
+        h += [plt.Rectangle((0, 0), 1, 1, color=c) for c in ("#dcdad3", "#a9a79f", "#52514e")]
+        l += ["beginning", "middle", "end (bar = left leg; light→dark)"]
+        h.append(plt.Line2D([], [], marker="o", linestyle="", color=INK, markersize=4)); l.append("right leg")
     fig.legend(h, l, loc="upper center", ncol=len(h), frameon=False, fontsize=8.5, labelcolor=INK_2,
                bbox_to_anchor=(0.5, 0.955))
     note = ("frozen BS→RG (sensory-learning model): BS weights not plastic, not shown. "
