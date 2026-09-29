@@ -36,6 +36,9 @@
 # set per BWS level where the load gate just opens, so training rebuilds them and the
 # rehabilitation is visible. From the full trained weights the extensor is saturated from
 # the start and nothing changes. BWS 90% learns ~10x slower (CUT 10 Hz vs 50 Hz).
+# Round 13: BWS strides were short (BWS 90% -37%): the loading gain also scaled the flexor
+# Ia, so the swing burst sagged and swing ended early. Species default
+# flexor_afferent_loading: ib; BWS 50% swing_end_f_frac 0.47.
 #
 # Round 11 (P5 BWS L/R phase lock, 2026-09-28): with fatigue ending each stance, the
 # liftoff rule allows any phase 0.36-0.64 and nothing centres it (BWS 50% locked at
@@ -81,7 +84,7 @@ modes:
     init_scale: 0.25          # round 12: injured start, trained weights x0.25 (gate just opens)
     force: {cap_ms: 1000, fatigue_onset_ms: 460, fatigue_recovery_ms: 600, lead_offset_ms: 260,
             off_frac: 0.75, tau_tag_ms: 34200,
-            swing_end_f_frac: 0.55, swing_afferent_tau_ms: 150}
+            swing_end_f_frac: 0.47, swing_afferent_tau_ms: 150}
   bws90:
     label: "BWS 90% (air)"
     stride_ms: 1110

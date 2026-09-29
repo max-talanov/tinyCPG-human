@@ -723,6 +723,11 @@ def main():
                          "run must be the same network (species, size, wiring rule, seed, threads; checked "
                          "synapse by synapse). Weights above this run's Wmax are clipped. Consolidation "
                          "baselines start at the loaded weights (already captured).")
+    ap.add_argument("--flexor-afferent-loading", choices=["both", "ia", "ib", "none"], default="both",
+                    help="PLAN.md P5 (MOD_FLEXOR_AFF_UNLOADED): which flexor afferents --ia-feedback-gain "
+                         "(the loading gain) scales. both = original. Body-weight support reduces load "
+                         "feedback (extensor Ia/Ib; CUT via --cut-feedback-gain); the flexor (TA) spindle and "
+                         "tendon signals of the unloaded swing need not follow it.")
     ap.add_argument("--init-weights-scale", type=float, default=1.0,
                     help="PLAN.md P5/P7 (MOD_INIT_WEIGHTS): multiply the loaded weights by this factor, an "
                          "injured start (pathways weakened after SCI) that training rebuilds. 1 = the earlier "
@@ -1010,6 +1015,10 @@ def main():
         LAMBDA = float(args.stdp_lambda)
     # Graded sensory feedback gain (Courtine/Lavrov toe/air stepping)
     IA_FEEDBACK_GAIN = float(args.ia_feedback_gain)
+    # MOD_FLEXOR_AFF_UNLOADED: loading gain on the flexor Ia/Ib (1 = body weight does not reach them)
+    _fl = getattr(args, "flexor_afferent_loading", "both")
+    IA_FEEDBACK_GAIN_IA_F = IA_FEEDBACK_GAIN if _fl in ("both", "ia") else 1.0
+    IA_FEEDBACK_GAIN_IB_F = IA_FEEDBACK_GAIN if _fl in ("both", "ib") else 1.0
     # Loading-dependent cutaneous (paw-contact) gain. Scales CUT stance drive;
     # the external Ia-E pacing (stim analogue) is left at full amplitude.
     CUT_FEEDBACK_GAIN = float(args.cut_feedback_gain)
@@ -1436,6 +1445,9 @@ def main():
     WMAX_CUT_RGE_EFF = float(WMAX_CUT_RGE) if WMAX_CUT_RGE > 0.0 else float(WMAX)
     WMAX_BS_RGE = float(WMAX_BS) * RGE_GATE_SCALE_BS
     WMAX_IA_RGE = float(EFFECTIVE_WMAX_IA) * RGE_GATE_SCALE_IA
+    # MOD_FLEXOR_AFF_UNLOADED: the loading-relaxed Ia cap compensates a loading-reduced Ia rate;
+    # when the flexor Ia keeps its full rate, Ia-F -> RG-F keeps the full-loading cap.
+    WMAX_IA_RGF = float(EFFECTIVE_WMAX_IA) if IA_FEEDBACK_GAIN_IA_F == IA_FEEDBACK_GAIN else float(WMAX_IA_BASE)
     RGE_GATE = (RGE_GATE_SCALE_BS, RGE_GATE_SCALE_IA, RGE_GATE_SCALE_IB, RGE_GATE_SCALE_CUT) != (1.0,) * 4 \
         or WMAX_CUT_RGE_EFF != float(WMAX)
 
@@ -1727,7 +1739,7 @@ def main():
         # --wmax-ia -- relaxes as --cut-feedback-gain drops.
         stdp_ia_defaults = {**stdp_defaults, "Wmax": float(EFFECTIVE_WMAX_IA)}
         copy(f"stdp_ia_rge_{side}", {**stdp_ia_defaults, "Wmax": WMAX_IA_RGE}, make_weight_recorder_safe())
-        copy(f"stdp_ia_rgf_{side}", stdp_ia_defaults, make_weight_recorder_safe())
+        copy(f"stdp_ia_rgf_{side}", {**stdp_ia_defaults, "Wmax": WMAX_IA_RGF}, make_weight_recorder_safe())
 
     # ---- PLAN.md P3b: size-invariant connectivity ----
     # Production (reference) size of each source population, by the leg-dict name.
@@ -2219,7 +2231,7 @@ def main():
     # adjusted EFFECTIVE_WMAX_IA and only ever moves if
     # --consolidate-wmax-ia-growth-per-capture > 0 (default 0.0 = no-op).
     wmax_ia_growth_keys = tuple(k for k in ("ia->rge", "ia->rgf") if k in consolidate_keys)
-    wmax_ia_current = {side: {k: (WMAX_IA_RGE if k == "ia->rge" else float(EFFECTIVE_WMAX_IA))
+    wmax_ia_current = {side: {k: (WMAX_IA_RGE if k == "ia->rge" else WMAX_IA_RGF)
                               for k in wmax_ia_growth_keys} for side in LEGS}
     if CONSOLIDATE:
         for side in LEGS:
@@ -2489,14 +2501,14 @@ def main():
             ia_e = IA_BASE_HZ + IA_K_STRETCH * stretch_e + IA_K_VEL * vel_e
             ia_f = IA_BASE_HZ + IA_K_STRETCH * stretch_f + IA_K_VEL * vel_f
             ib_e = clamp(IA_FEEDBACK_GAIN * (IB_BASE_HZ + IB_K_FORCE * S["force_e"]), 0.0, IB_RATE_MAX_HZ)
-            ib_f = clamp(IA_FEEDBACK_GAIN * (IB_BASE_HZ + IB_K_FORCE * S["force_f"]), 0.0, IB_RATE_MAX_HZ)
+            ib_f = clamp(IA_FEEDBACK_GAIN_IB_F * (IB_BASE_HZ + IB_K_FORCE * S["force_f"]), 0.0, IB_RATE_MAX_HZ)
         else:
             ia_e = IA_BASE_HZ + IA_K_FORCE * S["force_e"] + IA_K_STRETCH * stretch_e
             ia_f = IA_BASE_HZ + IA_K_FORCE * S["force_f"] + IA_K_STRETCH * stretch_f
         # Graded sensory feedback: scale by Ia gain (1.0 baseline / 0.5 toe / 0.1 air).
         # Mimics partial loading after SCI rehab (Lavrov 2008; Edgerton 2008).
         ia_e = IA_FEEDBACK_GAIN * ia_e
-        ia_f = IA_FEEDBACK_GAIN * ia_f
+        ia_f = IA_FEEDBACK_GAIN_IA_F * ia_f
         ia_e = clamp(ia_e, 0.0, IA_RATE_MAX_HZ)
         ia_f = clamp(ia_f, 0.0, IA_RATE_MAX_HZ)
         if do_rate_update:
@@ -3142,6 +3154,8 @@ def main():
         h5.attrs["ablate_comm"] = bool(args.ablate_comm)
         h5.attrs["ablation_tag"] = ",".join(ablation_tag) if ablation_tag else "baseline"
         h5.attrs["ia_feedback_gain"] = float(IA_FEEDBACK_GAIN)
+        if getattr(args, "flexor_afferent_loading", "both") != "both":  # MOD_FLEXOR_AFF_UNLOADED; absent = both
+            h5.attrs["flexor_afferent_loading"] = str(args.flexor_afferent_loading)
         h5.attrs["cut_feedback_gain"] = float(CUT_FEEDBACK_GAIN)
         h5.attrs["stdp_lambda"] = float(LAMBDA)
         h5.attrs["freeze_bs_rg"] = bool(getattr(args, "freeze_bs_rg", False))   # MOD_FREEZE_BS

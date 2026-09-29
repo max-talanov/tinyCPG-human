@@ -63,6 +63,9 @@ cli_defaults:                  # P3: phase scheduler + stance 0.60; P5: human st
   liftoff_needs_contra_stance: true  # P5: a leg lifts off only while the other is in stance (interlimb load rule)
   load_transfer_tau_ms: 20.0   # P5 round 11: the trailing leg unloads as the other foot takes weight; this
                                # ends stance at a fixed delay after contralateral touchdown -> L/R phase 0.5
+  flexor_afferent_loading: ib  # P5 round 13: BWS scales the flexor tendon-organ (Ib-F) input but not the
+                               # flexor spindle (Ia-F): TA length/velocity in the unloaded swing does not
+                               # depend on body weight; the full Ia-F drive keeps the swing burst up
   fatigue_tau_onset_e_ms: 1000.0  # P5 round 11: soleus fatigue-resistant (mostly slow-twitch; to verify):
                                # weight transfer, not fatigue, ends stance; fatigue is the backup
   muscle_length_model: ankle   # P4: soleus/TA share one ankle angle (antagonist length coupling)

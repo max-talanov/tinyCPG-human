@@ -1261,7 +1261,42 @@ round 11 runs, BWS starts from that comfortable run ×init_scale):**
   would need multi-session training (P6). The flexor force also oscillates
   within swing (~250 ms swings) and the stride is 37% short.
 
-Next: BWS strides (short swing at reduced loading), BWS 90% over sessions (P6),
+**Round 13 (2026-09-29): short BWS strides.**
+
+Diagnosis: the loading gain (`--ia-feedback-gain`) also scaled the flexor Ia and Ib.
+At BWS 90% they fell to 2–3 Hz (17–56 Hz in comfortable walking), RG-F lost its swing
+support and burst irregularly (dipping to 35 Hz 100 ms into swing), and swing ended at
+the first dip of the flexor force.
+
+Fix (`MOD_FLEXOR_AFF_UNLOADED`, human default `flexor_afferent_loading: ib`): BWS
+scales the flexor tendon-organ input but not the flexor spindle. The TA length and
+velocity signal of the unloaded swing does not depend on body weight. Ia-F→RG-F
+keeps the full-loading Wmax, because the loading-relaxed cap compensates a reduced Ia
+rate. BWS 50% swing-end 0.47.
+- Tried (debug-small, injured start): `none` (both flexor afferents unscaled) fixes the
+  strides but co-contracts (BWS 90% r(E,F) +0.29). Lower swing-end levels at BWS 90%
+  run swings into the cap (the flexor never falls that far).
+- `ib` with the relaxed cap (production): BWS 50% 1080, BWS 90% 991, but Ia-F→RG-F grew
+  to 15 pA at BWS 90% and the flexor went tonic (r(E,F) ≈ 0). Rejected.
+
+**Production (`plots/modes/p5_stride/`; walking modes as round 11/12, t > 30 s):**
+
+| Mode | Stride (target) | Stance fraction | Capped st/sw | r(E,F) L/R | r(E_L,E_R) | R phase |
+|---|---|---|---|---|---|---|
+| BWS 50%, before | 973 (1110) | 0.61 | 0.00 / 0.00 | −0.62 / −0.56 | −0.88 | 0.53 ± 0.08 |
+| **BWS 50%, now** | **1077** (1110) | 0.59 (0.60) | 0.00 / 0.00 | −0.56 / −0.54 | −0.88 | 0.50 ± 0.08 |
+| BWS 90%, before | 704 (1110) | 0.64 | 0.00 / 0.00 | −0.28 / −0.26 | −0.87 | 0.53 ± 0.12 |
+| BWS 90%, now | 725 (1110) | 0.63 (0.60) | 0.00 / 0.00 | −0.24 / −0.18 | −0.88 | 0.50 ± 0.11 |
+
+- BWS 50% passes all timing criteria. The rehabilitation stays visible: r(E,F)
+  −0.33 → −0.30 → −0.67 and CUT→RG-E 18 → 31 → 58 pA (beginning, middle, end).
+  Its steady r(E,F) sits just below the target band.
+- BWS 90% stays short (−35%). At 10% loading, holding the swing burst up and
+  silencing the flexor during stance trade against each other. The flexor stays at ~3
+  through stance at BWS, because the loading-scaled CUT and Ib-E drive to InE no
+  longer silences RG-F. This is the air-stepping case for P7 (EES; loading).
+
+Next: BWS 90% (P7), flexor silencing in stance at reduced loading (BWS r(E,F)),
 3 seeds per mode, switching the human species defaults to force + consolidation.
 
 ### Phase 6 — Plasticity time course and multi-session rehabilitation (M)
