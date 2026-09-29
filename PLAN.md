@@ -5,8 +5,9 @@ Status: **in progress** (2026-09-24). Decisions D1–D7 are agreed (§4).
 Phase 1 (YAML species configs, delays tied to species), Phase 2 (human
 conduction delays, reflex probe at 30 ms), Phase 3 (phase scheduler, human
 stance 0.60 with double support) and MN5 check A (five modes at production N).
-Phase 3b (size-invariant connectivity, B13 fix) is done locally (2026-09-26);
-its 3×/10× MN5 runs are pending.
+Phase 3b (size-invariant connectivity, B13 fix) is done (2026-09-26; 3× on
+MN5 2026-09-28 matches 1× on 11/11 metrics; 10× timed out and is left to
+check B).
 **Now:** Phase 5 (in progress: human modes, force-trigger + consolidation; comfortable and slow pass at debug-small). Phase 4 done apart from its force-trigger acceptance, which moved to P5. MN5 check B (scaling benchmark and MPI-safe loop)
 alongside it. P3b and check B were moved forward on 2026-09-26 so that
 everything tuned from P4 on carries over to the adult-size model (P9)
@@ -720,8 +721,8 @@ size dependent.
   at N = 100 (~5,000 synapses per pathway and leg), but it must be measured
   in MN5 check B before adult size.
 
-**Status: done locally (2026-09-26); the 3× / 10× sizes are pending on MN5**
-(`sbatch run_p3b_mn5.sh`, MN5_RUN.md §0b).
+**Status: done (local 2026-09-26; MN5 3× 2026-09-28).** The 10× runs timed
+out on MN5 and moved to MN5 check B (see "MN5 size sweep" below).
 
 What was built:
 - `--conn-rule {bernoulli, indegree}` (`MOD_CONN_INDEGREE`) with a `connect()`
@@ -769,8 +770,8 @@ correlations and fractions, and 5% of the reference otherwise.
   RG-F rate (+11%) and Ia→RG-F (+7%) are just outside the very tight seed SDs.
   The likely cause is shared input: at 0.3× many sources are smaller than K,
   so a neuron gets several contacts from the same afferent. The mean input is
-  the same, but its correlations are not. This shrinks as N grows, so the
-  deciding test for adult size is ≥ 1× on MN5 (3×, 10×).
+  the same, but its correlations are not. This shrinks as N grows; the MN5
+  3× result below confirms it.
 - **The old wiring at ×0.3 fails 5/11 with large effects** (RG-E rate −59%,
   RG-F −71%, Force-F −55%, early r(E,F) shifted by −0.41). That is the size
   dependence P3b removes.
@@ -792,8 +793,42 @@ correlations and fractions, and 5% of the reference otherwise.
     Consolidation must move into NEST (a synapse model with baseline and tag
     decay, e.g. NESTML) before P9.
 
+**MN5 size sweep (`run_p3b_mn5.sh`, job 46659004, 2026-09-28;
+`results/2026-09-28/p3b/`, figure `plots/p3b/p3b_size_invariance.png` and
+`p3b_size_invariance_mn5.png`).** Same model and flags as the local runs,
+64 threads, 3 seeds.
+- **3× vs 1× (same machine): 11/11 metrics pass, all within 1%.** r(E,F)
+  −0.906 vs −0.908, r(E_L,E_R) −0.777 both, RG-F rate 97.4 vs 98.4 Hz,
+  Ia→RG-F 3.83 vs 3.85 pA, CUT→RG-E 72.2 vs 72.3 pA. The two metrics that
+  missed at 0.3× (RG-F rate +11%, Ia→RG-F +7%) are gone above 1×, as
+  expected from shared input at small N. **The wiring is size-invariant from
+  1× up: the P4–P7 operating points tuned at N = 100 carry over to larger
+  networks.**
+- Early learning (r(E,F) at 4–9 s) is somewhat slower at 3× (−0.23 vs −0.36;
+  within tolerance). Slower early learning is not a defect for a
+  rehabilitation model.
+- MN5 1× reproduces the local 1× runs (r(E,F) −0.908 both).
+- **10×: all 3 seeds hit the 2 h limit** right after the network build
+  (1.73M synapses, 50k CUT→RG-E per leg). Not a model failure; a cost one.
+- **Cost (first data for MN5 check B), 120 s simulated, 64 threads:**
+
+  | Size | Wall | NEST | Python bookkeeping |
+  |---|---|---|---|
+  | 1× | ~340 s | 115 s | 170 s (60%) |
+  | 3× | ~1,630 s | 415 s | 870 s (68%) |
+  | 10× | > 7,200 s | — | — |
+
+  - 64 threads on MN5 are no faster than 4 on the laptop at 1× (~340 vs
+    ~390 s): at this size the run is per-chunk overhead, not simulation.
+  - 3× costs ~4.8× the 1× time and bookkeeping grows faster than N
+    (5.1×). Likely causes: full-weight snapshots (`--save-weights
+    snapshots`, every plastic synapse each second) and per-chunk
+    `GetStatus` calls whose cost grows with the collections. Profile in
+    check B before any run above 3×; a 10× run needs ≥ 8 h, or snapshots
+    off.
+
 Open:
-- MN5 3× / 10× (`run_p3b_mn5.sh`).
+- 10× (moved to MN5 check B, with the bookkeeping profile).
 - The rat consolidate operating point at production N (B13 changes it from
   40% to 100% of synapses consolidated) has not been re-run yet
   (`rat-sh/run_consolidate_all_modes_production.sh`).
@@ -1185,9 +1220,49 @@ this comfortable run, t > 30 s; `plots/modes/p5_transfer/`):**
   bouts, but the stride is 29% short and the flexor force oscillates within swing.
 - Cost: 50 ms tick, 12–16 min per mode at 2 threads (bookkeeping 68–74%).
 
-Next: 3 seeds per mode; BWS 50% stride (−6%) and BWS 90% flexor; fast stance
-(needs a finer tick or a faster unload path); switching the human species
-defaults to force + consolidation.
+**Round 12 (2026-09-29): fast-walk stance and visible BWS rehabilitation.**
+
+1. Fast stance fraction. The post-touchdown delay is ~2 gate ticks (unload → RG-E
+   drop → force below the release level). Fast walking needs ~60 ms of double
+   support. A per-mode tick (`tick_ms` in `config/modes/human.yaml`;
+   `run_human_modes.sh` uses it unless `TICK` is set): fast 25 ms, the others 50.
+   Debug-small, fast, release 0.78: stance 0.59, stride 911, r(E,F) −0.74/−0.76,
+   r(E_L,E_R) −0.94 (release 0.70 / 0.60: stance 0.61 / 0.63). Cost ~1.5× the 50 ms
+   run.
+2. BWS rehabilitation (user: starting BWS from the trained state shows no progress;
+   decision 2026-09-29: injured start). `--init-weights-scale s` multiplies the
+   loaded weights (pathways weakened after SCI; mode key `init_scale`). From the
+   full trained weights the gated extensor is saturated from the first step, so
+   beginning, middle and end look alike. At ×0.6–0.9 it is still saturated (Force-E
+   p95 ~10 from 4 s), so the start must sit near the load-gate threshold, which
+   depends on loading (CUT 50 Hz vs 10 Hz): BWS 50% ×0.25, BWS 90% ×0.65 (debug
+   scan ×0.15/0.25 and ×0.5/0.65).
+
+**Production (N = 100, 120 s; `plots/modes/p5_rehab/`; slow and comfortable are the
+round 11 runs, BWS starts from that comfortable run ×init_scale):**
+
+| Mode | Window | Stride (target) | Stance fraction | Capped st | r(E,F) L/R | r(E_L,E_R) |
+|---|---|---|---|---|---|---|
+| fast (25 ms) | t > 30 s | 914 (890) | 0.62 (0.57) | 0.12 | −0.74 / −0.79 | −0.86 |
+| fast (25 ms) | t > 60 s | 924 (890) | 0.60 | 0.00 | −0.82 / −0.80 | −0.95 |
+| BWS 50%, ×0.25 | t > 30 s | 973 (1110) | 0.61 (0.60) | 0.00 | −0.62 / −0.56 | −0.88 |
+| BWS 90%, ×0.65 | t > 30 s | 704 (1110) | 0.64 (0.60) | 0.00 | −0.28 / −0.26 | −0.87 |
+
+- Fast: every capped stance falls in 30–60 s, while CUT→RG-E is still growing (it
+  reaches ~66 only late; learning is slower at the 25 ms tick). After 60 s, stance is
+  0.60 (target 0.57, +5%), with no capped bouts and the best r(E,F) of any mode.
+- BWS 50%: the rehabilitation is visible. From 4–9 s to 40–45 s to 115–120 s,
+  CUT→RG-E grows 18 → 33 → 59 pA and r(E,F) goes −0.47 → −0.49 → −0.68. Stride
+  973–1002 (−10 to −12%, short swing).
+- BWS 90%: CUT→RG-E 43 → 44 → 46 pA, r(E,F) ~−0.2 throughout. At 10% loading CUT
+  fires at 10 Hz, so the plastic pathways get ~10× fewer events and learning is ~10×
+  slower: no visible progress within 120 s. This is consistent with loading being
+  needed for locomotor recovery (Harkema et al. 1997; Dietz — to verify). Seeing it
+  would need multi-session training (P6). The flexor force also oscillates
+  within swing (~250 ms swings) and the stride is 37% short.
+
+Next: BWS strides (short swing at reduced loading), BWS 90% over sessions (P6),
+3 seeds per mode, switching the human species defaults to force + consolidation.
 
 ### Phase 6 — Plasticity time course and multi-session rehabilitation (M)
 

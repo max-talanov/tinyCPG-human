@@ -23,7 +23,8 @@
 #   TRAINED=1 (default): modes with `init_from: <mode>` (BWS) start from that mode's
 #                  end-of-run weights, $OUTDIR/<mode>.h5, which must exist (run it first,
 #                  same SIZE/SEED/THREADS). TRAINED=0: naive start for every mode.
-#   TICK=50 (default; P5 round 11): gate/rate-update tick and simulate chunk (ms). Below 100 the
+#   TICK           gate/rate-update tick and simulate chunk (ms); default the mode's
+#                  tick_ms, else 50 (P5 round 11). Below 100 the
 #                  --long-run preset (which forces >= 100 ms) is replaced by its other
 #                  settings, given explicitly.
 #   SIM_MS, SEED, LAMBDA, EXTRA (extra model flags, appended last)
@@ -54,12 +55,7 @@ SEED=${SEED:-12345}
 LAMBDA=${LAMBDA:-1e-4}
 CONSOLIDATE=${CONSOLIDATE:-1}
 TRAINED=${TRAINED:-1}
-TICK=${TICK:-50}
-if [ "$TICK" -lt 100 ]; then
-  TICK_FLAGS=(--print-every 200)
-else
-  TICK_FLAGS=(--long-run)
-fi
+TICK_ENV=${TICK:-}   # explicit TICK overrides the mode's tick_ms (default 50)
 THREADS=${THREADS:-${SLURM_CPUS_PER_TASK:-4}}
 EXTRA=${EXTRA:-}
 
@@ -104,13 +100,19 @@ for MODE in "${MODES[@]}"; do
   fi
   SIZE_FLAGS=()
   [ "$SIZE" = "debug" ] && SIZE_FLAGS=(--debug-small)
+  TICK=${TICK_ENV:-${TICKM:-50}}
+  if [ "$TICK" -lt 100 ]; then
+    TICK_FLAGS=(--print-every 200)
+  else
+    TICK_FLAGS=(--long-run)
+  fi
   INIT_FLAGS=()
   if [ -n "$INITFROM" ] && [ "$TRAINED" = "1" ]; then
     [ -f "$OUTDIR/$INITFROM.h5" ] || { echo "[human-modes] $MODE starts trained from $OUTDIR/$INITFROM.h5: run $INITFROM first (or TRAINED=0)" >&2; exit 1; }
-    INIT_FLAGS=(--init-weights-from "$OUTDIR/$INITFROM.h5")
-    echo "[human-modes]   trained start: weights from $INITFROM"
+    INIT_FLAGS=(--init-weights-from "$OUTDIR/$INITFROM.h5" --init-weights-scale "$INITSCALE")
+    echo "[human-modes]   trained start: weights from $INITFROM x$INITSCALE"
   fi
-  echo "[human-modes] mode=$MODE trigger=$TRIGGER size=$SIZE stride=${STRIDE}ms stance=$STANCE loading=$GAIN sim=${SIM_MS}ms seed=$SEED -> $OUTDIR/$MODE.h5"
+  echo "[human-modes] mode=$MODE trigger=$TRIGGER size=$SIZE tick=${TICK}ms stride=${STRIDE}ms stance=$STANCE loading=$GAIN sim=${SIM_MS}ms seed=$SEED -> $OUTDIR/$MODE.h5"
   start=$(date +%s)
   # shellcheck disable=SC2086
   ${LAUNCH[@]+"${LAUNCH[@]}"} python3 -u "$REPO/cpg_2legs_fast.py" \

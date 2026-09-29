@@ -723,6 +723,10 @@ def main():
                          "run must be the same network (species, size, wiring rule, seed, threads; checked "
                          "synapse by synapse). Weights above this run's Wmax are clipped. Consolidation "
                          "baselines start at the loaded weights (already captured).")
+    ap.add_argument("--init-weights-scale", type=float, default=1.0,
+                    help="PLAN.md P5/P7 (MOD_INIT_WEIGHTS): multiply the loaded weights by this factor, an "
+                         "injured start (pathways weakened after SCI) that training rebuilds. 1 = the earlier "
+                         "run's weights unchanged. Only with --init-weights-from.")
     ap.add_argument("--load-transfer-tau-ms", type=float, default=0.0,
                     help="PLAN.md P5, --cut-trigger force: bipedal weight transfer. 0 = off (original). > 0 = "
                          "when the other leg touches down during this leg's stance, this (trailing) leg's "
@@ -2156,7 +2160,7 @@ def main():
                         raise SystemExit(f"[init-weights] {args.init_weights_from}: {side} {key} synapses differ "
                                          f"from this network (species, size, wiring rule, seed and threads must match)")
                     wmax = float(nest.GetDefaults(_stdp_model(key, side), "Wmax"))
-                    w0 = np.asarray(f0[gk + "/w"][-1], dtype=float)
+                    w0 = np.asarray(f0[gk + "/w"][-1], dtype=float) * float(args.init_weights_scale)
                     w = np.minimum(w0, wmax)
                     nest.SetStatus(conns, [{"weight": float(v)} for v in w])
                     got = np.asarray(nest.GetStatus(conns, "weight"), dtype=float)
@@ -2164,7 +2168,7 @@ def main():
                         raise SystemExit(f"[init-weights] {side} {key}: weights did not take")
                     init_weights_info[f"{side}:{key}"] = dict(n=int(len(w)), mean=float(np.mean(w)),
                                                               clipped=int(np.sum(w0 > wmax)))
-        print(f"[init-weights] loaded from {args.init_weights_from}: "
+        print(f"[init-weights] loaded from {args.init_weights_from} x{args.init_weights_scale:g}: "
               + ", ".join(f"{k} mean {v['mean']:.2f} (n {v['n']}, clipped {v['clipped']})"
                           for k, v in init_weights_info.items()))
 
@@ -3098,6 +3102,7 @@ def main():
         if init_weights_info:  # PLAN.md P5/P6 MOD_INIT_WEIGHTS; absent = naive init
             h5.attrs["init_weights_from"] = str(args.init_weights_from)
             h5.attrs["init_weights_json"] = json.dumps(init_weights_info, sort_keys=True)
+            h5.attrs["init_weights_scale"] = float(args.init_weights_scale)
         if RGE_GATE:  # PLAN.md P5 MOD_RGE_LOAD_GATE; absent = off
             h5.attrs["rge_gate_json"] = json.dumps(dict(
                 i_e_rge=float(I_E_RGE), scale_bs=RGE_GATE_SCALE_BS, scale_ia=RGE_GATE_SCALE_IA,
