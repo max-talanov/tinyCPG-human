@@ -327,7 +327,7 @@ def fig_summary(res, prof, out):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--data", default=DATA)
-    ap.add_argument("--out", default=os.path.join(DATA, "kinematics"))
+    ap.add_argument("--out", default=os.path.join(HERE, "..", "plots", "kinematics"))
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
 
