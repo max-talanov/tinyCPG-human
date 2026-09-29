@@ -8,7 +8,7 @@ stance 0.60 with double support) and MN5 check A (five modes at production N).
 Phase 3b (size-invariant connectivity, B13 fix) is done (2026-09-26; 3× on
 MN5 2026-09-28 matches 1× on 11/11 metrics; 10× timed out and is left to
 check B).
-**Now:** Phase 5 (in progress: human modes, force-trigger + consolidation; comfortable and slow pass at debug-small). Phase 4 done apart from its force-trigger acceptance, which moved to P5. MN5 check B (scaling benchmark and MPI-safe loop)
+**Now:** Phase 6 (started 2026-09-29: species defaults, session chains, capture calibration). Phase 5 done (three seeds per mode) apart from BWS 90%, which moved to P7c. MN5 check B (scaling benchmark and MPI-safe loop)
 alongside it. P3b and check B were moved forward on 2026-09-26 so that
 everything tuned from P4 on carries over to the adult-size model (P9)
 without re-tuning.
@@ -1296,30 +1296,129 @@ rate. BWS 50% swing-end 0.47.
   through stance at BWS, because the loading-scaled CUT and Ib-E drive to InE no
   longer silences RG-F. This is the air-stepping case for P7 (EES; loading).
 
-Next: BWS 90% (P7), flexor silencing in stance at reduced loading (BWS r(E,F)),
-3 seeds per mode, switching the human species defaults to force + consolidation.
+**Three seeds per mode (2026-09-29).** Production, seeds 12345 (the round 11–13 runs),
+54321 and 777; each seed's BWS runs start from that seed's comfortable run (×init_scale).
+`results/human_modes/p5_seeds/s<seed>/`, figures `plots/modes/p5_seeds/s<seed>_*.png`,
+table `scripts/p5_seed_summary.py`. Mean ± sd over seeds:
+
+| Mode | Window | Stride (target) | Stance fraction | Capped st | r(E,F) | r(E_L,E_R) | R phase | DS |
+|---|---|---|---|---|---|---|---|---|
+| slow | t > 30 s | 1386 ± 1 (1410) | 0.64 ± 0.00 (0.63) | 0.00 | −0.79 ± 0.00 | −0.90 ± 0.00 | 0.50 | 0.28 |
+| comfortable | t > 30 s | 1127 ± 11 (1110) | 0.59 ± 0.00 (0.60) | 0.04 ± 0.01 | −0.71 ± 0.01 | −0.86 ± 0.02 | 0.49 | 0.20 |
+| fast | t > 30 s | 912 ± 11 (890) | 0.61 ± 0.01 (0.57) | 0.09 ± 0.02 | −0.78 ± 0.01 | −0.87 ± 0.02 | 0.49 | 0.24 |
+| BWS 50% | t > 30 s | 1089 ± 10 (1110) | 0.59 ± 0.00 (0.60) | 0.00 | −0.56 ± 0.01 | −0.88 ± 0.00 | 0.49 | 0.17 |
+| BWS 90% | t > 30 s | 727 ± 4 (1110) | 0.63 ± 0.00 (0.60) | 0.00 | −0.22 ± 0.02 | −0.88 ± 0.01 | 0.50 | 0.25 |
+| slow | t > 60 s | 1394 ± 3 | 0.64 ± 0.00 | 0.00 | −0.80 ± 0.00 | −0.90 ± 0.00 | 0.50 | 0.29 |
+| comfortable | t > 60 s | 1122 ± 11 | 0.59 ± 0.00 | 0.00 | −0.75 ± 0.01 | −0.90 ± 0.00 | 0.50 | 0.18 |
+| fast | t > 60 s | 925 ± 4 | 0.59 ± 0.00 | 0.01 ± 0.01 | −0.82 ± 0.01 | −0.95 ± 0.00 | 0.50 | 0.19 |
+| BWS 50% | t > 60 s | 1111 ± 8 | 0.59 ± 0.00 | 0.00 | −0.61 ± 0.00 | −0.88 ± 0.00 | 0.49 | 0.17 |
+| BWS 90% | t > 60 s | 724 ± 13 | 0.63 ± 0.01 | 0.00 | −0.23 ± 0.03 | −0.87 ± 0.01 | 0.49 | 0.25 |
+
+- The operating point is seed-robust. Every metric varies by ≤ 0.03 (correlations,
+  stance) or ≤ 1.5% (stride) across seeds. No seed flips a sign: the bistability
+  seen in the rat history does not appear.
+- After learning (t > 60 s) slow, comfortable, fast and BWS 50% pass every timing
+  criterion (±5%), with r(E_L,E_R) −0.88 to −0.95 and no capped bouts. Fast's capped
+  stances and its higher stance fraction at t > 30 s are the 30–60 s learning period
+  at the 25 ms tick.
+- r(E,F) is in the −0.6 to −0.8 band for slow, comfortable and fast, and at its edge
+  for BWS 50% (−0.61).
+- Open: BWS 90% stride (−35%) and r(E,F) (−0.23), which go to P7.
+
+Next: switch the human species defaults to force + consolidation; then P6 (sessions,
+recovery curve; BWS 90% over sessions).
 
 ### Phase 6 — Plasticity time course and multi-session rehabilitation (M)
 
-**Goal:** make "gradual rehabilitation" a protocol, not a single run (B8).
+**Goal:** make "gradual rehabilitation" a protocol, not a single run (B8). One
+simulated session should change the gait only a little. Recovery should build up
+over sessions, with retention across the rest between them.
+
+**Why (P5 finding, 2026-09-29):** within a single 120 s session the model recovers
+almost completely. BWS 50% from an injured start: CUT→RG-E 18 → 58 pA, r(E,F)
+−0.33 → −0.67. Human recovery takes weeks to months. Tag-and-capture should keep
+only part of what STDP learns in a session, but at the P5 settings (PRP gains
+0.25/0.10, threshold 1.0) a capture fires about every 0.5 s: 155–175 captures per leg
+in 90 s. Every potentiation is locked in almost immediately. The naive starts of the
+healthy walking modes also show the network learning to walk from scratch in ~30 s:
+that is not rehabilitation, and a healthy adult is not naive.
 
 **Changes**
-- Add `--init-weights-from <h5>`. It restores plastic weights, and
-  `baseline`/`prp_pool` when `--consolidate` is on, from a previous run's
-  final snapshot. This allows **session → rest → session** chains.
-- Define the protocol: N simulated training sessions of M minutes each, with
-  weights carried between sessions. Consolidation handles offline retention.
-  Real weeks cannot be simulated, so compare the **shape** of the recovery
-  curve (sessions to criterion, retention between sessions) with human
-  training studies, not absolute days.
-- Keep STDP λ in 5e-4 to 5e-3, which is species-agnostic. Re-confirm
-  `tau_tag_ms` per human mode (Phase 5).
-- Keep the gating signal hooks per session, so that the serotonergic
-  gating added in Phase 7 can vary between sessions.
+1. **Species defaults (first step).** `cut_trigger: force`, `consolidate: true` and the
+   comfortable force timing become the human `cli_defaults`, so a bare
+   `--species human` run is the P5 operating point. Timer runs pass
+   `--cut-trigger timer --no-consolidate`.
+2. **Session chains.** `--init-weights-from` (P5, `MOD_INIT_WEIGHTS`) is extended to
+   the consolidation state. Each run saves every plastic synapse's captured `baseline`
+   and the per-leg PRP pool. The next session starts from the **baseline**, not the
+   live weight: during the rest the uncaptured tag decays. Protocol: N sessions of M
+   simulated minutes, weights carried between sessions. Real weeks cannot be
+   simulated, so compare the **shape** of the recovery curve (sessions to criterion,
+   retention between sessions) with human training studies, not absolute days.
+3. **Capture calibration.** Captures become rare: a few per session, not hundreds.
+   Levers: PRP threshold, genuine/forced gains, τ_tag. Target: within-session change
+   small (tag mostly decays), with a gradual, monotonic gain across sessions.
+4. **Start states.** Healthy modes start trained (converged weights from a long run).
+   Injured runs start from those weights scaled down (`--init-weights-scale`, P5).
+5. **STDP λ.** The P5 runs use λ = 1e-4, below the 5e-4–5e-3 literature range
+   (Bi & Poo 1998; Morrison 2007). With recovery slowed by consolidation gating,
+   re-check whether λ can return to that range.
+- Keep the gating signal hooks per session, so that the serotonergic gating added in
+  Phase 7 can vary between sessions.
+- BWS 90% (air stepping) is not needed here; it goes to P7c (EES).
 
-**Acceptance:** a 5-session chain on the incomplete-SCI configuration
-(Phase 7b) improves gait metrics gradually and monotonically, not in one
-jump, and keeps them across the session boundaries.
+**Acceptance:** a 5-session chain on the incomplete-SCI configuration (Phase 7b; until
+then the BWS 50% injured start) improves gait metrics gradually and monotonically, not
+in one jump, keeps them across the session boundaries, and changes them only a little
+within any one session.
+
+**Status: in progress (2026-09-29).**
+
+Done:
+- Species defaults: a bare `--species human` run is the P5 force + consolidation
+  operating point (comfortable timing). The timer scripts (`run_modes_local.sh`,
+  `run_modes_mn5.sh`, `run_p3b_local.sh`, the reflex probe, paced
+  `run_human_modes.sh`) pass `--cut-trigger timer --no-consolidate --no-muscle-fatigue`.
+  `--paced-gait` and `--muscle-fatigue` are switchable. Rat unchanged
+  (`regress.sh` ALL PASS).
+- Session chains (`MOD_SESSIONS`): each consolidation run saves per-synapse final
+  baselines and final PRP pools; `--init-weights-state baseline` starts the next
+  session from them. Round-trip checked: session 2 loads session 1's baselines exactly
+  (CUT→RG-E 63.20, vs the live 66.86) and its PRP pools. `run_p6_sessions.sh` runs a
+  chain; `scripts/p6_session_metrics.py` summarises each session.
+
+Capture calibration (debug-small, BWS 50% from the injured start, 60 s sessions):
+
+| Setting | r(E,F) start → end | CUT start → end (pA) | Captured at end | Captures L/R |
+|---|---|---|---|---|
+| P5 (τ_tag 34.2 s, threshold 1) | −0.29 → −0.50 | 16.7 → 37.7 | 39.5 | 25/25 |
+| τ_tag 3.4 s, threshold 1 | −0.27 → −0.44 | 16.1 → 31.3 | 32.9 | 26/26 |
+| **τ_tag 3.4 s, threshold 10** | −0.21 → −0.24 | 15.4 → 17.9 | 16.8 | 2/2 |
+| τ_tag 3.4 s, threshold 30 | −0.21 → −0.27 | 15.4 → 15.7 | 14.5 | 0/0 |
+| τ_tag 1 s, threshold 10 | −0.21 → −0.31 | 14.8 → 15.5 | 15.1 | 2/2 |
+
+Five-session chains (each session starts from the previous session's captured
+baselines):
+
+| Session | Calibrated: r(E,F) end | CUT start → end | Captured | P5 settings: r(E,F) end | CUT start → end |
+|---|---|---|---|---|---|
+| 1 | −0.24 | 15.4 → 17.9 | 16.8 | −0.50 | 16.7 → 37.7 |
+| 2 | −0.31 | 17.9 → 20.9 | 20.9 | −0.58 | 42.5 → 58.7 |
+| 3 | −0.35 | 22.1 → 25.5 | 24.0 | −0.53 | 60.6 → 65.7 |
+| 4 | −0.36 | 25.5 → 29.5 | 28.8 | — | — |
+| 5 | −0.38 | 30.2 → 33.8 | 32.1 | — | — |
+
+- Calibrated (τ_tag 3.4 s, PRP threshold 10): ~2–3 captures per session, the
+  consolidated CUT→RG-E grows ~3–4 pA per session, and the end-of-session r(E,F)
+  improves monotonically (−0.24 → −0.38). Within a session r(E,F) moves by ≤ 0.07,
+  and each session keeps what it gained. This is the acceptance shape.
+- P5 settings: recovery completes in two sessions and saturates in the third.
+- At ~3.5 pA per session, reaching the trained level (~60 pA) takes ~10 more
+  sessions.
+
+Next: adopt the calibration as the human default (P5 walking modes then start
+trained); a 15-session chain for the full recovery curve and sessions to criterion;
+the chain at production size; λ (5e-4–5e-3) with the calibrated gating.
 
 ### Phase 7 — Healthy → incomplete SCI → complete SCI, with epidural stimulation (L)
 

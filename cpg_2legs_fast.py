@@ -654,7 +654,7 @@ def main():
                     help="PLAN.md P3b. Multiply every population size by this factor (production "
                          "sizes x s, rounded). For the size-invariance sweep; with --conn-rule indegree "
                          "the in-degrees do not change. Not combinable with --debug-small.")
-    ap.add_argument("--paced-gait", action="store_true",
+    ap.add_argument("--paced-gait", action=argparse.BooleanOptionalAction, default=False,
                     help="MOD_PACED_GAIT: replace rotating CUT phase with explicit 1-s gait cycle. "
                          "L and R legs alternate 180° (trot). Stance leg gets CUT ON + sequential "
                          "Ia-E groups (heel→toe). Swing leg gets CUT OFF, RGF bursts freely. "
@@ -728,6 +728,11 @@ def main():
                          "(the loading gain) scales. both = original. Body-weight support reduces load "
                          "feedback (extensor Ia/Ib; CUT via --cut-feedback-gain); the flexor (TA) spindle and "
                          "tendon signals of the unloaded swing need not follow it.")
+    ap.add_argument("--init-weights-state", choices=["weight", "baseline"], default="weight",
+                    help="PLAN.md P6 (MOD_SESSIONS): which state --init-weights-from loads. weight = the "
+                         "earlier run's final live weights (P5). baseline = its final captured "
+                         "(consolidated) baselines and PRP pools: the next session of a chain, where the "
+                         "uncaptured tag has decayed during the rest. Needs a --consolidate source run.")
     ap.add_argument("--init-weights-scale", type=float, default=1.0,
                     help="PLAN.md P5/P7 (MOD_INIT_WEIGHTS): multiply the loaded weights by this factor, an "
                          "injured start (pathways weakened after SCI) that training rebuilds. 1 = the earlier "
@@ -801,7 +806,7 @@ def main():
     # way RG-F does (RGF_C/RGF_D intrinsic bursting), so nothing makes force decay
     # on its own during sustained stance). Opt-in and OFF by default so existing
     # timer-based paced-gait runs (rat-sh/debug.sh, rat-sh/run.sh, rat-sh/run_*_stdp.sh) are unaffected.
-    ap.add_argument("--muscle-fatigue", action="store_true",
+    ap.add_argument("--muscle-fatigue", action=argparse.BooleanOptionalAction, default=False,
                     help="MOD_MUSCLE_FATIGUE: add slow activity-dependent fatigue to "
                          "the force proxy (both E and F) so force genuinely decays "
                          "during sustained high activation and recovers at rest, "
@@ -2155,6 +2160,8 @@ def main():
     # Same seed/size/wiring/threads -> the same synapses in the same sorted order, so the
     # saved (source, target) arrays must match exactly; the weights are set positionally.
     init_weights_info = {}
+    init_prp = {side: {} for side in LEGS}  # MOD_SESSIONS: PRP pools carried into this session
+    INIT_STATE = getattr(args, "init_weights_state", "weight")
     if getattr(args, "init_weights_from", None):
         with h5py.File(args.init_weights_from, "r") as f0:
             for side in LEGS:
@@ -2172,7 +2179,17 @@ def main():
                         raise SystemExit(f"[init-weights] {args.init_weights_from}: {side} {key} synapses differ "
                                          f"from this network (species, size, wiring rule, seed and threads must match)")
                     wmax = float(nest.GetDefaults(_stdp_model(key, side), "Wmax"))
-                    w0 = np.asarray(f0[gk + "/w"][-1], dtype=float) * float(args.init_weights_scale)
+                    if INIT_STATE == "baseline":
+                        if gk + "/baseline" not in f0:
+                            raise SystemExit(f"[init-weights] {args.init_weights_from}: no {gk}/baseline "
+                                             f"(the source run needs --consolidate and this code version)")
+                        w0 = np.asarray(f0[gk + "/baseline"][()], dtype=float)
+                        ck = f"leg_{side}/consolidation"
+                        if ck in f0 and f"{key}_prp_pool_final" in f0[ck].attrs:
+                            init_prp[side][key] = float(f0[ck].attrs[f"{key}_prp_pool_final"])
+                    else:
+                        w0 = np.asarray(f0[gk + "/w"][-1], dtype=float)
+                    w0 = w0 * float(args.init_weights_scale)
                     w = np.minimum(w0, wmax)
                     nest.SetStatus(conns, [{"weight": float(v)} for v in w])
                     got = np.asarray(nest.GetStatus(conns, "weight"), dtype=float)
@@ -2180,7 +2197,7 @@ def main():
                         raise SystemExit(f"[init-weights] {side} {key}: weights did not take")
                     init_weights_info[f"{side}:{key}"] = dict(n=int(len(w)), mean=float(np.mean(w)),
                                                               clipped=int(np.sum(w0 > wmax)))
-        print(f"[init-weights] loaded from {args.init_weights_from} x{args.init_weights_scale:g}: "
+        print(f"[init-weights] loaded {INIT_STATE} from {args.init_weights_from} x{args.init_weights_scale:g}: "
               + ", ".join(f"{k} mean {v['mean']:.2f} (n {v['n']}, clipped {v['clipped']})"
                           for k, v in init_weights_info.items()))
 
@@ -2223,7 +2240,7 @@ def main():
     consolidate_keys = list(plastic_keys)
     consolidate_behavioral_keys = set(consolidate_keys)
     baseline = {side: {} for side in LEGS}
-    prp_pool = {side: {k: 0.0 for k in consolidate_keys} for side in LEGS}
+    prp_pool = {side: {k: float(init_prp[side].get(k, 0.0)) for k in consolidate_keys} for side in LEGS}
     pending_consolidation_event = {side: 0 for side in LEGS}
     # MOD_WMAX_GROWTH: current per-connection Wmax for ia->rge/ia->rgf only (the
     # pathway the spec's own mapping section names as the candidate for a rising
@@ -3115,6 +3132,7 @@ def main():
             h5.attrs["init_weights_from"] = str(args.init_weights_from)
             h5.attrs["init_weights_json"] = json.dumps(init_weights_info, sort_keys=True)
             h5.attrs["init_weights_scale"] = float(args.init_weights_scale)
+            h5.attrs["init_weights_state"] = str(INIT_STATE)
         if RGE_GATE:  # PLAN.md P5 MOD_RGE_LOAD_GATE; absent = off
             h5.attrs["rge_gate_json"] = json.dumps(dict(
                 i_e_rge=float(I_E_RGE), scale_bs=RGE_GATE_SCALE_BS, scale_ia=RGE_GATE_SCALE_IA,
@@ -3237,6 +3255,8 @@ def main():
                     gc.create_dataset(f"{key}_prp_pool",
                                       data=np.asarray(prp_log[side][key], dtype=np.float32),
                                       compression="gzip")
+                for key in consolidate_keys:  # MOD_SESSIONS: the state the next session starts from
+                    gc.attrs[f"{key}_prp_pool_final"] = float(prp_pool[side][key])
                 for key in wmax_ia_growth_keys:  # MOD_WMAX_GROWTH
                     gc.create_dataset(f"{key}_wmax",
                                       data=np.asarray(wmax_ia_log[side][key], dtype=np.float32),
@@ -3257,6 +3277,9 @@ def main():
                         else:
                             wmat = np.stack(wfull[side][key], axis=0).astype(np.float32, copy=False)
                         gk.create_dataset("w", data=wmat, compression="gzip")
+                    b = baseline[side].get(key) if CONSOLIDATE else None
+                    if b is not None and len(b) == len(src):  # MOD_SESSIONS: final captured baselines
+                        gk.create_dataset("baseline", data=np.asarray(b, dtype=np.float32), compression="gzip")
 
     print(f"[HDF5] saved {args.out}")
 

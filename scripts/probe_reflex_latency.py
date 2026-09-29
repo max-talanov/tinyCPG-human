@@ -44,6 +44,8 @@ DEBUG_ARGS = [
     "--max-weight-conns", "1000", "--save-weights", "none", "--delay-jitter-ms", "0.2",
     "--weight-sample-ms", "500", "--rate-update-ms", "50", "--simulate-chunk-ms", "50",
     "--bs-base-hz", "6", "--bs-noise-std-hz", "0.25", "--enforce-tonic-bs",
+    # timer mode explicitly: the human species default is force + consolidation (PLAN.md P6)
+    "--cut-trigger", "timer", "--no-consolidate", "--no-muscle-fatigue",
 ]
 
 

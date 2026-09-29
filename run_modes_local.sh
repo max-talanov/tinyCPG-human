@@ -73,6 +73,7 @@ for MODE in "${MODES[@]}"; do
     --bs-noise-std-hz 0.25 \
     --enforce-tonic-bs \
     --paced-gait \
+    --cut-trigger timer --no-consolidate --no-muscle-fatigue \
     --step-period-ms "$PERIOD" \
     --n-ia-groups 3 \
     --ia-ext-hz 60 80 100 \

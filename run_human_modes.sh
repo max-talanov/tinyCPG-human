@@ -82,7 +82,7 @@ fi
 for MODE in "${MODES[@]}"; do
   # mode parameters as shell assignments, straight from the YAML
   eval "$(python3 "$REPO/scripts/mode_params.py" "$MODES_CFG" "$MODE")"
-  TRIG_FLAGS=(--cut-trigger timer --no-consolidate)
+  TRIG_FLAGS=(--cut-trigger timer --no-consolidate --no-muscle-fatigue)
   if [ "$TRIGGER" = "force" ]; then
     TRIG_FLAGS=(--cut-trigger force --leading-leg R --lead-offset-ms "$LEAD"
                 --cut-force-on-frac 0.80 --cut-force-off-frac "$OFF"

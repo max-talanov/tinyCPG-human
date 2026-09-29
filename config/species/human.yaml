@@ -72,13 +72,29 @@ cli_defaults:                  # P3: phase scheduler + stance 0.60; P5: human st
   afferent_model: split        # P4: separate spindle Ia (length/velocity) and tendon-organ Ib (force)
   conn_rule: indegree          # P3b: size-invariant wiring, K* = p x production source size
   gait_scheduler: phase        # P3: per-leg phase schedule (double support when stance > 0.5)
-  step_period_ms: 1000.0       # P5 sets human strides per mode
-  stance_fraction: 0.60        # comfortable human walking: ~60% stance, ~10% double support per transition
-  cut_max_stance_ms: 600.0
-  cut_max_swing_ms: 600.0
-  fatigue_tau_onset_ms: 400.0
+  step_period_ms: 1110.0       # comfortable walking; config/modes/human.yaml sets each mode
+  # P6 (2026-09-29): the human default is the P5 force-trigger + consolidation operating
+  # point at comfortable timing (config/modes/human.yaml `comfortable`). Timer runs pass
+  # --cut-trigger timer --no-consolidate --no-muscle-fatigue.
+  paced_gait: true
+  cut_trigger: force
+  consolidate: true
+  muscle_fatigue: true
+  lead_offset_ms: 260.0
+  cut_force_on_frac: 0.80
+  cut_force_off_frac: 0.75
+  cut_max_stance_ms: 1000.0
+  cut_max_swing_ms: 1000.0
+  fatigue_tau_onset_ms: 480.0
   fatigue_tau_recovery_ms: 600.0
-  consolidate_tau_tag_ms: 2000.0
+  fatigue_max_frac: 0.95
+  swing_end_f_frac: 0.55
+  consolidate_prp_gain_genuine: 0.25
+  consolidate_prp_gain_forced: 0.10
+  consolidate_tau_tag_ms: 3400.0
+  rate_update_ms: 50.0
+  simulate_chunk_ms: 50.0
+  stance_fraction: 0.60        # comfortable human walking: ~60% stance, ~10% double support per transition
   ia_feedback_gain: 1.0
   cut_feedback_gain: 1.0
 
