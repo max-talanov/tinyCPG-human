@@ -1445,9 +1445,29 @@ unchanged within it.
   recovery, and at 10% loading CUT fires at 10 Hz, ~10x fewer learning events.
   Consistent with the clinical role of loading (to verify); P7c (EES).
 
-Next: the chain at production size (+ 3 seeds); λ in 5e-4–5e-3 with the calibrated
-gating; compare the curve shape with human training studies (sessions to criterion,
-retention).
+**Production chains, prepared (2026-09-29): `run_p6_chain_mn5.sh`** (MN5, N = 100,
+seeds 12345 / 54321 / 777, BWS 50% and BWS 90%, 15 × 60 s sessions, 16 threads).
+- `STAGE=src` (array 0–2): per seed, the healthy source, a naive 120 s comfortable walk
+  at the P5 capture setting (PRP threshold 1), as the P5 seed runs. It is re-run on
+  MN5 because the chain must match the source's seed, size and thread count.
+- `STAGE=chain` (array 0–5, after the sources): `run_p6_sessions.sh`, session 1 the
+  injured start (source × init_scale), then captured baselines. Chains are resumable:
+  a resubmitted job skips saved sessions.
+- Local smoke test at production size (2 s source, 3 × 2 s sessions) passed: seed and
+  threads carried, ×0.25 injured start, sessions 2–3 load the previous baselines,
+  resume skips finished sessions.
+- Cost estimate: locally a 60 s production session takes ~22 min at 2 threads; on MN5
+  the run is per-chunk overhead (MN5 check A), so ~15–25 min per session and ~4–6 h
+  per chain (limit 12 h; resubmit to continue).
+
+Submit:
+```
+jid=$(sbatch --parsable --array=0-2 --time=03:00:00 --export=ALL,STAGE=src run_p6_chain_mn5.sh)
+sbatch --array=0-5 --dependency=afterok:$jid --export=ALL,STAGE=chain run_p6_chain_mn5.sh
+```
+
+Next: run the production chains; λ in 5e-4–5e-3 with the calibrated gating; compare
+the curve shape with human training studies (sessions to criterion, retention).
 
 ### Phase 7 — Healthy → incomplete SCI → complete SCI, with epidural stimulation (L)
 
