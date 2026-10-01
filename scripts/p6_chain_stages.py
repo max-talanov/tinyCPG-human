@@ -51,12 +51,15 @@ def load_chain(d):
     sess = sorted(glob.glob(os.path.join(d, "s*")), key=lambda p: int(re.sub(r"\D", "", os.path.basename(p))))
     runs = []
     for sd in sess:
-        h5 = [p for p in glob.glob(os.path.join(sd, "*.h5")) if not os.path.islink(p)]
+        # session 1 also holds the source run (a symlink, or a copy after rsync -L): take <mode>.h5
+        h5 = [p for p in glob.glob(os.path.join(sd, f"{os.path.basename(os.path.normpath(d))}.h5"))] or \
+            [p for p in glob.glob(os.path.join(sd, "*.h5")) if not os.path.islink(p)]
         if not h5:
             continue
         with h5py.File(h5[0], "r") as f:
             r = {"t": f["times_ms"][()], "mode": os.path.splitext(os.path.basename(h5[0]))[0],
-                 "loading": float(f.attrs.get("cut_feedback_gain", 1.0))}
+                 "loading": float(f.attrs.get("cut_feedback_gain", 1.0)),
+                 "seed": int(f.attrs.get("seed", 0))}
             for s in "LR":
                 g = f[f"leg_{s}"]
                 r[s] = {"fe": g["force_e"][()], "ff": g["force_f"][()],
@@ -101,7 +104,8 @@ def main():
                 ax.text(0.0, 1.2, f"{name} SESSION (last {args.window_ms / 1000:.0f} s)", transform=ax.transAxes,
                         fontsize=10.5, fontweight="bold", color=INK)
             if c == 0:
-                ax.set_ylabel(f"{runs[0]['mode']}  (loading {runs[0]['loading']:g})\n{n} sessions\n\nForce (a.u.)",
+                ax.set_ylabel(f"{runs[0]['mode']}  seed {runs[0]['seed']}\n(loading {runs[0]['loading']:g}, {n} sessions)\n\n"
+                              "Force (a.u.)",
                               fontsize=8.5, color=INK_2)
             if row == len(chains) - 1:
                 ax.set_xlabel("time in window (s)", fontsize=8, color=INK_2)

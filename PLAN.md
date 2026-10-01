@@ -1466,8 +1466,32 @@ jid=$(sbatch --parsable --array=0-2 --time=03:00:00 --export=ALL,STAGE=src run_p
 sbatch --array=0-5 --dependency=afterok:$jid --export=ALL,STAGE=chain run_p6_chain_mn5.sh
 ```
 
-Next: run the production chains; λ in 5e-4–5e-3 with the calibrated gating; compare
-the curve shape with human training studies (sessions to criterion, retention).
+**Production chains, results (MN5, 2026-10-01; `results/2026-10-01/p6_prod/`, figures
+`plots/p6/prod_recovery.png` (`scripts/p6_chain_seeds.py`) and
+`plots/p6/prod_chain_stages.png`).** All 3 sources and 90 sessions completed (16 threads,
+source ~13 min, session 6–8 min). Healthy sources (comfortable, full loading): r(E,F)
+−0.74/−0.75/−0.74, CUT→RG-E ~66 pA. Mean ± sd over 3 seeds, end of session:
+
+| Session | 1 | 3 | 5 | 7 | 8 | 10 | 12 | 15 |
+|---|---|---|---|---|---|---|---|---|
+| BWS 50%: r(E,F) | −0.31 ± 0.08 | −0.37 ± 0.04 | −0.42 ± 0.04 | −0.52 ± 0.02 | −0.57 ± 0.05 | −0.61 ± 0.02 | −0.63 ± 0.02 | −0.68 ± 0.02 |
+| BWS 50%: captured CUT→RG-E (pA) | 18.6 ± 0.2 | 24.6 ± 0.7 | 32.7 ± 0.9 | 40.7 ± 0.9 | 44.2 ± 1.6 | 50.6 ± 1.1 | 55.9 ± 1.0 | 60.8 ± 0.6 |
+| BWS 90%: r(E,F) | −0.26 ± 0.02 | −0.20 ± 0.03 | −0.22 ± 0.03 | −0.21 ± 0.08 | −0.22 ± 0.04 | −0.23 ± 0.01 | −0.23 ± 0.03 | −0.21 ± 0.04 |
+| BWS 90%: captured CUT→RG-E (pA) | 43.3 ± 0.5 | 43.8 ± 0.5 | 44.4 ± 0.5 | 44.9 ± 0.5 | 45.1 ± 0.5 | 45.6 ± 0.6 | 46.1 ± 0.6 | 46.8 ± 0.5 |
+
+- **Acceptance met at production size, 3 seeds (BWS 50% injured start):** gradual,
+  near-monotonic recovery, kept across sessions, ≤ 0.12 change of r(E,F) within any
+  session (mean |Δ| ≤ 0.05). Sessions to criterion (r(E,F) ≤ −0.5): 7, 7, 8 (debug-small:
+  10). 2–3 captures per session; captured CUT→RG-E +3–4 pA per session, slowing near the
+  trained level, cross-seed sd ≤ 1.7 pA. By session 15 r(E,F) −0.68, close to the healthy
+  full-loading −0.74, and still improving slowly. Ia→RG-E/F also grow through the chain.
+- Production size recovers slightly faster than debug-small (criterion 7–8 vs 10;
+  session 15 −0.68 vs −0.56).
+- **BWS 90%:** no gait gain in 15 sessions (r(E,F) ~−0.22), captured CUT→RG-E +0.25 pA per
+  session; same in all seeds. Confirms the debug-small result: P7c (EES).
+
+Next: λ in 5e-4–5e-3 with the calibrated gating; compare the curve shape with human
+training studies (sessions to criterion, retention); P7b incomplete-SCI configuration.
 
 ### Phase 7 — Healthy → incomplete SCI → complete SCI, with epidural stimulation (L)
 
