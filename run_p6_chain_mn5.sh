@@ -10,6 +10,9 @@
 #SBATCH --array=0-5
 #
 # PLAN.md Phase 6: session chains at PRODUCTION size (N = 100), 3 seeds, on MN5.
+# Plasticity: spinal induction + consolidation (MOD_SPINAL_INDUCTION, human default; no STDP).
+# The source stage uses --spinal-eta 0.05 to reach the trained state in 120 s; the chains use
+# the species default (0.003).
 # Two stages, one script (STAGE):
 #
 #   STAGE=src    array 0..(#SEEDS-1): the healthy source per seed -- a naive comfortable
@@ -35,10 +38,10 @@
 #   STAGE=chain SLURM_ARRAY_TASK_ID=0 THREADS=2 SESSION_MS=2000 N=2 ROOT=p6_prod_smoke bash run_p6_chain_mn5.sh
 #
 # Env: SEEDS ("12345 54321 777"), MODES ("bws50 bws90"), N (15), SESSION_MS (60000),
-#      SRC_SIM_MS (120000), ROOT (p6_prod), THREADS (SLURM_CPUS_PER_TASK), EXTRA.
+#      SRC_SIM_MS (120000), ROOT (p6_spinal), THREADS (SLURM_CPUS_PER_TASK), EXTRA.
 # Figure (per seed):
-#   python3 scripts/p6_chain_stages.py results/human_modes/p6_prod/chain/s12345/bws50 \
-#       results/human_modes/p6_prod/chain/s12345/bws90 --out plots/p6/prod_s12345_stages.png
+#   python3 scripts/p6_chain_stages.py results/human_modes/p6_spinal/chain/s12345/bws50 \
+#       results/human_modes/p6_spinal/chain/s12345/bws90 --out plots/p6/spinal_prod_s12345_stages.png
 set -euo pipefail
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 [ -f "$REPO/cpg_2legs_fast.py" ] || REPO="$(pwd)"   # sbatch copies the script elsewhere
@@ -49,7 +52,7 @@ read -r -a MODES <<< "${MODES:-bws50 bws90}"
 N=${N:-15}
 SESSION_MS=${SESSION_MS:-60000}
 SRC_SIM_MS=${SRC_SIM_MS:-120000}
-ROOT=${ROOT:-p6_prod}
+ROOT=${ROOT:-p6_spinal}
 T=${SLURM_ARRAY_TASK_ID:-0}
 export THREADS=${THREADS:-${SLURM_CPUS_PER_TASK:-4}}
 export SIZE=production TRIGGER=force
@@ -63,7 +66,7 @@ case "$STAGE" in
     SEED=${SEEDS[$T]:?no seed for task $T}
     echo "[p6-mn5] src seed=$SEED threads=$THREADS sim=${SRC_SIM_MS}ms"
     SEED="$SEED" SIM_MS="$SRC_SIM_MS" TRAINED=0 TAG="$ROOT/src/s$SEED" \
-      EXTRA="--consolidate-prp-threshold 1 $EXTRA" bash "$REPO/run_human_modes.sh" comfortable
+      EXTRA="--consolidate-prp-threshold 1 --spinal-eta 0.05 $EXTRA" bash "$REPO/run_human_modes.sh" comfortable
     ;;
   chain)
     SEED=${SEEDS[$(( T / ${#MODES[@]} ))]:?no seed for task $T}

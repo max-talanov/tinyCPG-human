@@ -1490,8 +1490,38 @@ source ~13 min, session 6–8 min). Healthy sources (comfortable, full loading):
 - **BWS 90%:** no gait gain in 15 sessions (r(E,F) ~−0.22), captured CUT→RG-E +0.25 pA per
   session; same in all seeds. Confirms the debug-small result: P7c (EES).
 
-Next: λ in 5e-4–5e-3 with the calibrated gating; compare the curve shape with human
-training studies (sessions to criterion, retention); P7b incomplete-SCI configuration.
+**Spinal induction replaces STDP in the human model (2026-10-02, `MOD_SPINAL_INDUCTION`;
+user decision: no STDP in the human model, spinal plasticity only).** The λ check is
+dropped. Plastic pathways are static NEST synapses whose weights a rate-based NMDA
+coincidence rule sets every 50 ms chunk: Δw = η·Wmax·Δt·x·y(y−θ)/θ (pre rate x, post rate y
+per neuron), soft bounds, θ sliding per neuron toward ⟨y²⟩/y0 (BCM, τ 5 s). The induced
+change is the tag; tag-and-capture is unchanged. Rat keeps STDP (`regress.sh` ALL PASS).
+
+Calibration (debug-small):
+- Targets y0: RG-E 3.8, RG-F 0.9. A naive comfortable walk (η 0.05, PRP threshold 1)
+  trains to CUT→RG-E ~57 pA, stance RG-E ~650 Hz, Ia→RG-F ~3.3, r(E,F) −0.74 (STDP
+  trained state: ~66 pA, ~700 Hz, ~4, −0.75). Slow and fast likewise (r(E,F) −0.75 to
+  −0.81). One shared y0 (2.0) gave CUT ~30 pA and a creeping Ia→RG-F.
+- η sets the session-chain speed, not the end state (the BCM equilibrium depends on y0
+  only). BWS 50% chains: η 0.05 recovers in 1–2 sessions (CUT overshoots to ~100 pA,
+  homeostatic upscaling at half loading); η 0.01 reaches criterion by session 4–5;
+  **η 0.003 (human default)**: CUT 17 → 51 pA over 15 sessions (+2–3 pA per session),
+  end-of-session r(E,F) −0.32 → −0.53, criterion at session 11 (STDP: 10), within-session
+  change ≤ 0.11. BWS 90%: +0.7 pA per session, no gait gain (as STDP).
+- The healthy sources (naive walks standing in for the trained adult) are built with
+  η 0.05 to reach the converged state in 120 s (`run_p6_chain_mn5.sh` STAGE=src); the
+  converged state does not depend on η.
+
+Production chains with the spinal rule are prepared (`run_p6_chain_mn5.sh`, output
+`results/human_modes/p6_spinal/`, so the STDP chains in `p6_prod` are not resumed by
+mistake); local production-size smoke test passed (spinal rule active, source η 0.05,
+chains η 0.003, session 2 from session 1's baselines). Five modes, debug-small, spinal
+rule (`plots/modes/p6_spinal/`): slow/comfortable/fast r(E,F) −0.78/−0.72/−0.79 from a
+trained start, weights flat; fast stride 990/890 (+11%, STDP +5%: to check).
+
+Next: run the production chains (MN5) with the spinal rule; compare the curve
+shape with human training studies (sessions to criterion, retention); P7b incomplete-SCI
+configuration.
 
 ### Phase 7 — Healthy → incomplete SCI → complete SCI, with epidural stimulation (L)
 

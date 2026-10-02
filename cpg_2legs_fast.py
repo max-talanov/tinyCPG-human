@@ -224,6 +224,27 @@ MU_PLUS = 0.4
 MU_MINUS = 0.4
 WMAX = 120.0
 
+# ---------- MOD_SPINAL_INDUCTION: spinal E-LTP induction (human; replaces STDP) ----------
+# --plasticity-rule spinal: the plastic synapses are static in NEST and their weights are
+# set from Python every chunk by a rate-based NMDA-receptor coincidence rule (the E-LTP
+# induction of spinal_plasticity_as_learning_spec.md §1.1): presynaptic activity x
+# (per-neuron rate / SPI_PRE_REF_HZ) times a postsynaptic calcium-control term
+# phi(y, theta) = y (y - theta) / theta, y = per-neuron rate / SPI_POST_REF_HZ: depression
+# for weak and potentiation for strong postsynaptic activity (Lisman 1989; Shouval et al.
+# 2002; to verify). theta slides with the neuron's own recent activity, theta -> <y^2> /
+# SPI_POST_TARGET_E/F with SPI_THETA_TAU_MS (BCM; Bienenstock, Cooper & Munro 1982): a
+# homeostatic, metaplastic threshold (spec §1.3) that bounds learning without a timing
+# rule. dw = SPI_ETA * Wmax * dt_s * x * phi, soft-bounded (x (1 - w/Wmax) for LTP,
+# x w/Wmax for LTD). The induced change is the tag; MOD_CONSOLIDATE captures it.
+SPI_ETA = 0.003              # 1/s, in units of Wmax (human default; P6 chain calibration)
+SPI_PRE_REF_HZ = 100.0
+SPI_POST_REF_HZ = 100.0
+SPI_POST_TARGET_E = 3.8      # y0 of RG-E: the threshold settles where stance RG-E ~ y0/stance fraction
+SPI_POST_TARGET_F = 0.9      # y0 of RG-F (bursts in swing, at a lower rate)
+SPI_THETA_TAU_MS = 5000.0
+SPI_THETA_INIT = 1.0
+SPI_THETA_MIN = 0.05
+
 # MOD_COACT: BS STDP weights capped so tonic BS alone stays subthreshold even after
 # full STDP potentiation. CUT STDP keeps the full WMAX.
 WMAX_BS = 30.0
@@ -961,6 +982,19 @@ def main():
                          "pacing) is NOT scaled, only the cutaneous feedback that drives "
                          "CUT→RG-E learning.")
     # ---- STDP learning rate override ----
+    ap.add_argument("--plasticity-rule", choices=["stdp", "spinal"], default="stdp",
+                    help="MOD_SPINAL_INDUCTION: induction rule of the plastic pathways. 'stdp' (rat, "
+                         "default): NEST stdp_synapse. 'spinal' (human): rate-based NMDA coincidence "
+                         "rule with a sliding BCM threshold, applied from Python every chunk; "
+                         "--stdp-lambda is ignored.")
+    ap.add_argument("--spinal-eta", type=float, default=None,
+                    help="MOD_SPINAL_INDUCTION learning rate (1/s, units of Wmax); default SPI_ETA.")
+    ap.add_argument("--spinal-post-target-e", type=float, default=None,
+                    help="MOD_SPINAL_INDUCTION BCM target y0 of RG-E (theta -> <y^2>/y0); default SPI_POST_TARGET_E.")
+    ap.add_argument("--spinal-post-target-f", type=float, default=None,
+                    help="MOD_SPINAL_INDUCTION BCM target y0 of RG-F; default SPI_POST_TARGET_F.")
+    ap.add_argument("--spinal-theta-tau-ms", type=float, default=None,
+                    help="MOD_SPINAL_INDUCTION sliding-threshold time constant; default SPI_THETA_TAU_MS.")
     ap.add_argument("--stdp-lambda", type=float, default=None,
                     help="Override the STDP learning-rate constant LAMBDA. Default None "
                          "uses the global LAMBDA = 0.001. Bio-plausible range 5e-4 to 5e-3.")
@@ -1018,6 +1052,19 @@ def main():
     # STDP learning-rate override (kept distinct from ablation tags)
     if args.stdp_lambda is not None:
         LAMBDA = float(args.stdp_lambda)
+    # MOD_SPINAL_INDUCTION
+    global SPI_ETA, SPI_POST_TARGET_E, SPI_POST_TARGET_F, SPI_THETA_TAU_MS
+    SPINAL = (getattr(args, "plasticity_rule", "stdp") == "spinal")
+    PL = "spinal" if SPINAL else "stdp"   # synapse-model name prefix of the plastic pathways
+    if SPINAL:
+        if args.spinal_eta is not None:
+            SPI_ETA = float(args.spinal_eta)
+        if args.spinal_post_target_e is not None:
+            SPI_POST_TARGET_E = float(args.spinal_post_target_e)
+        if args.spinal_post_target_f is not None:
+            SPI_POST_TARGET_F = float(args.spinal_post_target_f)
+        if args.spinal_theta_tau_ms is not None:
+            SPI_THETA_TAU_MS = float(args.spinal_theta_tau_ms)
     # Graded sensory feedback gain (Courtine/Lavrov toe/air stepping)
     IA_FEEDBACK_GAIN = float(args.ia_feedback_gain)
     # MOD_FLEXOR_AFF_UNLOADED: loading gain on the flexor Ia/Ib (1 = body weight does not reach them)
@@ -1727,24 +1774,29 @@ def main():
     # enough to drive RGE alone even after extended training.
     stdp_bs_defaults = {**stdp_defaults, "Wmax": WMAX_BS}
 
+    WMAX_PL = {}  # MOD_SPINAL_INDUCTION: Wmax per (model name); kept in Python for static copies
     for side in LEGS:
         def copy(name, params, wr):
-            if wr is not None:
+            name = name.replace("stdp_", f"{PL}_", 1)
+            WMAX_PL[name] = float(params["Wmax"])
+            if SPINAL:
+                nest.CopyModel("static_synapse", name)
+            elif wr is not None:
                 nest.CopyModel("stdp_synapse", name, {**params, "weight_recorder": wr})
             else:
                 nest.CopyModel("stdp_synapse", name, params)
 
-        copy(f"stdp_cut_rge_{side}", {**stdp_defaults, "Wmax": WMAX_CUT_RGE_EFF}, make_weight_recorder_safe())
-        copy(f"stdp_bs_rge_{side}", {**stdp_bs_defaults, "Wmax": WMAX_BS_RGE}, make_weight_recorder_safe())   # MOD_COACT: capped Wmax
-        copy(f"stdp_bs_rgf_{side}", stdp_bs_defaults, make_weight_recorder_safe())   # MOD_COACT: capped Wmax
+        copy(f"{PL}_cut_rge_{side}", {**stdp_defaults, "Wmax": WMAX_CUT_RGE_EFF}, None if SPINAL else make_weight_recorder_safe())
+        copy(f"{PL}_bs_rge_{side}", {**stdp_bs_defaults, "Wmax": WMAX_BS_RGE}, None if SPINAL else make_weight_recorder_safe())   # MOD_COACT: capped Wmax
+        copy(f"{PL}_bs_rgf_{side}", stdp_bs_defaults, None if SPINAL else make_weight_recorder_safe())   # MOD_COACT: capped Wmax
         # MOD_IA_RG_STDP: plastic homonymous Ia->RG models, always created -- the third
         # standing plastic pathway alongside BS->RG and CUT->RG, matching the reference
         # architecture's direct Ia->RG-E/F excitatory projection. Wmax is the
         # loading-adjusted EFFECTIVE_WMAX_IA (MOD_IA_RG_LOADING_GAIN), not the raw
         # --wmax-ia -- relaxes as --cut-feedback-gain drops.
         stdp_ia_defaults = {**stdp_defaults, "Wmax": float(EFFECTIVE_WMAX_IA)}
-        copy(f"stdp_ia_rge_{side}", {**stdp_ia_defaults, "Wmax": WMAX_IA_RGE}, make_weight_recorder_safe())
-        copy(f"stdp_ia_rgf_{side}", {**stdp_ia_defaults, "Wmax": WMAX_IA_RGF}, make_weight_recorder_safe())
+        copy(f"{PL}_ia_rge_{side}", {**stdp_ia_defaults, "Wmax": WMAX_IA_RGE}, None if SPINAL else make_weight_recorder_safe())
+        copy(f"{PL}_ia_rgf_{side}", {**stdp_ia_defaults, "Wmax": WMAX_IA_RGF}, None if SPINAL else make_weight_recorder_safe())
 
     # ---- PLAN.md P3b: size-invariant connectivity ----
     # Production (reference) size of each source population, by the leg-dict name.
@@ -1793,7 +1845,7 @@ def main():
         L = leg[side]
 
         connect("cut_in->rg_e", "cut_in", L["cut_in"], L["rg_e"], P_IN_STDP,
-                syn_spec={"synapse_model": f"stdp_cut_rge_{side}", "weight": W_INIT_CUT_RGE, "delay": delay["cut_to_rg"]})
+                syn_spec={"synapse_model": f"{PL}_cut_rge_{side}", "weight": W_INIT_CUT_RGE, "delay": delay["cut_to_rg"]})
 
         # MOD_COACT: static CUT → RGE pathway — present from t=0 before STDP bootstraps.
         # CUT 100 Hz × W=14 × ~35 conns alone is subthreshold; combined with BS 60 Hz it
@@ -1806,8 +1858,8 @@ def main():
 
         # MOD_FREEZE_BS: with --freeze-bs-rg these are static (no STDP), held at the weak
         # lognormal init so BS is a fixed tonic drive and the learning shifts to Ia->RG.
-        _bs_rge_model = "static_synapse" if getattr(args, "freeze_bs_rg", False) else f"stdp_bs_rge_{side}"
-        _bs_rgf_model = "static_synapse" if getattr(args, "freeze_bs_rg", False) else f"stdp_bs_rgf_{side}"
+        _bs_rge_model = "static_synapse" if getattr(args, "freeze_bs_rg", False) else f"{PL}_bs_rge_{side}"
+        _bs_rgf_model = "static_synapse" if getattr(args, "freeze_bs_rg", False) else f"{PL}_bs_rgf_{side}"
         connect("bs_in_e->rg_e", "bs_in_e", L["bs_in_e"], L["rg_e"], P_IN_STDP,
                 syn_spec={"synapse_model": _bs_rge_model, "weight": W_INIT_BS_RGE, "delay": delay["bs_to_rg"]})
         connect("bs_in_f->rg_f", "bs_in_f", L["bs_in_f"], L["rg_f"], P_IN_STDP,
@@ -1880,9 +1932,9 @@ def main():
         # training/rehabilitation, so this must stay plastic, not a static baseline.
         _p_ia2rg = float(getattr(args, "p_ia2rg", P_IA2RG_STDP))
         connect("ia_in_e->rg_e", "ia_in_e", L["ia_in_e"], L["rg_e"], _p_ia2rg,
-                syn_spec={"synapse_model": f"stdp_ia_rge_{side}", "weight": W_INIT_IA_RGE, "delay": delay["ia_path"]})
+                syn_spec={"synapse_model": f"{PL}_ia_rge_{side}", "weight": W_INIT_IA_RGE, "delay": delay["ia_path"]})
         connect("ia_in_f->rg_f", "ia_in_f", L["ia_in_f"], L["rg_f"], _p_ia2rg,
-                syn_spec={"synapse_model": f"stdp_ia_rgf_{side}", "weight": W_INIT_IA, "delay": delay["ia_path"]})
+                syn_spec={"synapse_model": f"{PL}_ia_rgf_{side}", "weight": W_INIT_IA, "delay": delay["ia_path"]})
 
         # MOD_PACED_GAIT: external sequential Ia-E groups → InE → inhibits RGF during stance.
         # Reinforces extensor phase while preserving F→E asymmetry (InF→RGE still 6× stronger).
@@ -2027,7 +2079,7 @@ def main():
             # --- descending / supraspinal drive ---
             ("BS->RG-E",   L["bs_in_e"],  L["rg_e"]),
             ("BS->RG-F",   L["bs_in_f"],  L["rg_f"]),
-            ("CUT->RG-E (plastic)", L["cut_in"], L["rg_e"], f"stdp_cut_rge_{side0}"),
+            ("CUT->RG-E (plastic)", L["cut_in"], L["rg_e"], f"{PL}_cut_rge_{side0}"),
             ("CUT->RG-E (static coact)", L["cut_in"], L["rg_e"], "static_synapse"),
             ("CUT->InE",   L["cut_in"],   L["in_e"]),
             ("base->RG-E", L["base_in"],  L["rg_e"]),
@@ -2100,12 +2152,12 @@ def main():
         ["izhikevich", "parrot_neuron", "poisson_generator", "spike_recorder", "weight_recorder"])
     stats_syn_sign = synapse_sign_stats()
     stats_syn_models = {
-        "L_stdp_cut_rge": safe_len_connections(synapse_model="stdp_cut_rge_L"),
-        "L_stdp_bs_rge": safe_len_connections(synapse_model="stdp_bs_rge_L"),
-        "L_stdp_bs_rgf": safe_len_connections(synapse_model="stdp_bs_rgf_L"),
-        "R_stdp_cut_rge": safe_len_connections(synapse_model="stdp_cut_rge_R"),
-        "R_stdp_bs_rge": safe_len_connections(synapse_model="stdp_bs_rge_R"),
-        "R_stdp_bs_rgf": safe_len_connections(synapse_model="stdp_bs_rgf_R"),
+        f"L_{PL}_cut_rge": safe_len_connections(synapse_model=f"{PL}_cut_rge_L"),
+        f"L_{PL}_bs_rge": safe_len_connections(synapse_model=f"{PL}_bs_rge_L"),
+        f"L_{PL}_bs_rgf": safe_len_connections(synapse_model=f"{PL}_bs_rgf_L"),
+        f"R_{PL}_cut_rge": safe_len_connections(synapse_model=f"{PL}_cut_rge_R"),
+        f"R_{PL}_bs_rge": safe_len_connections(synapse_model=f"{PL}_bs_rge_R"),
+        f"R_{PL}_bs_rgf": safe_len_connections(synapse_model=f"{PL}_bs_rgf_R"),
         "static_total": safe_len_connections(synapse_model="static_synapse"),
     }
     if rank == 0:
@@ -2122,9 +2174,9 @@ def main():
         plastic_keys += ["bs->rge", "bs->rgf"]
 
     def _stdp_model(key, side):
-        return {"cut->rge": f"stdp_cut_rge_{side}", "bs->rge": f"stdp_bs_rge_{side}",
-                "bs->rgf": f"stdp_bs_rgf_{side}", "ia->rge": f"stdp_ia_rge_{side}",
-                "ia->rgf": f"stdp_ia_rgf_{side}"}[key]
+        return {"cut->rge": f"{PL}_cut_rge_{side}", "bs->rge": f"{PL}_bs_rge_{side}",
+                "bs->rgf": f"{PL}_bs_rgf_{side}", "ia->rge": f"{PL}_ia_rge_{side}",
+                "ia->rgf": f"{PL}_ia_rgf_{side}"}[key]
 
     conns_cache = {side: {} for side in LEGS}
     for side in LEGS:
@@ -2178,7 +2230,7 @@ def main():
                             and np.array_equal(f0[gk + "/target"][()], tgt)):
                         raise SystemExit(f"[init-weights] {args.init_weights_from}: {side} {key} synapses differ "
                                          f"from this network (species, size, wiring rule, seed and threads must match)")
-                    wmax = float(nest.GetDefaults(_stdp_model(key, side), "Wmax"))
+                    wmax = WMAX_PL[_stdp_model(key, side)]
                     if INIT_STATE == "baseline":
                         if gk + "/baseline" not in f0:
                             raise SystemExit(f"[init-weights] {args.init_weights_from}: no {gk}/baseline "
@@ -2215,6 +2267,81 @@ def main():
                 except Exception:
                     # If slicing is not supported, keep original
                     pass
+
+    # ---- MOD_SPINAL_INDUCTION: per-neuron rates, sliding thresholds, weight shadows ----
+    # The NEST weights of the plastic pathways are written only from here (static
+    # synapses), so w_sh (the full collection, sorted order) is the authoritative copy.
+    SPI_PRE_POP = {"cut->rge": "cut_in", "ia->rge": "ia_in_e", "ia->rgf": "ia_in_f",
+                   "bs->rge": "bs_in_e", "bs->rgf": "bs_in_f"}
+    SPI_POST_POP = {"cut->rge": "rg_e", "ia->rge": "rg_e", "ia->rgf": "rg_f",
+                    "bs->rge": "rg_e", "bs->rgf": "rg_f"}
+    spi = {side: dict(rec={}, ids={}, theta={}, idx={}) for side in LEGS}
+    w_sh = {side: {} for side in LEGS}
+    spi_wmax = {side: {} for side in LEGS}
+    if SPINAL:
+        for side in LEGS:
+            pops = sorted({SPI_PRE_POP[k] for k in plastic_keys} | {SPI_POST_POP[k] for k in plastic_keys})
+            for pop in pops:
+                rec = nest.Create("spike_recorder")
+                nest.Connect(leg[side][pop], rec)
+                spi[side]["rec"][pop] = rec
+                spi[side]["ids"][pop] = np.asarray(leg[side][pop].tolist(), dtype=np.int64)
+            for pop in sorted({SPI_POST_POP[k] for k in plastic_keys}):
+                spi[side]["theta"][pop] = np.full(len(spi[side]["ids"][pop]), SPI_THETA_INIT)
+            for key in plastic_keys:
+                src, tgt = conns_endpoints[side][key]
+                pre_ids = spi[side]["ids"][SPI_PRE_POP[key]]
+                post_ids = spi[side]["ids"][SPI_POST_POP[key]]
+                spi[side]["idx"][key] = (np.searchsorted(pre_ids, src), np.searchsorted(post_ids, tgt))
+                conns = conns_full_cache[side][key]
+                w_sh[side][key] = (np.asarray(nest.GetStatus(conns, "weight"), dtype=float)
+                                   if conns is not None and len(conns) else np.array([], dtype=float))
+                spi_wmax[side][key] = WMAX_PL[_stdp_model(key, side)]
+
+    def spi_counts(side, pop):
+        rec = spi[side]["rec"][pop]
+        snd = np.asarray(nest.GetStatus(rec, "events")[0]["senders"], dtype=np.int64)
+        nest.SetStatus(rec, {"n_events": 0})   # MOD_RECORDER_CLEAR
+        ids = spi[side]["ids"][pop]
+        return np.bincount(np.searchsorted(ids, snd), minlength=len(ids)).astype(float)
+
+    def spi_push(side, key):
+        conns = conns_full_cache[side][key]
+        if conns is not None and len(conns):
+            conns.set(weight=w_sh[side][key].tolist())
+
+    def spinal_step(side, dt_ms, leak_ms):
+        """MOD_SPINAL_INDUCTION: one induction step over the last dt_ms of spikes, then
+        (MOD_CONSOLIDATE, leak_ms > 0) the tag decay toward the captured baseline, then
+        one write of the weights to NEST."""
+        dt_s = max(1e-9, float(dt_ms) / 1000.0)
+        rate = {pop: spi_counts(side, pop) / dt_s for pop in spi[side]["rec"]}
+        y = {}
+        for pop, th in spi[side]["theta"].items():
+            y[pop] = rate[pop] / SPI_POST_REF_HZ
+            k = 1.0 - np.exp(-float(dt_ms) / SPI_THETA_TAU_MS)
+            y0 = SPI_POST_TARGET_E if pop == "rg_e" else SPI_POST_TARGET_F
+            th += k * (y[pop] ** 2 / y0 - th)
+            np.maximum(th, SPI_THETA_MIN, out=th)
+        decay = float(np.exp(-float(leak_ms) / CONSOLIDATE_TAU_TAG_MS)) if leak_ms > 0 else 1.0
+        for key in plastic_keys:
+            w = w_sh[side][key]
+            if w.size == 0:
+                continue
+            i_pre, i_post = spi[side]["idx"][key]
+            post = SPI_POST_POP[key]
+            yy = y[post][i_post]
+            th = spi[side]["theta"][post][i_post]
+            x = rate[SPI_PRE_POP[key]][i_pre] / SPI_PRE_REF_HZ
+            wmax = spi_wmax[side][key]
+            drive = SPI_ETA * wmax * dt_s * x * yy * (yy - th) / th
+            frac = w / wmax
+            w += np.where(drive > 0.0, drive * (1.0 - frac), drive * frac)
+            np.clip(w, 0.0, wmax, out=w)
+            if decay < 1.0 and key in consolidate_behavioral_keys:
+                b = baseline[side][key]
+                w[:] = b + (w - b) * decay
+            spi_push(side, key)
 
     # ---- MOD_CONSOLIDATE: tag-and-capture consolidation state (opt-in) ----
     # Two components per synapse, replacing "whatever stdp_synapse says is
@@ -2276,7 +2403,9 @@ def main():
                 prp_pool[side][key] = max(0.0, prp_pool[side][key] - CONSOLIDATE_PRP_GAIN_FORCED)
             if prp_pool[side][key] >= CONSOLIDATE_PRP_THRESHOLD:
                 conns = conns_full_cache[side][key]
-                if conns is not None and len(conns) > 0:
+                if SPINAL:
+                    baseline[side][key] = w_sh[side][key].copy()
+                elif conns is not None and len(conns) > 0:
                     baseline[side][key] = np.asarray(nest.GetStatus(conns, "weight"), dtype=float)
                 prp_pool[side][key] -= CONSOLIDATE_PRP_THRESHOLD
                 captured_any = True
@@ -2289,7 +2418,9 @@ def main():
                                    wmax_ia_current[side][key] + CONSOLIDATE_WMAX_IA_GROWTH)
                     if new_wmax != wmax_ia_current[side][key]:
                         wmax_ia_current[side][key] = new_wmax
-                        if conns is not None and len(conns) > 0:
+                        if SPINAL:
+                            spi_wmax[side][key] = float(new_wmax)
+                        elif conns is not None and len(conns) > 0:
                             nest.SetStatus(conns, [{"Wmax": float(new_wmax)}] * len(conns))
         return captured_any
 
@@ -2301,6 +2432,8 @@ def main():
         baseline instead of being kept forever (Wmax is unaffected -- it
         still bounds `weight` exactly as before; this governs retention
         within that ceiling)."""
+        if SPINAL:
+            return  # MOD_SPINAL_INDUCTION: applied in spinal_step, on the weight shadow
         decay = float(np.exp(-float(args.rate_update_ms) / CONSOLIDATE_TAU_TAG_MS))
         for key in consolidate_behavioral_keys:
             conns = conns_full_cache[side][key]
@@ -2548,6 +2681,9 @@ def main():
         if AFFERENT_SPLIT:  # PLAN.md P4 (keys exist only in split runs)
             P["ib_e"].append(ib_e)
             P["ib_f"].append(ib_f)
+        if SPINAL:  # MOD_SPINAL_INDUCTION (+ the consolidation tag decay at gate ticks)
+            spinal_step(side, dt_ms_actual,
+                        float(args.rate_update_ms) if (CONSOLIDATE and do_rate_update) else 0.0)
 
     # Keep last sampled mean/std so we can append smoothly without resampling every step
     last_wstats = {side: {k: (np.nan, np.nan) for k in plastic_keys} for side in LEGS}
@@ -3176,6 +3312,12 @@ def main():
             h5.attrs["flexor_afferent_loading"] = str(args.flexor_afferent_loading)
         h5.attrs["cut_feedback_gain"] = float(CUT_FEEDBACK_GAIN)
         h5.attrs["stdp_lambda"] = float(LAMBDA)
+        if SPINAL:  # MOD_SPINAL_INDUCTION (absent = stdp)
+            h5.attrs["plasticity_rule"] = "spinal"
+            h5.attrs["spinal_induction_json"] = json.dumps(dict(
+                eta=SPI_ETA, pre_ref_hz=SPI_PRE_REF_HZ, post_ref_hz=SPI_POST_REF_HZ,
+                post_target_e=SPI_POST_TARGET_E, post_target_f=SPI_POST_TARGET_F, theta_tau_ms=SPI_THETA_TAU_MS,
+                theta_init=SPI_THETA_INIT, theta_min=SPI_THETA_MIN))
         h5.attrs["freeze_bs_rg"] = bool(getattr(args, "freeze_bs_rg", False))   # MOD_FREEZE_BS
         h5.attrs["ia_rg_stdp_always_on"] = True                                 # MOD_IA_RG_STDP: Ia->RG-E/F now a standing plastic pathway, not opt-in
         h5.attrs["wmax_ia"] = float(WMAX_IA_BASE)

@@ -30,6 +30,7 @@ Usage:
       --stage middle:40000:45000 --stage end:115000:120000
 """
 import argparse
+import json
 import os
 
 import h5py
@@ -109,7 +110,8 @@ def main():
             attrs = dict(f.attrs)
             # The model does not record --debug-small; infer the scale from the CUT->RG-E
             # synapse count (~5000 per leg at production N=100, a few hundred at debug-small).
-            n_cut = int(dict(f["stats"].attrs).get("L_stdp_cut_rge", 0)) if "stats" in f else 0
+            _st = dict(f["stats"].attrs) if "stats" in f else {}
+            n_cut = int(_st.get("L_stdp_cut_rge", _st.get("L_spinal_cut_rge", 0)))
             scale = "production N=100" if n_cut >= 2500 else ("debug-small" if n_cut else "size ?")
             d = {"t": f["times_ms"][()], "wt": f["weights_times_ms"][()],
                  # MOD_INIT_WEIGHTS: a trained start (weights from an earlier run)
@@ -230,13 +232,18 @@ def main():
                bbox_to_anchor=(0.5, 0.955))
     note = ("frozen BS→RG (sensory-learning model): BS weights not plastic, not shown. "
             if not any(p[0].startswith("bs") for p in present) else "")
+    if attrs.get("plasticity_rule") == "spinal":  # MOD_SPINAL_INDUCTION: no STDP
+        _spi = json.loads(attrs.get("spinal_induction_json", "{}"))
+        plast = f"plasticity=spinal (η={_spi.get('eta', '?')})"
+    else:
+        plast = f"STDP λ={attrs.get('stdp_lambda', attrs.get('lambda', '?'))}"
     fig.text(0.06, 1.0, f"{args.species}: force and plastic weights at three stages, five locomotion modes",
              ha="left", va="bottom", fontsize=12.5, fontweight="bold", color=INK)
     fig.text(0.06, 0.995,
              f"species={attrs.get('species', '?')}  {scale}  wiring={attrs.get('conn_rule', 'bernoulli')}  "
              f"afferents={attrs.get('afferent_model', 'pooled')}  length={attrs.get('muscle_length_model', 'independent')}  "
              f"trigger={attrs.get('cut_trigger', 'timer')}{'+consolidation' if attrs.get('consolidate') else ''}  sim={attrs.get('sim_ms', 0) / 1000:.0f} s  "
-             f"λ={attrs.get('stdp_lambda', attrs.get('lambda', '?'))}  seed={attrs.get('seed', '?')}   {note}"
+             f"{plast}  seed={attrs.get('seed', '?')}   {note}"
              f"Force panels: left leg; r(E,F) for both legs.",
              ha="left", va="top", fontsize=8.5, color=INK_2)
     fig.savefig(out, dpi=150, bbox_inches="tight", facecolor=SURFACE)

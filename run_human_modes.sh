@@ -12,7 +12,7 @@
 # PLAN.md Phase 5: the five human locomotion modes from config/modes/human.yaml
 # (slow / comfortable / fast walk, BWS 50% / 90%), human model (species config
 # defaults: fixed in-degree wiring, Ia/Ib split, ankle coupling, soleus/TA tau),
-# sensory-learning arm (frozen BS->RG, Wmax_Ia 10, mu=3.5 / CV=0.30), lambda 1e-4.
+# sensory-learning arm (frozen BS->RG, Wmax_Ia 10, mu=3.5 / CV=0.30).
 #
 #   TRIGGER=paced  timer-paced phase scheduler at the mode's stride and stance
 #                  fraction (default)
@@ -28,7 +28,8 @@
 #                  --long-run preset (which forces >= 100 ms) is replaced by its other
 #                  settings, given explicitly.
 #   SRC_DIR        directory of the init_from runs (default: the output directory)
-#   SIM_MS, SEED, LAMBDA, EXTRA (extra model flags, appended last)
+#   SIM_MS, SEED, EXTRA (extra model flags, appended last)
+# Plasticity: the species default (human: spinal induction + consolidation, P6), not STDP.
 #
 # MN5:    sbatch run_human_modes.sh            (array 0-4 = modes in file order)
 #         BWS needs comfortable first: jid=$(sbatch --parsable --array=0-2 run_human_modes.sh)
@@ -53,7 +54,6 @@ SIZE=${SIZE:-production}
 TAG=${TAG:-$TRIGGER}
 SIM_MS=${SIM_MS:-120000}
 SEED=${SEED:-12345}
-LAMBDA=${LAMBDA:-1e-4}
 CONSOLIDATE=${CONSOLIDATE:-1}
 TRAINED=${TRAINED:-1}
 SRC_DIR=${SRC_DIR:-}   # where init_from runs live (default: the output directory)
@@ -146,7 +146,6 @@ for MODE in "${MODES[@]}"; do
     --ia-ext-f-hz 80 \
     --ia-feedback-gain "$GAIN" \
     --cut-feedback-gain "$GAIN" \
-    --stdp-lambda "$LAMBDA" \
     --freeze-bs-rg \
     --wmax-ia 10 \
     "${TICK_FLAGS[@]}" \
