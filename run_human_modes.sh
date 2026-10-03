@@ -87,7 +87,7 @@ for MODE in "${MODES[@]}"; do
   TRIG_FLAGS=(--cut-trigger timer --no-consolidate --no-muscle-fatigue)
   if [ "$TRIGGER" = "force" ]; then
     TRIG_FLAGS=(--cut-trigger force --leading-leg R --lead-offset-ms "$LEAD"
-                --cut-force-on-frac 0.80 --cut-force-off-frac "$OFF"
+                --cut-force-on-frac "$ON" --cut-force-off-frac "$OFF"
                 --cut-max-stance-ms "$CAP" --cut-max-swing-ms "$CAP"
                 --muscle-fatigue --fatigue-tau-onset-ms "$FON" --fatigue-tau-recovery-ms "$FREC"
                 --fatigue-max-frac 0.95

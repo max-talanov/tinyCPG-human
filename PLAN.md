@@ -1517,9 +1517,38 @@ Production chains with the spinal rule are prepared (`run_p6_chain_mn5.sh`, outp
 mistake); local production-size smoke test passed (spinal rule active, source η 0.05,
 chains η 0.003, session 2 from session 1's baselines). Five modes, debug-small, spinal
 rule (`plots/modes/p6_spinal/`): slow/comfortable/fast r(E,F) −0.78/−0.72/−0.79 from a
-trained start, weights flat; fast stride 990/890 (+11%, STDP +5%: to check).
+trained start, weights flat; fast stride 990/890 (+11%, STDP +5%).
 
-Next: run the production chains (MN5) with the spinal rule; compare the curve
+**Fast stride fixed (2026-10-03).** Stance ~587 / swing ~406 ms vs target 507 / 383. Stride
+= 2 × (post-touchdown delay + swing): the delay (~90 ms) is CUT and motor conduction
+(24 + 16 ms) plus the soleus force decay down to off_frac, so the weight-transfer τ does
+not shorten it (10 ms: stride 1002). Swing-end 0.62 alone: stride 892 but stance 0.62.
+Fix: on_frac 0.88 / off_frac 0.85 (liftoff needs a smaller force drop; off must stay below
+on) + swing_end_f_frac 0.62; `on_frac` is a per-mode key now (default 0.80). Debug-small,
+3 seeds (trained starts, spinal rule): stride 883 ± 7 (890), stance 0.59 (0.57, within 5%),
+r(E,F) −0.80, r(E_L,E_R) −0.94 (`plots/modes/p6_fastfix/`).
+
+**Production chains, spinal rule (MN5, 2026-10-03; `results/2026-10-03/p6/human_modes/p6_spinal/`,
+`plots/p6/spinal_prod_recovery.png`, `plots/p6/spinal_prod_chain_stages.png`).** All 3 sources
+and 90 sessions completed (16 threads; source ~8–9 min). Healthy sources: r(E,F)
+−0.73/−0.76/−0.77, CUT→RG-E 58 pA. Mean ± sd over 3 seeds, end of session:
+
+| Session | 1 | 3 | 5 | 6 | 8 | 10 | 12 | 15 |
+|---|---|---|---|---|---|---|---|---|
+| BWS 50%: r(E,F) | −0.32 ± 0.02 | −0.36 ± 0.05 | −0.42 ± 0.03 | −0.51 ± 0.01 | −0.58 ± 0.01 | −0.61 ± 0.02 | −0.65 ± 0.04 | −0.66 ± 0.02 |
+| BWS 50%: captured CUT→RG-E (pA) | 17.5 | 23.9 | 30.5 | 33.8 | 39.4 | 44.0 | 48.2 | 53.8 ± 0.2 |
+| BWS 90%: r(E,F) | −0.18 ± 0.03 | −0.19 ± 0.03 | −0.24 ± 0.05 | −0.20 ± 0.05 | −0.27 ± 0.02 | −0.24 ± 0.01 | −0.25 ± 0.03 | −0.30 ± 0.03 |
+| BWS 90%: captured CUT→RG-E (pA) | 38.6 | 40.3 | 41.8 | 42.6 | 44.3 | 45.7 | 47.2 | 49.4 ± 0.1 |
+
+- **BWS 50%: acceptance met with spinal plasticity only (no STDP), production size,
+  3 seeds.** Gradual recovery kept across sessions; criterion (r(E,F) ≤ −0.5) at sessions
+  6, 6, 7 (STDP production: 7, 7, 8); session 15 −0.66 (healthy −0.75). Captured CUT→RG-E
+  +2–3 pA per session, slowing toward the end; cross-seed sd ≤ 0.8 pA. Within-session
+  change of r(E,F) ≤ 0.14 (mean 0.04).
+- **BWS 90%:** slow but steady gain: CUT→RG-E +0.8 pA per session, r(E,F) −0.18 → −0.30
+  over 15 sessions (STDP: no gain). Far from criterion; still P7c (EES).
+
+Next: compare the curve
 shape with human training studies (sessions to criterion, retention); P7b incomplete-SCI
 configuration.
 

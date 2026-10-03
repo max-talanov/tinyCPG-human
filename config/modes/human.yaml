@@ -51,6 +51,12 @@
 # and stance = 50% + delay, so off_frac sets the delay (double support) and
 # swing_end_f_frac the swing. Fast stays at stance ~0.63: the delay floor is ~100 ms
 # at a 50 ms tick, fast walking needs ~60 ms.
+# Fast stride (2026-10-03, spinal rule): stride 990/890, stance ~587 / swing ~406 ms
+# (target 507/383); the post-touchdown delay (~90 ms) is set by CUT and motor conduction
+# (24 + 16 ms) plus the soleus force decay to off_frac, so the weight-transfer tau does not
+# shorten it (10 ms: stride 1002). Fast: on_frac 0.88 / off_frac 0.85 (off must stay below
+# on; liftoff needs a smaller force drop) and swing_end_f_frac 0.62 -> stride 892, stance
+# 0.59, r(E,F) -0.80 (debug-small). on_frac (default 0.80) is a per-mode key now.
 
 modes:
   slow:
@@ -79,8 +85,8 @@ modes:
     tick_ms: 25              # round 12: the post-touchdown delay floor is ~2 ticks; fast needs ~60 ms
     init_from: fast         # P6: healthy = trained (its own converged P5 run, SRC_DIR)
     force: {cap_ms: 760, fatigue_onset_ms: 330, fatigue_recovery_ms: 300, lead_offset_ms: 210,
-            off_frac: 0.78, tau_tag_ms: 2600,
-            swing_end_f_frac: 0.55, swing_afferent_tau_ms: 150}
+            on_frac: 0.88, off_frac: 0.85, tau_tag_ms: 2600,
+            swing_end_f_frac: 0.62, swing_afferent_tau_ms: 150}
   bws50:
     label: "BWS 50%"
     stride_ms: 1110
