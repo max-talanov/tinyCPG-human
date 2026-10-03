@@ -1527,6 +1527,19 @@ Fix: on_frac 0.88 / off_frac 0.85 (liftoff needs a smaller force drop; off must 
 on) + swing_end_f_frac 0.62; `on_frac` is a per-mode key now (default 0.80). Debug-small,
 3 seeds (trained starts, spinal rule): stride 883 ± 7 (890), stance 0.59 (0.57, within 5%),
 r(E,F) −0.80, r(E_L,E_R) −0.94 (`plots/modes/p6_fastfix/`).
+Production check: at swing-end 0.62 the production stride is 845 (−5%): production swings
+are shorter. Swing-end sweep, production (naive 120 s, seed 12345) / debug-small (3 seeds):
+
+| swing_end_f_frac | 0.62 | 0.60 | 0.58 | 0.55 | 0.52 |
+|---|---|---|---|---|---|
+| production stride (890) | 845 | 834 | 863 | **902** | 917 |
+| production stance (0.57) | 0.59 | 0.59 | 0.58 | **0.57** | 0.57 |
+| debug-small stride | 883 ± 7 | — | 935 ± 14 | 966 ± 19 | — |
+
+No value fits both sizes within 5%; **fast uses 0.55 (set for production)**: stride 902
+(+1.3%), stance 0.57, r(E,F) −0.81, r(E_L,E_R) −0.95. Debug-small fast runs ~8% long.
+To confirm at production with 3 seeds: `run_p6_modes_mn5.sh` (five modes × 3 seeds,
+spinal rule, trained starts; local production-size smoke test passed).
 
 **Production chains, spinal rule (MN5, 2026-10-03; `results/2026-10-03/p6/human_modes/p6_spinal/`,
 `plots/p6/spinal_prod_recovery.png`, `plots/p6/spinal_prod_chain_stages.png`).** All 3 sources

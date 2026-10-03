@@ -57,6 +57,10 @@
 # shorten it (10 ms: stride 1002). Fast: on_frac 0.88 / off_frac 0.85 (off must stay below
 # on; liftoff needs a smaller force drop) and swing_end_f_frac 0.62 -> stride 892, stance
 # 0.59, r(E,F) -0.80 (debug-small). on_frac (default 0.80) is a per-mode key now.
+# Production swings are shorter than debug-small ones for this mode (swing_end 0.62: debug
+# 883, production 845), and no value fits both within 5% (0.58: 935 / 863). Set for
+# production: swing_end_f_frac 0.55 -> production stride 902, stance 0.57, r(E,F) -0.81,
+# r(E_L,E_R) -0.95 (naive 120 s, one seed); debug-small runs ~8% long (966 +- 19).
 
 modes:
   slow:
@@ -86,7 +90,7 @@ modes:
     init_from: fast         # P6: healthy = trained (its own converged P5 run, SRC_DIR)
     force: {cap_ms: 760, fatigue_onset_ms: 330, fatigue_recovery_ms: 300, lead_offset_ms: 210,
             on_frac: 0.88, off_frac: 0.85, tau_tag_ms: 2600,
-            swing_end_f_frac: 0.62, swing_afferent_tau_ms: 150}
+            swing_end_f_frac: 0.55, swing_afferent_tau_ms: 150}
   bws50:
     label: "BWS 50%"
     stride_ms: 1110
