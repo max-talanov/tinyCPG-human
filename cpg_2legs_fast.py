@@ -705,6 +705,35 @@ def main():
                          "stretch signal; Grillner & Rossignol 1978; Pearson 1995). "
                          "Mirrors the stance Ia-E ramp to clock the flexor. 0 = off "
                          "(legacy intrinsic-only flexor); 80 is a typical on value.")
+    # ---- MOD_EES: epidural electrical stimulation (PLAN.md P7) ----
+    ap.add_argument("--ees-hz", type=float, default=0.0,
+                    help="MOD_EES (PLAN.md P7): epidural stimulation pulse rate (Hz), a regular "
+                         "tonic pulse train onto the Ia-E and Ia-F afferents of both legs, NOT "
+                         "gated by gait phase (Capogrosso et al. 2013: EES mainly recruits large "
+                         "proprioceptive afferents in the dorsal roots). Human complete SCI: "
+                         "~5-15 Hz tonic extension, ~25-50 Hz rhythmic stepping-like EMG "
+                         "(Minassian et al. 2004; to verify). 0 (default) = off, byte-identical "
+                         "to a run without the flag. Separate from the external Ia-E heel->toe "
+                         "ramp (--ia-ext-hz), which is a gait-phase afferent, not stimulation.")
+    ap.add_argument("--ees-amp", type=float, default=0.5,
+                    help="MOD_EES: fraction (0-1) of the Ia-E and Ia-F afferents recruited by "
+                         "each pulse (a recruitment-curve proxy for stimulation amplitude). "
+                         "Each pulse makes every Ia unit fire once with this probability "
+                         "(fixed random subset per leg and population). Only used with "
+                         "--ees-hz > 0.")
+    ap.add_argument("--ees-amp-ib", type=float, default=0.0,
+                    help="MOD_EES: fraction (0-1) of the Ib-E/Ib-F afferents (tendon-organ, group "
+                         "Ib; needs --afferent-model split) recruited by each pulse. EES recruits "
+                         "all large dorsal-root afferents, not only Ia (Capogrosso et al. 2013; "
+                         "Moraud et al. 2016 -- to verify). 0 = none (Ia only).")
+    ap.add_argument("--ees-amp-cut", type=float, default=0.0,
+                    help="MOD_EES: fraction (0-1) of the cutaneous (CUT, plantar contact) "
+                         "afferents recruited by each pulse: a CUT-like drive that is present "
+                         "without ground contact, which the RG-E load gate needs. 0 = none.")
+    ap.add_argument("--bs-drive-scale", type=float, default=1.0,
+                    help="MOD_BS_DRIVE_SCALE (PLAN.md P7b/c): scale of the descending brainstem "
+                         "drive (tonic BS rate and base drive), a model of SCI: 1 = intact "
+                         "(default, unchanged), 0 < s < 1 = incomplete, 0 = complete.")
     # ---- MOD_CUT_FORCE_TRIGGER: closed-loop stance detection ----
     ap.add_argument("--cut-trigger", choices=["timer", "force"], default="timer",
                     help="MOD_CUT_FORCE_TRIGGER: 'timer' (default) keeps the existing "
@@ -1367,6 +1396,14 @@ def main():
     weight_every = max(1, int(round(float(args.weight_sample_ms) / CHUNK_MS)))
     rate_every = max(1, int(round(float(args.rate_update_ms) / CHUNK_MS)))
 
+    # ---- MOD_EES (PLAN.md P7): epidural stimulation, 0 Hz = off ----
+    EES_HZ  = float(args.ees_hz)
+    EES_AMP = float(args.ees_amp)
+    EES_AMP_IB  = float(args.ees_amp_ib)
+    EES_AMP_CUT = float(args.ees_amp_cut)
+    if EES_HZ < 0.0 or not all(0.0 <= a <= 1.0 for a in (EES_AMP, EES_AMP_IB, EES_AMP_CUT)):
+        raise SystemExit("--ees-hz must be >= 0 and --ees-amp / --ees-amp-ib / --ees-amp-cut within 0..1")
+
     # ---- MOD_PACED_GAIT: explicit 1-s trot cycle constants ----
     if PACED_GAIT:
         STEP_PERIOD_MS = q_ms(float(args.step_period_ms))   # full stride (both legs)
@@ -1612,6 +1649,13 @@ def main():
                 print(f"  BS_REGULAR_HZ={BS_REGULAR_HZ} Hz (conn-rule indegree: production input per neuron)")
             print("=" * 64)
 
+    # MOD_BS_DRIVE_SCALE (PLAN.md P7b/c): descending-drive loss after SCI. Scales both
+    # descending inputs (tonic BS and the base drive); 1.0 = intact (unchanged).
+    BS_DRIVE_SCALE = float(args.bs_drive_scale)
+    BASE_DRIVE_EFF_HZ = BASE_DRIVE_HZ * BS_DRIVE_SCALE
+    if BS_DRIVE_SCALE != 1.0:
+        BS_REGULAR_HZ *= BS_DRIVE_SCALE
+
     # ---- build per-leg ----
     leg = {}
     for side in LEGS:
@@ -1631,8 +1675,12 @@ def main():
         # MOD_TONIC_BS: constant tonic drive throughout simulation — no sinusoidal gating.
         # Both bs_pg_e and bs_pg_f fire identically on both legs at BS_REGULAR_HZ.
         # L/R and E/F alternation must emerge from spinal CPG (commissural + reciprocal inh).
-        period_ms = 1000.0 / float(BS_REGULAR_HZ)
-        base_times = np.arange(RES_MS, SIM_MS + 1e-9, period_ms)  # avoid t=0 (NEST forbids)
+        if BS_REGULAR_HZ > 0.0:
+            period_ms = 1000.0 / float(BS_REGULAR_HZ)
+            base_times = np.arange(RES_MS, SIM_MS + 1e-9, period_ms)  # avoid t=0 (NEST forbids)
+        else:                                                         # complete SCI: no descending spikes
+            period_ms = 1.0
+            base_times = np.empty(0)
 
         if BS_REGULAR_DESYNC == "random":
             offsets = np.random.uniform(0.0, period_ms, size=int(N_BS))
@@ -1658,7 +1706,7 @@ def main():
         base_pg = nest.Create("poisson_generator", N_BS)
         base_in = nest.Create("parrot_neuron", N_BS)
         nest.Connect(base_pg, base_in, conn_spec={"rule": "one_to_one"})
-        nest.SetStatus(base_pg, {"rate": BASE_DRIVE_HZ})
+        nest.SetStatus(base_pg, {"rate": BASE_DRIVE_EFF_HZ})
 
         ia_pg_e = nest.Create("poisson_generator", N_IA_E)
         ia_in_e = nest.Create("parrot_neuron", N_IA_E)
@@ -1681,6 +1729,31 @@ def main():
             ib_in_f = nest.Create("parrot_neuron", N_IB_F)
             nest.Connect(ib_pg_f, ib_in_f, conn_spec={"rule": "one_to_one"})
             nest.SetStatus(ib_pg_f, {"rate": IB_BASE_HZ})
+
+        # MOD_EES (PLAN.md P7): regular tonic pulse train onto Ia-E and Ia-F, not phase-gated.
+        # Every pulse recruits a random fraction EES_AMP of each Ia population (pairwise
+        # Bernoulli, drawn once at build); a recruited parrot unit emits one spike per pulse.
+        # Both legs get the same pulse times (one midline electrode), independent subsets.
+        # No NEST object exists when EES is off, so an EES-off run is unchanged.
+        ees_sg = rec_ia_e = rec_ia_f = None
+        if EES_HZ > 0.0:
+            ees_t = np.arange(1000.0 / EES_HZ, SIM_MS + 1e-9, 1000.0 / EES_HZ)
+            ees_t = np.unique(np.maximum(np.round(ees_t / RES_MS) * RES_MS, RES_MS))
+            ees_sg = nest.Create("spike_generator", params={"spike_times": ees_t.tolist()})
+            for pop in (ia_in_e, ia_in_f):
+                nest.Connect(ees_sg, pop, conn_spec={"rule": "pairwise_bernoulli", "p": EES_AMP},
+                             syn_spec={"synapse_model": "static_synapse", "weight": 1.0, "delay": 1.0})
+            # Ib and CUT recruitment (same pulses; "Ia only" when both fractions are 0)
+            ees_extra = []
+            if EES_AMP_IB > 0.0 and ib_in_e is not None:
+                ees_extra += [(ib_in_e, EES_AMP_IB), (ib_in_f, EES_AMP_IB)]
+            if EES_AMP_CUT > 0.0:
+                ees_extra.append((cut_in, EES_AMP_CUT))
+            for pop, amp in ees_extra:
+                nest.Connect(ees_sg, pop, conn_spec={"rule": "pairwise_bernoulli", "p": amp},
+                             syn_spec={"synapse_model": "static_synapse", "weight": 1.0, "delay": 1.0})
+            rec_ia_e = nest.Create("spike_recorder"); nest.Connect(ia_in_e, rec_ia_e)
+            rec_ia_f = nest.Create("spike_recorder"); nest.Connect(ia_in_f, rec_ia_f)
 
         # MOD_PACED_GAIT: external sequential Ia-E groups (heel→mid→toe)
         ia_ext_pg_e_groups = []
@@ -1749,6 +1822,7 @@ def main():
             base_pg=base_pg, base_in=base_in,
             ia_pg_e=ia_pg_e, ia_in_e=ia_in_e,
             ia_pg_f=ia_pg_f, ia_in_f=ia_in_f,
+            ees_sg=ees_sg, rec_ia_e=rec_ia_e, rec_ia_f=rec_ia_f,   # MOD_EES (or None)
             ib_pg_e=ib_pg_e, ib_in_e=ib_in_e, ib_pg_f=ib_pg_f, ib_in_f=ib_in_f,  # P4 split (or None)
             ia_ext_pg_e=ia_ext_pg_e_groups,   # MOD_PACED_GAIT: list of sequential Ia-E groups
             ia_ext_pg_f=ia_ext_pg_f,          # MOD_FLEXOR_AFFERENT: swing flexor afferent (or None)
@@ -2459,7 +2533,9 @@ def main():
                        act_e=[], act_f=[], force_e=[], force_f=[],
                        fatigue_e=[], fatigue_f=[], cut_on=[],
                        len_e=[], len_f=[], ia_e=[], ia_f=[],
-                       **({"ib_e": [], "ib_f": []} if AFFERENT_SPLIT else {})) for side in LEGS}
+                       **({"ib_e": [], "ib_f": []} if AFFERENT_SPLIT else {}),
+                       # MOD_EES: measured Ia unit rate (Hz) incl. the stimulation pulses
+                       **({"ia_meas_e": [], "ia_meas_f": []} if EES_HZ > 0.0 else {})) for side in LEGS}
     if CONSOLIDATE:  # MOD_CONSOLIDATE: +1 genuine / -1 forced / +-2 same-with-capture / 0 no-event
         for side in LEGS:
             logs[side]["consolidation_event"] = []
@@ -2468,7 +2544,8 @@ def main():
                         len_e=L0, len_f=L0, ankle=0.0,
                         last_muse=0, last_musf=0,
                         last_rge=0, last_rgf=0,
-                        last_ine=0, last_inf=0, last_iainte=0, last_iaintf=0) for side in LEGS}
+                        last_ine=0, last_inf=0, last_iainte=0, last_iaintf=0,
+                        last_iae=0, last_iaf=0) for side in LEGS}
 
     # Optional full-weight storage (final or snapshots)
     wfull_times = []
@@ -2548,6 +2625,11 @@ def main():
         P["inf"].append((sp_inf / max(1, N_INF)) / dt_s_safe)
         P["iaint_e"].append((sp_iae / max(1, N_IA_INT)) / dt_s_safe)
         P["iaint_f"].append((sp_iaf / max(1, N_IA_INT)) / dt_s_safe)
+        if L["rec_ia_e"] is not None:  # MOD_EES
+            sp_a, S["last_iae"] = new_spikes(L["rec_ia_e"], S["last_iae"])
+            sp_b, S["last_iaf"] = new_spikes(L["rec_ia_f"], S["last_iaf"])
+            P["ia_meas_e"].append((sp_a / max(1, N_IA_E)) / dt_s_safe)
+            P["ia_meas_f"].append((sp_b / max(1, N_IA_F)) / dt_s_safe)
 
         # MOD_ACT_GATE: gate by RG population rate. rg_ref=100 Hz matches typical burst peaks
         # in both debug (BS=20 Hz, N_RG=40) and production after convergence (d_e clamped to 1
@@ -3235,6 +3317,13 @@ def main():
         h5.attrs["bs_noise_std_hz"] = float(BS_NOISE_STD_HZ)
         h5.attrs["enforce_tonic_bs"] = bool(ENFORCE_TONIC_BS)
         h5.attrs["paced_gait"] = bool(PACED_GAIT)
+        if BS_DRIVE_SCALE != 1.0:  # MOD_BS_DRIVE_SCALE (absent = intact)
+            h5.attrs["bs_drive_scale"] = float(BS_DRIVE_SCALE)
+        if EES_HZ > 0.0:  # MOD_EES (absent = off)
+            h5.attrs["ees_hz"] = float(EES_HZ)
+            h5.attrs["ees_amp"] = float(EES_AMP)
+            h5.attrs["ees_amp_ib"] = float(EES_AMP_IB)
+            h5.attrs["ees_amp_cut"] = float(EES_AMP_CUT)
         if PACED_GAIT:
             h5.attrs["step_period_ms"] = float(STEP_PERIOD_MS)
             h5.attrs["half_ms"] = float(HALF_MS)
