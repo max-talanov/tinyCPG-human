@@ -67,6 +67,41 @@ to fix the offset of our IMU estimates; EMG timing (Schreiber, Lencioni) as a se
 reference. Nothing here has been downloaded yet. Each download needs the file list and
 size checked first.
 
+## 3a. In-house SCI data (available now)
+
+`results/human_data/2026-10-05/{Exp01..Exp04}/`: four patients, recorded 2026-10-02, same Trigno
+setup and file format as section 1. Conditions from the enrollment log, stored without names in
+`validation/human_sci_meta.json`:
+
+| ID | Sex, age, height | Worse side | Conditions |
+|---|---|---|---|
+| Exp01 | M, 46, 190 cm | right | 2 trials with support on the left (`leftsupport`), 2 without |
+| Exp02 | F, 60, 159 cm | left | 6 trials, all with a walker |
+| Exp03 | M, 66, 170 cm | symmetric | ankles locked at 90°; electrodes detached in trial 6 (log) |
+| Exp04 | F, 66, 158 cm | right (left better) | trials 1–3 with a walker, 4–6 (`withoutsupport`) without |
+
+Not in the log: diagnosis, injury level, ASIA grade, time since injury, walking speed, any
+stimulation. "Deficit" is the only clinical information.
+
+First look (`validation/human_sci_overview.json`, `plots/human_sci/`):
+- **Slow gait:** stride 1.4 s (Exp04), 2.0 (Exp01), 2.2 (Exp03), 2.6 (Exp02) vs 0.9–1.4 s in the controls.
+- **EMG asymmetry follows the worse side in Exp02 and Exp01:** Exp02's left gastrocnemius is
+  almost silent (2–3 µV vs 13–16 µV on the right); Exp01 is mildly lower on the right.
+- **Exp04** has the right TA about twice the left although the left leg is the better one:
+  possibly compensation, not checked.
+- **Exp03 EMG quality:** trials 5–6 clip at about ±5.5 mV (left TA, both gastrocnemii), and the right
+  gastrocnemius has 10× the baseline noise, so the log's "trial 6" understates it: exclude trials 5–6
+  for the gastrocnemii and trial 6 for left TA. Left TA also has isolated spikes in trials 2–4. Right
+  TA is at the baseline noise level in all trials.
+- **Healthy event detector does not carry over:** it gives double support above stance for these
+  gaits, so only step-level timing is reported, and step-time asymmetry is unreliable (Exp01
+  trial 2 shows 1.58 s vs 0.48 s with consistent strides).
+
+Relevance to the model: walker or side support is partial body-weight support, so Exp04 (with vs
+without walker) and Exp01 map onto the loading axis (`--ia-feedback-gain` / `--cut-feedback-gain`),
+and the locked ankles in Exp03 are outside the model's ankle coupling (`MOD_ANKLE_JOINT`). One session per
+patient, so no recovery time course. The enrollment log contains full names: keep it out of git.
+
 ## 3. Human SCI data (needed for P7/P8, mostly not public)
 
 Qualitative targets set in PLAN.md P7. Raw data have to be requested.

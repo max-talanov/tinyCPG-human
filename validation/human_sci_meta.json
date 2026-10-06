@@ -1,0 +1,15 @@
+{
+ "_note": "From the enrollment log (results/human_data/Enrollement (1).txt), translated from Italian. IDs only: the log has full names, which must stay out of the repository. Diagnosis, injury level, ASIA grade and time since injury are NOT in the log.",
+ "recorded": "2026-10-02",
+ "Exp01": {"sex": "M", "age": 46, "height_cm": 190, "worse_side": "right",
+           "trials": {"Trial_Exp_01_1": "no support", "Trial_Exp_01_2": "no support",
+                      "Trial_Exp_01_leftsupport_1": "support on the left", "Trial_Exp_01_leftsupport_2": "support on the left"}},
+ "Exp02": {"sex": "F", "age": 60, "height_cm": 159, "worse_side": "left",
+           "trials": "all 6 with a walker"},
+ "Exp03": {"sex": "M", "age": 66, "height_cm": 170, "worse_side": "symmetric",
+           "ankles": "locked at 90 degrees",
+           "logged_issue": "trial 6: electrodes detached on left TA (sensor 5) and left gastrocnemius (sensor 7)",
+           "found_in_data": "EMG clips at about +-5.5 mV in trials 5-6 (left TA, left and right gastrocnemius); right gastrocnemius baseline noise 44-82 uV in trials 5-6 vs 4-9 uV elsewhere; isolated left-TA spikes of 1.4-2.7 mV in trials 2-4. Right TA is at the baseline noise level in all trials."},
+ "Exp04": {"sex": "F", "age": 66, "height_cm": 158, "worse_side": "right (left leg better)",
+           "trials": {"Trial_Exp_04_1..3": "with a walker", "Trial_Exp_04_withoutsupport_1..3": "without a walker (trials 4-6)"}}
+}
