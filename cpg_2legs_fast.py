@@ -1739,30 +1739,7 @@ def main():
             nest.Connect(ib_pg_f, ib_in_f, conn_spec={"rule": "one_to_one"})
             nest.SetStatus(ib_pg_f, {"rate": IB_BASE_HZ})
 
-        # MOD_EES (PLAN.md P7): regular tonic pulse train onto Ia-E and Ia-F, not phase-gated.
-        # Every pulse recruits a random fraction EES_AMP of each Ia population (pairwise
-        # Bernoulli, drawn once at build); a recruited parrot unit emits one spike per pulse.
-        # Both legs get the same pulse times (one midline electrode), independent subsets.
-        # No NEST object exists when EES is off, so an EES-off run is unchanged.
-        ees_sg = rec_ia_e = rec_ia_f = None
-        if EES_HZ > 0.0:
-            ees_t = np.arange(1000.0 / EES_HZ, SIM_MS + 1e-9, 1000.0 / EES_HZ)
-            ees_t = np.unique(np.maximum(np.round(ees_t / RES_MS) * RES_MS, RES_MS))
-            ees_sg = nest.Create("spike_generator", params={"spike_times": ees_t.tolist()})
-            for pop in (ia_in_e, ia_in_f):
-                nest.Connect(ees_sg, pop, conn_spec={"rule": "pairwise_bernoulli", "p": EES_AMP},
-                             syn_spec={"synapse_model": "static_synapse", "weight": 1.0, "delay": 1.0})
-            # Ib and CUT recruitment (same pulses; "Ia only" when both fractions are 0)
-            ees_extra = []
-            if EES_AMP_IB > 0.0 and ib_in_e is not None:
-                ees_extra += [(ib_in_e, EES_AMP_IB), (ib_in_f, EES_AMP_IB)]
-            if EES_AMP_CUT > 0.0:
-                ees_extra.append((cut_in, EES_AMP_CUT))
-            for pop, amp in ees_extra:
-                nest.Connect(ees_sg, pop, conn_spec={"rule": "pairwise_bernoulli", "p": amp},
-                             syn_spec={"synapse_model": "static_synapse", "weight": 1.0, "delay": 1.0})
-            rec_ia_e = nest.Create("spike_recorder"); nest.Connect(ia_in_e, rec_ia_e)
-            rec_ia_f = nest.Create("spike_recorder"); nest.Connect(ia_in_f, rec_ia_f)
+        ees_sg = rec_ia_e = rec_ia_f = None   # MOD_EES objects are built after the whole network (below)
 
         # MOD_PACED_GAIT: external sequential Ia-E groups (heel→mid→toe)
         ia_ext_pg_e_groups = []
@@ -2260,6 +2237,31 @@ def main():
         return {"cut->rge": f"{PL}_cut_rge_{side}", "bs->rge": f"{PL}_bs_rge_{side}",
                 "bs->rgf": f"{PL}_bs_rgf_{side}", "ia->rge": f"{PL}_ia_rge_{side}",
                 "ia->rgf": f"{PL}_ia_rgf_{side}"}[key]
+
+    # MOD_EES (PLAN.md P7): regular tonic pulse train onto the Ia-E / Ia-F (and optionally Ib, CUT)
+    # afferents, not gait-phase gated. Built AFTER the rest of the network, so the random wiring and the
+    # node ids of the network are the same with and without EES (session chains need that: the
+    # init-weights check compares the synapses of the earlier run). Every pulse recruits a random
+    # fraction of each population (pairwise Bernoulli, drawn once); a recruited parrot unit emits one
+    # spike per pulse. Both legs get the same pulse times (one midline electrode), independent subsets.
+    # No NEST object exists when EES is off, so an EES-off run is unchanged.
+    if EES_HZ > 0.0:
+        ees_t = np.arange(1000.0 / EES_HZ, SIM_MS + 1e-9, 1000.0 / EES_HZ)
+        ees_t = np.unique(np.maximum(np.round(ees_t / RES_MS) * RES_MS, RES_MS))
+        for side in LEGS:
+            L = leg[side]
+            sg = nest.Create("spike_generator", params={"spike_times": ees_t.tolist()})
+            targets = [(L["ia_in_e"], EES_AMP), (L["ia_in_f"], EES_AMP)]
+            if EES_AMP_IB > 0.0 and L["ib_in_e"] is not None:
+                targets += [(L["ib_in_e"], EES_AMP_IB), (L["ib_in_f"], EES_AMP_IB)]
+            if EES_AMP_CUT > 0.0:
+                targets.append((L["cut_in"], EES_AMP_CUT))
+            for pop, amp in targets:
+                nest.Connect(sg, pop, conn_spec={"rule": "pairwise_bernoulli", "p": amp},
+                             syn_spec={"synapse_model": "static_synapse", "weight": 1.0, "delay": 1.0})
+            L["ees_sg"] = sg
+            L["rec_ia_e"] = nest.Create("spike_recorder"); nest.Connect(L["ia_in_e"], L["rec_ia_e"])
+            L["rec_ia_f"] = nest.Create("spike_recorder"); nest.Connect(L["ia_in_f"], L["rec_ia_f"])
 
     conns_cache = {side: {} for side in LEGS}
     for side in LEGS:
