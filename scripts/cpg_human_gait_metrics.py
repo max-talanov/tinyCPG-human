@@ -111,12 +111,16 @@ def fs_of(t):
 
 
 # ---------------------------------------------------------------- gait events (foot gyro)
-def foot_events(t, gz, acc):
-    """Heel strikes and toe-offs (s) of one foot from the sagittal foot gyro and the foot |acc|."""
+def foot_events(t, gz, acc, sign=None):
+    """Heel strikes and toe-offs (s) of one foot from the sagittal foot gyro and the foot |acc|.
+    sign = +1/-1 forces the gyro polarity (the patient script picks it from the data); None
+    flips it when the negative lobe is larger than the positive peak (healthy sensors)."""
     fs = fs_of(t)
     w = lowpass(gz, fs, 25)
     hp = np.abs(filtfilt(*butter(2, 15 / (fs / 2), "high"), acc))
-    if abs(np.percentile(w, 0.5)) > np.percentile(w, 99.5):      # sharp peak positive
+    if sign is not None:
+        w = sign * w
+    elif abs(np.percentile(w, 0.5)) > np.percentile(w, 99.5):    # sharp peak positive
         w = -w
     top = np.percentile(w, 99.5)
     pk, _ = find_peaks(w, height=0.6 * top, distance=int(0.5 * fs))
