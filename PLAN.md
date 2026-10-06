@@ -1603,6 +1603,8 @@ tonic EES.
   dependence. EES at ~5–15 Hz gives tonic extensor activity; ~25–50 Hz gives
   rhythmic E/F alternation (Minassian et al. 2004).
 
+**Status (2026-10-05): started, debug-small.** Done: `--ees-hz/--ees-amp` (tonic pulse train on Ia-E/Ia-F, both legs; off = unchanged, `./regress.sh` ALL PASS), `--bs-drive-scale` (descending-drive loss for 7b/7c), `scripts/p7_ees_summary.py`. First 7c sweep (complete SCI, no loading, no external ramps, EES 0–50 Hz, amp 0.5/1.0): the extensor never activates, because the RG-E load gate needs contact and Ia alone stays subthreshold by design (P5). The flexor goes tonic at 40–50 Hz. Added Ib and CUT-like recruitment (`--ees-amp-ib`, `--ees-amp-cut`), which lets EES reach the gate: the extensor activates and is tonic and co-active with the flexor at CUT 1.0, 40–50 Hz. At 5–25 Hz it is weak with no E/F alternation, so the frequency dependence is the reverse of the 7c target (5–15 Hz tonic extension, 25–50 Hz rhythmic E/F). Open: untrained weights and 30 s runs so far; trained or injured-start weights and longer runs are next. Not done: serotonergic supply parameter, Ia→RG plasticity check, 7a/7b conditions, production-size runs.
+
 ### Phase 8 — Validation against human data (M, plus data access)
 
 **Goal:** quantitative comparison with human recordings, in the same order:
