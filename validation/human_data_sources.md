@@ -80,7 +80,7 @@ setup and file format as section 1. Conditions from the enrollment log, stored w
 | Exp03 | M, 66, 170 cm | symmetric | ankles locked at 90°; electrodes detached in trial 6 (log) |
 | Exp04 | F, 66, 158 cm | right (left better) | trials 1–3 with a walker, 4–6 (`withoutsupport`) without |
 
-Not in the log: diagnosis, injury level, ASIA grade, time since injury, walking speed, any
+Diagnosis: all four have incomplete SCI (told by the investigator, not in the log). Not in the log: injury level, ASIA grade, time since injury, walking speed, any
 stimulation. "Deficit" is the only clinical information.
 
 First look (`validation/human_sci_overview.json`, `plots/human_sci/`):
@@ -93,9 +93,26 @@ First look (`validation/human_sci_overview.json`, `plots/human_sci/`):
   gastrocnemius has 10× the baseline noise, so the log's "trial 6" understates it: exclude trials 5–6
   for the gastrocnemii and trial 6 for left TA. Left TA also has isolated spikes in trials 2–4. Right
   TA is at the baseline noise level in all trials.
-- **Healthy event detector does not carry over:** it gives double support above stance for these
-  gaits, so only step-level timing is reported, and step-time asymmetry is unreliable (Exp01
-  trial 2 shows 1.58 s vs 0.48 s with consistent strides).
+- **Healthy event detector does not carry over as is:** its stride pairing gives double support above
+  stance and its polarity rule picks the wrong lobe on some feet; `cpg_patient_gait_metrics.py` replaces both.
+
+Per-leg metrics: `python3 scripts/cpg_patient_gait_metrics.py` (conditions from
+`validation/human_sci_meta.json`; output `validation/human_sci_metrics.json`, `plots/human_sci/events_ExpNN.png`
+and `emg_ExpNN.png`). It picks the foot-gyro polarity from the data (the healthy rule fails on some patient
+feet), computes everything per leg, and drops bad EMG channel-trials automatically (clipping, rest noise).
+Results (strides pooled over the trials of a condition):
+- **Slow, long stance:** stride 1.4–2.6 s, stance 0.7–0.86 per leg, double support 0.5–0.7, no flight phase
+  (with a walker or side support). IMU estimates, biased high as in the controls.
+- **Worse leg swings longer** (heel strike minus toe-off, from the IMU): Exp01 right 0.53–0.64 s vs left
+  0.32–0.42; Exp02 left 0.58 vs right 0.37; Exp04 without walker right 0.33 vs left 0.25 (with the walker
+  0.25/0.26); Exp03 (symmetric) 0.38/0.31. Soft: it depends on the heel-strike placement.
+- **EMG amplitude, worse side / other side:** Exp02 gastrocnemius 0.18 (left 2 µV, at the noise level) and
+  TA 0.51; Exp01 TA 0.67–0.82, gastrocnemius 0.72–0.80; Exp04 TA 2.0–2.2 (the worse right TA works harder).
+  Exp02's right gastrocnemius peaks at ~60 % of the cycle (healthy ~40 %).
+- **Exp03 exclusions found automatically:** left TA in trial 6, and both gastrocnemii in trials 5–6.
+- **Step-time asymmetry is not reliable:** from heel strikes and from toe-offs it disagrees in sign and size
+  (Exp01 +18 % vs −5 %, Exp02 −1 % vs +15 %), because heel strike jumps between two impact spikes on several
+  patient feet. Do not quote it. Toe-off and stride times are consistent.
 
 Relevance to the model: walker or side support is partial body-weight support, so Exp04 (with vs
 without walker) and Exp01 map onto the loading axis (`--ia-feedback-gain` / `--cut-feedback-gain`),
