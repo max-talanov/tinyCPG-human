@@ -1620,7 +1620,23 @@ tonic EES.
   Weakness lengthens the stride (1.26 → 1.5–1.65 s) and the stance (0.57 → 0.63–0.66), the direction of the patients (stride 1.4–2.6 s, stance 0.7–0.86). r(E,F) is set mainly by the loading: it falls from about −0.7 at L = 1 to −0.1 at L = 0.1 for every s. The extensor-active fraction of stance falls with s (0.93 → 0.56–0.8).
 - **Reading:** weakness changes the timing and the force; the support (low L) removes the loading drive that keeps the E/F alternation, and P6 showed the same loading drives recovery. Next: training chains from an injured start (s ≈ 0.25–0.5, L = 0.5 and 0.25 as walker levels) and ± EES.
 
-Not done: serotonergic supply parameter, Ia→RG plasticity check, the 7b training chains and ± EES, production-size runs.
+**7b training chains ± EES (debug-small, 2026-10-06; `run_p6_sessions.sh`, 10 × 60 s sessions, seed 12345, P6 injured starts, `scripts/p7_chain_compare.py`, `plots/p7/chain_compare.png`).** Support level: BWS 50% (L 0.5, weights ×0.25) and BWS 90% (L 0.1, weights ×0.65). EES: Ia, Ib and CUT recruitment 0.5 each, 10 or 30 Hz.
+
+| Chain (session 1 → 10) | r(E,F) | Force-E p95 | captured CUT→RG-E (pA) |
+|---|---|---|---|
+| L 0.5, no EES | −0.36 → −0.47 | 10.7 → 10.7 | 17 → 42 |
+| L 0.5, EES 10 Hz | −0.34 → −0.54 | 9.6 → 8.2 | 18 → 40 |
+| L 0.5, EES 30 Hz | −0.41 → −0.36 | 6.4 → 4.9 | 16 → 23 |
+| L 0.1, no EES | −0.22 → −0.25 | 10.3 → 10.6 | 38 → 44 |
+| L 0.1, EES 10 Hz | −0.18 → −0.30 | 8.5 → 8.3 | 38 → 45 |
+| L 0.1, EES 30 Hz | −0.17 → −0.15 | 3.2 → 2.8 | 37 → 38 |
+
+- Without EES the BWS 50% chain reproduces P6: gradual recovery (r(E,F) criterion −0.5 not yet reached in 10 sessions, as P6 at debug-small, session 10–11), kept across sessions; BWS 90% does not recover.
+- **EES at 30 Hz hurts:** extensor force halves (10.7 → 5–6) and recovery stalls (CUT 23 vs 42 pA). **EES at 10 Hz is neutral to slightly positive at BWS 50%** (criterion at session 8, r(E,F) −0.54 vs −0.47, but a lower CUT weight, 40 vs 42 pA and lower Force-E): within the seed-to-seed spread (±0.05–0.08), so not a demonstrated benefit. No EES setting rescues BWS 90%.
+- Likely cause of the 30 Hz harm: the Ia/Ib pulses also drive the reciprocal-inhibition interneurons of the extensor. EES parameters (amplitude, which afferents, frequency) were not tuned. The chains carry the P6 injury (weakened pathway weights + loading); the extensor-strength weakness is a muscle gain and cannot be trained back, so it is not in these chains.
+- EES objects are now built after the whole network (`MOD_EES`): the random wiring and node ids are identical with and without EES, which the session chains' init-weights check needs.
+
+Not done: serotonergic supply parameter, Ia→RG plasticity check, EES tuning, a chain with the extensor-strength weakness added, more seeds, production-size runs.
 
 ### Phase 8 — Validation against human data (M, plus data access)
 
