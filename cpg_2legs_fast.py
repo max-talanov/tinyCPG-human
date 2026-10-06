@@ -730,6 +730,12 @@ def main():
                     help="MOD_EES: fraction (0-1) of the cutaneous (CUT, plantar contact) "
                          "afferents recruited by each pulse: a CUT-like drive that is present "
                          "without ground contact, which the RG-E load gate needs. 0 = none.")
+    ap.add_argument("--extensor-strength", type=float, default=1.0,
+                    help="MOD_EXT_STRENGTH (PLAN.md P7b): gain on the extensor motor output (force "
+                         "target of the extensor), 1 = intact (default, unchanged). SCI weakness is mainly "
+                         "the extensor: patients cannot carry their weight (walker, crutches, body-weight "
+                         "support take over). A graded weakness, unlike --init-weights-scale, which acts "
+                         "through the RG-E load gate and is all-or-nothing.")
     ap.add_argument("--bs-drive-scale", type=float, default=1.0,
                     help="MOD_BS_DRIVE_SCALE (PLAN.md P7b/c): scale of the descending brainstem "
                          "drive (tonic BS rate and base drive), a model of SCI: 1 = intact "
@@ -1399,6 +1405,9 @@ def main():
     # ---- MOD_EES (PLAN.md P7): epidural stimulation, 0 Hz = off ----
     EES_HZ  = float(args.ees_hz)
     EES_AMP = float(args.ees_amp)
+    EXT_STRENGTH = float(args.extensor_strength)
+    if not (0.0 <= EXT_STRENGTH <= 1.0):
+        raise SystemExit("--extensor-strength must be within 0..1")
     EES_AMP_IB  = float(args.ees_amp_ib)
     EES_AMP_CUT = float(args.ees_amp_cut)
     if EES_HZ < 0.0 or not all(0.0 <= a <= 1.0 for a in (EES_AMP, EES_AMP_IB, EES_AMP_CUT)):
@@ -2682,6 +2691,8 @@ def main():
             S["fatigue_f"] = clamp(S["fatigue_f"], 0.0, FATIGUE_MAX_FRAC)
 
         target_fe = FORCE_MAX * (1.0 - S["fatigue_e"]) * (1.0 - np.exp(-FORCE_SAT_K * S["act_e"]))
+        if EXT_STRENGTH != 1.0:  # MOD_EXT_STRENGTH
+            target_fe *= EXT_STRENGTH
         target_ff = FORCE_MAX * (1.0 - S["fatigue_f"]) * (1.0 - np.exp(-FORCE_SAT_K * S["act_f"]))
         tau_rise_s = TAU_FORCE_RISE_MS / 1000.0
         tau_decay_s = TAU_FORCE_DECAY_MS / 1000.0
@@ -3317,6 +3328,8 @@ def main():
         h5.attrs["bs_noise_std_hz"] = float(BS_NOISE_STD_HZ)
         h5.attrs["enforce_tonic_bs"] = bool(ENFORCE_TONIC_BS)
         h5.attrs["paced_gait"] = bool(PACED_GAIT)
+        if EXT_STRENGTH != 1.0:  # MOD_EXT_STRENGTH (absent = intact)
+            h5.attrs["extensor_strength"] = float(EXT_STRENGTH)
         if BS_DRIVE_SCALE != 1.0:  # MOD_BS_DRIVE_SCALE (absent = intact)
             h5.attrs["bs_drive_scale"] = float(BS_DRIVE_SCALE)
         if EES_HZ > 0.0:  # MOD_EES (absent = off)
