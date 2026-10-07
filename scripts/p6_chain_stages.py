@@ -75,6 +75,9 @@ def main():
     ap.add_argument("chains", nargs="+")
     ap.add_argument("--out", required=True)
     ap.add_argument("--window-ms", type=float, default=5000.0)
+    ap.add_argument("--title", default="P6 session chains: force and plastic weights, first / middle / last session")
+    ap.add_argument("--subtitle", default="each session starts from the previous session's captured baselines "
+                    "(--init-weights-state baseline); session 1 = injured start (trained comfortable weights x init_scale)")
     args = ap.parse_args()
     chains = [(c, load_chain(c)) for c in args.chains]
     chains = [(c, r) for c, r in chains if r]
@@ -143,10 +146,9 @@ def main():
     h, l = axes[0, 0].get_legend_handles_labels()
     fig.legend(h, l, loc="upper center", ncol=2, frameon=False, fontsize=8.5, labelcolor=INK_2,
                bbox_to_anchor=(0.5, 1 - 0.62 / H))
-    fig.text(0.06, 1 - 0.12 / H, "P6 session chains: force and plastic weights, first / middle / last session",
+    fig.text(0.06, 1 - 0.12 / H, args.title,
              ha="left", va="top", fontsize=12.5, fontweight="bold", color=INK)
-    fig.text(0.06, 1 - 0.42 / H, "each session starts from the previous session's captured baselines "
-             "(--init-weights-state baseline); session 1 = injured start (trained comfortable weights x init_scale)",
+    fig.text(0.06, 1 - 0.42 / H, args.subtitle,
              ha="left", va="top", fontsize=8.5, color=INK_2)
     os.makedirs(os.path.dirname(args.out) or ".", exist_ok=True)
     fig.savefig(args.out, dpi=150, bbox_inches="tight", facecolor=SURFACE)
