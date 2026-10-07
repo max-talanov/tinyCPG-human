@@ -1636,7 +1636,21 @@ tonic EES.
 - Likely cause of the 30 Hz harm: the Ia/Ib pulses also drive the reciprocal-inhibition interneurons of the extensor. EES parameters (amplitude, which afferents, frequency) were not tuned. The chains carry the P6 injury (weakened pathway weights + loading); the extensor-strength weakness is a muscle gain and cannot be trained back, so it is not in these chains.
 - EES objects are now built after the whole network (`MOD_EES`): the random wiring and node ids are identical with and without EES, which the session chains' init-weights check needs.
 
-Not done: serotonergic supply parameter, Ia→RG plasticity check, EES tuning, a chain with the extensor-strength weakness added, more seeds, production-size runs.
+**EES tuning (debug-small, 2026-10-06, seed 12345; `scripts/p7_ees_tune.py`, single 60 s sessions from the BWS 50% / 90% injured starts, then chains).**
+- **Which afferents:** at 10 Hz and recruitment 0.5, no mix (Ia, Ib, CUT, and combinations) changes the in-session learning signal (CUT→RG-E gain within ±0.5 pA of no EES: 3.0 pA at BWS 50%, 0.7 pA at BWS 90%). The drive is too small next to the physiological CUT rate. Ia-only and Ib-only EES do nothing useful at any rate tried (up to 40 Hz); the Ia/Ib pulses also load the extensor's interneurons. **CUT-like (cutaneous) recruitment is the effective component.**
+- **Rate and amplitude (CUT-like only):** 10–20 Hz at recruitment 1.0 raises the gain to 3.7–3.8 pA (BWS 50%) and 1.7 pA (BWS 90%) and sharpens E/F alternation (BWS 90% r(E,F) −0.22 → −0.49 at 20 Hz); at 40 Hz the extensor becomes tonic and Force-E collapses (4 and 1 a.u.), the CUT weight stops growing.
+- **Chains, 10 sessions** (r(E,F) / captured CUT→RG-E at session 10; no EES: BWS 50% −0.47 / 42 pA, BWS 90% −0.25 / 44 pA):
+
+| CUT-like EES | BWS 50% | BWS 90% | Force-E p95 |
+|---|---|---|---|
+| 10 Hz, recruitment 1.0 | −0.61 / 46 pA (criterion at session 6) | −0.38 / 53 pA | 8.3–9.0 |
+| 20 Hz, recruitment 1.0 | −0.47 / 41 pA (criterion at session 2, then drifts back) | −0.35 / 51 pA | falls 8.8 → 6.7 |
+| 20 Hz, + Ia 0.5 | −0.52 / 41 pA | −0.40 / 51 pA | falls to 6.3–7.2 |
+
+  **10 Hz CUT-like EES is the best setting:** alternation improves at once (BWS 90%: −0.25 → −0.39 from session 1), the CUT weight grows about twice as fast at BWS 90% (+1.5 vs +0.7 pA per session) and the BWS 50% chain reaches criterion at session 6 instead of not within 10. 20 Hz gives an immediate effect that fades as extensor force falls over the sessions.
+- **Caveats:** the extensor force is lower with EES (8–9 vs 10.7 a.u., and falling at 20 Hz) while the extensor stays active more of the time: part of the alternation gain is less E/F co-activation, not a stronger extensor, which is the weakness that matters in the patients. One seed; the recruitment is a proxy for amplitude; 'CUT-like' stands for the mixed cutaneous and group II afferents that EES recruits. BWS 90% still does not reach criterion in 10 sessions.
+
+Not done: serotonergic supply parameter, Ia→RG plasticity check, a chain with the extensor-strength weakness added, more seeds, production-size runs.
 
 ### Phase 8 — Validation against human data (M, plus data access)
 
