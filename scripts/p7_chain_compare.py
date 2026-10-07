@@ -6,13 +6,16 @@ compared across conditions (support level, EES). Per session, last --last-ms of 
   rEF     r(Force-E, Force-F), mean of the legs
   FE      95th percentile of Force-E (a.u.)
   CUT     captured CUT->RG-E weight at the end of the session (pA), what the next session starts from
-Prints one table per metric (rows: chain, columns: session) and sessions to criterion (rEF <= -0.5),
+Also stride (ms) and stance fraction (cpg_gait_phase_metrics, last --last-ms) per session. Prints one table per metric (rows: chain, columns: session) and sessions to criterion (rEF <= -0.5),
 and writes a figure with --fig.
 Usage: python3 scripts/p7_chain_compare.py [--root results/human_modes/p7/chain] [--fig plots/p7/chain_compare.png]
 """
 import argparse, glob, os, re
+import sys
 import h5py
 import numpy as np
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from cpg_gait_phase_metrics import metrics as phase_metrics
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--root", default=os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "results", "human_modes", "p7", "chain"))
@@ -33,7 +36,9 @@ def session(path):
         g = f["leg_L/full_weights/cut_to_rge"]
         cut = np.mean([f[f"leg_{s}/full_weights/cut_to_rge/baseline"][()].mean() if "baseline" in f[f"leg_{s}/full_weights/cut_to_rge"]
                        else f[f"leg_{s}/full_weights/cut_to_rge/w"][()][-1].mean() for s in "LR"])
-    return float(np.nanmean(r)), float(np.mean(fe)), float(cut)
+    pm = phase_metrics(path, float(t[-1]) - a.last_ms)
+    return (float(np.nanmean(r)), float(np.mean(fe)), float(cut), float(pm.get("stride_meas", np.nan)),
+            float(np.nanmean([pm.get("stance_L", np.nan), pm.get("stance_R", np.nan)])))
 
 
 data = {}
@@ -48,7 +53,8 @@ for d in sorted(glob.glob(os.path.join(a.root, "*"))):
     if rows:
         data[name] = [rows[k] for k in sorted(rows)]
 n = max(len(v) for v in data.values())
-for i, (key, fmt) in enumerate((("r(E,F)", "{:6.2f}"), ("Force-E p95", "{:6.1f}"), ("CUT->RG-E baseline (pA)", "{:6.1f}"))):
+for i, (key, fmt) in enumerate((("r(E,F)", "{:6.2f}"), ("Force-E p95", "{:6.1f}"), ("CUT->RG-E baseline (pA)", "{:6.1f}"),
+                                ("stride (ms)", "{:6.0f}"), ("stance fraction", "{:6.2f}"))):
     print(f"\n{key}   session:" + "".join(f"{k + 1:6d}" for k in range(n)))
     for name, v in data.items():
         print(f"  {name:16s}   " + "".join(fmt.format(x[i]) for x in v))

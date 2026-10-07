@@ -1650,7 +1650,24 @@ tonic EES.
   **10 Hz CUT-like EES is the best setting:** alternation improves at once (BWS 90%: −0.25 → −0.39 from session 1), the CUT weight grows about twice as fast at BWS 90% (+1.5 vs +0.7 pA per session) and the BWS 50% chain reaches criterion at session 6 instead of not within 10. 20 Hz gives an immediate effect that fades as extensor force falls over the sessions.
 - **Caveats:** the extensor force is lower with EES (8–9 vs 10.7 a.u., and falling at 20 Hz) while the extensor stays active more of the time: part of the alternation gain is less E/F co-activation, not a stronger extensor, which is the weakness that matters in the patients. One seed; the recruitment is a proxy for amplitude; 'CUT-like' stands for the mixed cutaneous and group II afferents that EES recruits. BWS 90% still does not reach criterion in 10 sessions.
 
-Not done: serotonergic supply parameter, Ia→RG plasticity check, a chain with the extensor-strength weakness added, more seeds, production-size runs.
+**Chains with the extensor weakness added (debug-small, seed 12345, 10 sessions; `--extensor-strength` s in every session, P6 injured starts, ± 10 Hz cutaneous-like EES; `plots/p7/chain_compare.png`).** Session 10 (session 1 in brackets); healthy extensor (s = 1) for comparison:
+
+| s | Support | EES | Force-E | r(E,F) | stride (ms) | stance | CUT→RG-E (pA) |
+|---|---|---|---|---|---|---|---|
+| 1 | BWS 50% | no | 10.7 | −0.47 (−0.36) | 1103 | 0.59 | 42 |
+| 1 | BWS 50% | yes | 8.3 | −0.61 (−0.44) | 1103 | 0.59 | 46 |
+| 0.5 | BWS 50% | no | 5.6 | −0.23 (−0.08) | 1438 | 0.61 | 25 |
+| 0.5 | BWS 50% | yes | 5.1 | −0.36 (−0.29) | 1483 | 0.67 | 22 |
+| 0.25 | BWS 50% | no | 3.0 | −0.08 (−0.06) | 1623 | 0.61 | 21 |
+| 0.25 | BWS 50% | yes | 2.4 | −0.41 (−0.31) | 1496 | 0.69 | 23 |
+| 0.5 | BWS 90% | no / yes | 5.3 / 4.4 | −0.19 / −0.31 | 808 / 898 | 0.64 / 0.70 | 44 / 47 |
+| 0.25 | BWS 90% | no / yes | 2.6 / 2.3 | −0.16 / −0.35 | 1375 / 1297 | 0.73 / 0.76 | 38 / 40 |
+
+- **The weakness gives the patients' pattern, and training does not undo it.** Force-E is capped at about s × 10.7 in every session (training changes the pathways, not the muscle); stride lengthens (BWS 50%: 1.1 → 1.4–1.6 s; BWS 90% at s 0.25: 0.8 → 1.3–1.4 s) and stance lengthens (0.59 → 0.61–0.76), in the direction of the patients (stride 1.4–2.6 s, stance 0.7–0.86; IMU estimates). The E/F alternation barely recovers (BWS 50%, s 0.25: r(E,F) −0.06 → −0.08 in 10 sessions, against −0.36 → −0.47 for the healthy extensor), and the CUT→RG-E weight grows more slowly (14 → 21 pA vs 17 → 42 pA).
+- **EES (10 Hz, cutaneous-like) changes the alternation at once and does not restore the strength:** r(E,F) is better in every session of every weak chain (e.g. s 0.25, BWS 50%: −0.31 → −0.41 vs −0.06 → −0.08), but extensor force falls a further 10–20% (3.0 → 2.4), the stance gets longer (0.61 → 0.69), and at BWS 50% the CUT weight does not grow faster (s 0.5: 22 vs 25 pA). At BWS 90% the weight still grows slightly faster (47 vs 44 pA; 40 vs 38 pA).
+- **Reading:** EES helps alternation, not force. The strength weakness here is a fixed muscle gain, so it cannot recover; if the patients' weakness is largely neural and recovers with training, strength would have to depend on the trained state (extensor strength growing with the captured CUT→RG-E weight or the extensor activity). That is a modelling choice not made yet.
+
+Not done: serotonergic supply parameter, Ia→RG plasticity check, strength that recovers with training, more seeds, production-size runs.
 
 ### Phase 8 — Validation against human data (M, plus data access)
 
