@@ -33,8 +33,10 @@ for k in $(seq 1 "$N"); do
     continue
   fi
   if [ "$k" -eq 1 ]; then
-    if [ -n "$INITFROM" ]; then ln -sf "$(cd "$SRC" && pwd)/$INITFROM.h5" "$out/$INITFROM.h5"; fi
-    TRAINED=1 TAG="$TAG/s$k" EXTRA="$EXTRA" bash "$REPO/run_human_modes.sh" "$MODE"
+    # The source run is read from SRC_DIR. It must NOT be linked into the session directory: for a
+    # walking mode (INITFROM == MODE) the session writes <MODE>.h5 there, and writing through a link
+    # overwrote the source run (2026-10-07).
+    TRAINED=1 SRC_DIR="$(cd "$SRC" && pwd)" TAG="$TAG/s$k" EXTRA="$EXTRA" bash "$REPO/run_human_modes.sh" "$MODE"
   else
     TRAINED=0 TAG="$TAG/s$k" \
       EXTRA="$EXTRA --init-weights-from $prev --init-weights-state baseline --init-weights-scale 1" \
