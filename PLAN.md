@@ -1538,8 +1538,25 @@ are shorter. Swing-end sweep, production (naive 120 s, seed 12345) / debug-small
 
 No value fits both sizes within 5%; **fast uses 0.55 (set for production)**: stride 902
 (+1.3%), stance 0.57, r(E,F) −0.81, r(E_L,E_R) −0.95. Debug-small fast runs ~8% long.
-To confirm at production with 3 seeds: `run_p6_modes_mn5.sh` (five modes × 3 seeds,
-spinal rule, trained starts; local production-size smoke test passed).
+**Five modes, production, 3 seeds (MN5, 2026-10-07; `run_p6_modes_mn5.sh` packed per seed;
+`results/2026-10-07/p6/p6_modes/`, `plots/modes/p6_prod/s<seed>_human_modes_stages.png`).**
+Spinal plasticity, trained starts, 120 s, t > 60 s, mean ± sd over seeds:
+
+| Mode | Stride (target) | Stance (target) | r(E,F) | r(E_L,E_R) | R phase |
+|---|---|---|---|---|---|
+| slow | 1394 ± 3 (1410) | 0.64 (0.63) | −0.80 | −0.90 | 0.50 |
+| comfortable | 1129 ± 8 (1110) | 0.59 (0.60) | −0.76 | −0.90 | 0.50 |
+| fast | **892 ± 18 (890)** | 0.58 (0.57) | −0.80 | −0.95 | 0.51 |
+| BWS 50% (injured start) | 1030 ± 4 (1110, −7%) | 0.59 (0.60) | −0.36 | −0.90 | 0.48 |
+| BWS 90% (injured start) | 698 ± 15 (1110, −37%) | 0.63 (0.60) | −0.19 | −0.83 | 0.47 |
+
+- **Fast-stride fix confirmed at production size across seeds** (seeds 884 / 917 / 877).
+  All three walking modes pass stride and stance within 5% with r(E,F) −0.76 to −0.80;
+  their weights stay flat at the trained level (CUT→RG-E ~57–60 pA).
+- BWS 50% (one session from the injured start, CUT→RG-E 14.5 → 23.7 pA) has a 7% short
+  stride (P5 STDP: 1111); it walks with the weakened weights, and the session chains
+  carry its recovery. BWS 90% stays short, as before (P7c).
+- Healthy sources (naive, η 0.05): 9 runs, 8–15 min each at 16 threads.
 
 **Production chains, spinal rule (MN5, 2026-10-03; `results/2026-10-03/p6/human_modes/p6_spinal/`,
 `plots/p6/spinal_prod_recovery.png`, `plots/p6/spinal_prod_chain_stages.png`).** All 3 sources
