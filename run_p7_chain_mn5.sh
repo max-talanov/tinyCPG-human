@@ -23,12 +23,15 @@
 #   s0.5_bws90[_ees10]    bws90  --extensor-strength 0.5 [EES]
 #   s0.25_bws90[_ees10]   bws90  --extensor-strength 0.25 [EES]
 #   EES = --ees-hz 10 --ees-amp 0 --ees-amp-cut 1.0 (cutaneous-like recruitment, 10 Hz; PLAN.md P7)
-# Controls (healthy extensor, no EES) are the P6 spinal production chains already on MN5:
-#   results/human_modes/p6_spinal/chain/s<seed>/{bws50,bws90}
+# Controls (healthy extensor, no EES) are the P6 spinal production chains (results/2026-10-03, kept off MN5);
+# they are compared locally and are not needed on MN5.
 #
-# The healthy source of every seed is the P6 spinal one (SRC_ROOT/src/s<seed>/comfortable.h5, made with
-# 16 threads): the chain must run with the source's seed, size and THREADS (the weight loader checks every
-# synapse), so keep THREADS = 16. EES objects are built after the network, so the wiring is the same.
+# The only earlier result a chain needs is its seed's healthy source, the trained comfortable walk the
+# injured start is made from (SRC_ROOT/src/s<seed>/comfortable.h5). If it is not there, the job builds it
+# first (the P6 recipe: naive comfortable walk, 120 s, --spinal-eta 0.05, PRP threshold 1; ~9 min at 16
+# threads). The source is deterministic for a seed, size and thread count, so it equals the P6 one. The
+# chain must run with the source's seed, size and THREADS (the weight loader checks every synapse), so
+# keep THREADS = 16. EES objects are built after the network, so the wiring is the same.
 # Output: results/human_modes/$ROOT/chain/s<seed>/<condition>/s<k>/<mode>.h5 (resumable: a resubmitted job
 # skips saved sessions; a chain cut by the time limit continues where it stopped).
 #
@@ -36,12 +39,12 @@
 #   sbatch run_p7_chain_mn5.sh
 #   sbatch --array=0 run_p7_chain_mn5.sh          # one seed only
 #
-# Local smoke test (production size, tiny times; first make a source with THREADS=2):
-#   STAGE=src is run_p6_chain_mn5.sh:  STAGE=src SLURM_ARRAY_TASK_ID=0 THREADS=2 SRC_SIM_MS=2000 ROOT=p7_smoke bash run_p6_chain_mn5.sh
-#   SLURM_ARRAY_TASK_ID=0 THREADS=2 SESSION_MS=2000 N=2 SRC_ROOT=p7_smoke ROOT=p7_smoke_out \
+# Local smoke test (production size, tiny times; builds its own source):
+#   SLURM_ARRAY_TASK_ID=0 THREADS=2 SRC_SIM_MS=2000 SESSION_MS=2000 N=2 ROOT=p7_smoke \
 #     CONDS="bws50_ees10:bws50:EES s0.5_bws50:bws50:EXT05" bash run_p7_chain_mn5.sh
 #
-# Env: SEEDS ("12345 54321 777"), N (15), SESSION_MS (60000), SRC_ROOT (p6_spinal), ROOT (p7), THREADS (16),
+# Env: SEEDS ("12345 54321 777"), N (15), SESSION_MS (60000), ROOT (p7), SRC_ROOT (= ROOT; p6_spinal reuses
+#      existing P6 sources), SRC_SIM_MS (120000), THREADS (16),
 #      CONDS ("name:mode:flagset ..." with flagset in EES, EXT05, EXT025, or combined with + e.g. EXT05+EES), EXTRA.
 # Summary: python3 scripts/p7_chain_compare.py --root results/human_modes/p7/chain/s12345
 set -euo pipefail
@@ -51,8 +54,9 @@ REPO="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 read -r -a SEEDS <<< "${SEEDS:-12345 54321 777}"
 N=${N:-15}
 SESSION_MS=${SESSION_MS:-60000}
-SRC_ROOT=${SRC_ROOT:-p6_spinal}
 ROOT=${ROOT:-p7}
+SRC_ROOT=${SRC_ROOT:-$ROOT}
+SRC_SIM_MS=${SRC_SIM_MS:-120000}
 T=${SLURM_ARRAY_TASK_ID:-0}
 export THREADS=${THREADS:-16} NO_SRUN=1 SIZE=production TRIGGER=force
 EXTRA=${EXTRA:-}
@@ -68,7 +72,15 @@ python3 -c "import nest, yaml, h5py, numpy" 2>/dev/null \
 
 SEED=${SEEDS[$T]:?no seed for task $T}
 SRC="$REPO/results/human_modes/$SRC_ROOT/src/s$SEED"
-[ -f "$SRC/comfortable.h5" ] || { echo "[p7-mn5] missing source $SRC/comfortable.h5 (run run_p6_chain_mn5.sh STAGE=src, or upload the P6 sources)" >&2; exit 1; }
+if ! grep -q '^\[HDF5\] saved' "$SRC/comfortable.log" 2>/dev/null; then
+  # no source yet: make it here (the P6 source recipe: naive comfortable walk, eta 0.05, PRP threshold 1;
+  # deterministic for a seed, size and thread count, so it equals the P6 one)
+  echo "[p7-mn5] seed=$SEED: building the healthy source $SRC/comfortable.h5 (${SRC_SIM_MS} ms)"
+  SEED="$SEED" SIM_MS="$SRC_SIM_MS" TRAINED=0 TAG="$SRC_ROOT/src/s$SEED" \
+    EXTRA="--consolidate-prp-threshold 1 --spinal-eta 0.05" bash "$REPO/run_human_modes.sh" comfortable
+  grep -q '^\[HDF5\] saved' "$SRC/comfortable.log" 2>/dev/null \
+    || { echo "[p7-mn5] source failed (see $SRC/comfortable.log)" >&2; exit 1; }
+fi
 
 flags_of() {  # flagset -> flags
   local out="" part
