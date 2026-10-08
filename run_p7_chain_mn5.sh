@@ -42,7 +42,7 @@
 #     CONDS="bws50_ees10:bws50:EES s0.5_bws50:bws50:EXT05" bash run_p7_chain_mn5.sh
 #
 # Env: SEEDS ("12345 54321 777"), N (15), SESSION_MS (60000), SRC_ROOT (p6_spinal), ROOT (p7), THREADS (16),
-#      CONDS ("name:mode:flagset ..." with flagset in EES, EXT05, EXT025, or combined with + e.g. EXT05+EES), EXTRA.
+#      CONDS ("name:mode:flagset ..." with flagset in EES, EXT05, EXT025, REC, or combined with + e.g. EXT05+EES), EXTRA.
 # Summary: python3 scripts/p7_chain_compare.py --root results/human_modes/p7/chain/s12345
 set -euo pipefail
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
@@ -62,6 +62,10 @@ s0.5_bws50:bws50:EXT05 s0.5_bws50_ees10:bws50:EXT05+EES s0.25_bws50:bws50:EXT025
 s0.5_bws90:bws90:EXT05 s0.5_bws90_ees10:bws90:EXT05+EES s0.25_bws90:bws90:EXT025 s0.25_bws90_ees10:bws90:EXT025+EES"
 read -r -a CONDS <<< "${CONDS:-$DEFAULT_CONDS}"
 EES_FLAGS="--ees-hz 10 --ees-amp 0 --ees-amp-cut 1.0"
+# REC: extensor strength recovers with the captured CUT->RG-E weight (MOD_EXT_STRENGTH_RECOVERY): w0 = the
+# injured-start weight (healthy 56.5 pA x init scale 0.25), wref = the healthy trained weight (debug-small values;
+# check them against the production source before using REC on MN5)
+REC_FLAGS="--strength-recovery-w0 14.1 --strength-recovery-wref 56.5"
 
 python3 -c "import nest, yaml, h5py, numpy" 2>/dev/null \
   || { echo "[p7-mn5] missing python module (need nest, pyyaml, h5py, numpy)" >&2; exit 1; }
@@ -78,6 +82,7 @@ flags_of() {  # flagset -> flags
       EES) out="$out $EES_FLAGS" ;;
       EXT05) out="$out --extensor-strength 0.5" ;;
       EXT025) out="$out --extensor-strength 0.25" ;;
+      REC) out="$out $REC_FLAGS" ;;
       NONE) ;;
       *) echo "[p7-mn5] unknown flagset $part" >&2; exit 1 ;;
     esac

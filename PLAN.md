@@ -1667,7 +1667,22 @@ tonic EES.
 - **EES (10 Hz, cutaneous-like) changes the alternation at once and does not restore the strength:** r(E,F) is better in every session of every weak chain (e.g. s 0.25, BWS 50%: −0.31 → −0.41 vs −0.06 → −0.08), but extensor force falls a further 10–20% (3.0 → 2.4), the stance gets longer (0.61 → 0.69), and at BWS 50% the CUT weight does not grow faster (s 0.5: 22 vs 25 pA). At BWS 90% the weight still grows slightly faster (47 vs 44 pA; 40 vs 38 pA).
 - **Reading:** EES helps alternation, not force. The strength weakness here is a fixed muscle gain, so it cannot recover; if the patients' weakness is largely neural and recovers with training, strength would have to depend on the trained state (extensor strength growing with the captured CUT→RG-E weight or the extensor activity). That is a modelling choice not made yet.
 
-Not done: serotonergic supply parameter, Ia→RG plasticity check, strength that recovers with training, more seeds, production-size runs.
+**Strength that recovers with training (debug-small, 2026-10-08, seed 12345, 10 sessions, BWS 50%; `--strength-recovery-w0 14.1 --strength-recovery-wref 56.5`; `plots/p7/recovery_chain_stages.png`).** `s_eff = s + (1 − s) · clamp((w − w0)/(wref − w0), 0, 1)`, w = mean captured CUT→RG-E weight of the leg, w0 the injured-start weight, wref the healthy trained weight (56.5 pA). Session 10 (session 1):
+
+| s | EES | Force-E p95 | r(E,F) | stride (ms) | CUT→RG-E (pA) | s_eff |
+|---|---|---|---|---|---|---|
+| 0.5 fixed | no | 5.7 (5.5) | −0.24 (−0.10) | 1393 | 25 | 0.50 |
+| 0.5 recovering | no | 8.4 (5.6) | −0.42 (−0.15) | 1115 | 39 | 0.80 |
+| 0.5 recovering | 10 Hz | 6.0 (5.1) | −0.39 (−0.30) | 1270 | 26 | 0.65 |
+| 0.25 fixed | no | 2.9 (2.8) | −0.10 (−0.08) | 1590 | 21 | 0.25 |
+| 0.25 recovering | no | 4.0 (2.9) | −0.18 (−0.04) | 1523 | 20 | 0.39 |
+| 0.25 recovering | 10 Hz | 3.6 (2.5) | −0.39 (−0.30) | 1450 | 21 | 0.39 |
+
+- Force-E, stride and alternation recover with the weight; at s 0.5 the no-EES chain approaches the healthy chain (Force-E 10.7, stride 1.1 s). At s 0.25 the CUT weight stays near 20 pA, so strength recovers only to ~0.4.
+- EES helps alternation at once but slows the CUT weight growth (26 vs 39 pA at s 0.5), so strength recovers less (0.65 vs 0.80). Recovery is limited by the weight, not by EES itself.
+- Caveats: one seed; w0 and wref are debug-small values; the linear mapping from weight to strength is an assumption.
+
+Not done: serotonergic supply parameter, Ia→RG plasticity check, more seeds, production-size runs, and a check of w0/wref against the production source before `REC` is used on MN5.
 
 ### Phase 8 — Validation against human data (M, plus data access)
 

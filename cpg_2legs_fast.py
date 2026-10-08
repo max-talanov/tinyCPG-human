@@ -736,6 +736,15 @@ def main():
                          "the extensor: patients cannot carry their weight (walker, crutches, body-weight "
                          "support take over). A graded weakness, unlike --init-weights-scale, which acts "
                          "through the RG-E load gate and is all-or-nothing.")
+    ap.add_argument("--strength-recovery-w0", type=float, default=0.0,
+                    help="MOD_EXT_STRENGTH_RECOVERY (PLAN.md P7b): extensor strength recovers with the "
+                         "captured CUT->RG-E weight. s_eff = s + (1 - s) * clamp((w - w0) / (wref - w0), 0, 1), "
+                         "s = --extensor-strength (the weakness at the injured start), w = mean captured "
+                         "(baseline) CUT->RG-E weight of the leg (pA), w0 = this value (the weight at the "
+                         "injured start). 0 = off, s is a fixed gain (default, unchanged). Needs --consolidate.")
+    ap.add_argument("--strength-recovery-wref", type=float, default=56.5,
+                    help="MOD_EXT_STRENGTH_RECOVERY: captured CUT->RG-E weight (pA) of the healthy trained "
+                         "state, where s_eff = 1 (56.5 = the debug-small healthy comfortable source).")
     ap.add_argument("--bs-drive-scale", type=float, default=1.0,
                     help="MOD_BS_DRIVE_SCALE (PLAN.md P7b/c): scale of the descending brainstem "
                          "drive (tonic BS rate and base drive), a model of SCI: 1 = intact "
@@ -1408,6 +1417,12 @@ def main():
     EXT_STRENGTH = float(args.extensor_strength)
     if not (0.0 <= EXT_STRENGTH <= 1.0):
         raise SystemExit("--extensor-strength must be within 0..1")
+    SREC_W0 = float(args.strength_recovery_w0)
+    SREC_WREF = float(args.strength_recovery_wref)
+    if SREC_W0 > 0.0 and not (SREC_WREF > SREC_W0):
+        raise SystemExit("--strength-recovery-wref must exceed --strength-recovery-w0")
+    EXT_S_DYN = {"L": EXT_STRENGTH, "R": EXT_STRENGTH}  # effective extensor strength per leg
+    EXT_S_START = {}
     EES_AMP_IB  = float(args.ees_amp_ib)
     EES_AMP_CUT = float(args.ees_amp_cut)
     if EES_HZ < 0.0 or not all(0.0 <= a <= 1.0 for a in (EES_AMP, EES_AMP_IB, EES_AMP_CUT)):
@@ -2471,6 +2486,20 @@ def main():
                 else:
                     baseline[side][key] = np.asarray(nest.GetStatus(conns, "weight"), dtype=float)
 
+    def update_ext_strength():
+        """MOD_EXT_STRENGTH_RECOVERY: s_eff from the captured CUT->RG-E weight (mean over the leg)."""
+        if SREC_W0 <= 0.0 or not CONSOLIDATE:
+            return
+        for side in LEGS:
+            b = baseline[side].get("cut->rge")
+            if b is None or b.size == 0:
+                continue
+            g = min(1.0, max(0.0, (float(b.mean()) - SREC_W0) / (SREC_WREF - SREC_W0)))
+            EXT_S_DYN[side] = EXT_STRENGTH + (1.0 - EXT_STRENGTH) * g
+            EXT_S_START.setdefault(side, EXT_S_DYN[side])
+
+    update_ext_strength()
+
     def consolidation_bout_event(side: str, genuine: bool) -> bool:
         """MOD_CONSOLIDATE: called once per real (non-priming) stance/swing
         bout boundary. Genuine (real force-threshold) endings push the
@@ -2693,8 +2722,8 @@ def main():
             S["fatigue_f"] = clamp(S["fatigue_f"], 0.0, FATIGUE_MAX_FRAC)
 
         target_fe = FORCE_MAX * (1.0 - S["fatigue_e"]) * (1.0 - np.exp(-FORCE_SAT_K * S["act_e"]))
-        if EXT_STRENGTH != 1.0:  # MOD_EXT_STRENGTH
-            target_fe *= EXT_STRENGTH
+        if EXT_S_DYN[side] != 1.0:  # MOD_EXT_STRENGTH
+            target_fe *= EXT_S_DYN[side]
         target_ff = FORCE_MAX * (1.0 - S["fatigue_f"]) * (1.0 - np.exp(-FORCE_SAT_K * S["act_f"]))
         tau_rise_s = TAU_FORCE_RISE_MS / 1000.0
         tau_decay_s = TAU_FORCE_DECAY_MS / 1000.0
@@ -2793,6 +2822,8 @@ def main():
         """
         times.append(t_ms)
         do_sample = (step_idx % weight_every == 0)
+        if do_sample:
+            update_ext_strength()
 
         for side in LEGS:
             for key in plastic_keys:
@@ -3332,6 +3363,12 @@ def main():
         h5.attrs["paced_gait"] = bool(PACED_GAIT)
         if EXT_STRENGTH != 1.0:  # MOD_EXT_STRENGTH (absent = intact)
             h5.attrs["extensor_strength"] = float(EXT_STRENGTH)
+        if SREC_W0 > 0.0:  # MOD_EXT_STRENGTH_RECOVERY (absent = fixed gain)
+            h5.attrs["strength_recovery_w0"] = SREC_W0
+            h5.attrs["strength_recovery_wref"] = SREC_WREF
+            for _sd in LEGS:
+                h5.attrs[f"ext_strength_eff_start_{_sd}"] = float(EXT_S_START.get(_sd, EXT_STRENGTH))
+                h5.attrs[f"ext_strength_eff_end_{_sd}"] = float(EXT_S_DYN[_sd])
         if BS_DRIVE_SCALE != 1.0:  # MOD_BS_DRIVE_SCALE (absent = intact)
             h5.attrs["bs_drive_scale"] = float(BS_DRIVE_SCALE)
         if EES_HZ > 0.0:  # MOD_EES (absent = off)
