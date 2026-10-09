@@ -1667,20 +1667,19 @@ tonic EES.
 - **EES (10 Hz, cutaneous-like) changes the alternation at once and does not restore the strength:** r(E,F) is better in every session of every weak chain (e.g. s 0.25, BWS 50%: −0.31 → −0.41 vs −0.06 → −0.08), but extensor force falls a further 10–20% (3.0 → 2.4), the stance gets longer (0.61 → 0.69), and at BWS 50% the CUT weight does not grow faster (s 0.5: 22 vs 25 pA). At BWS 90% the weight still grows slightly faster (47 vs 44 pA; 40 vs 38 pA).
 - **Reading:** EES helps alternation, not force. The strength weakness here is a fixed muscle gain, so it cannot recover; if the patients' weakness is largely neural and recovers with training, strength would have to depend on the trained state (extensor strength growing with the captured CUT→RG-E weight or the extensor activity). That is a modelling choice not made yet.
 
-**Strength that recovers with training (debug-small, 2026-10-08, seed 12345, 10 sessions, BWS 50%; `--strength-recovery-w0 14.1 --strength-recovery-wref 56.5`; `plots/p7/recovery_chain_stages.png`).** `s_eff = s + (1 − s) · clamp((w − w0)/(wref − w0), 0, 1)`, w = mean captured CUT→RG-E weight of the leg, w0 the injured-start weight, wref the healthy trained weight (56.5 pA). Session 10 (session 1):
+**Strength that recovers with training (debug-small, 2026-10-08/09, 3 seeds 12345 / 54321 / 777, 10 × 60 s sessions, BWS 50%; `--strength-recovery-w0 14.1 --strength-recovery-wref 56.5`; `run_p7_seeds_local.sh`, `scripts/p7_seed_summary.py`; figure `plots/p7/recovery_chain_stages.png`, seed 12345).** `s_eff = s + (1 − s) · clamp((w − w0)/(wref − w0), 0, 1)`, w = mean captured CUT→RG-E weight of the leg, w0 the injured-start weight (14.1 pA = healthy 56.5 × 0.25), wref the healthy trained weight. The three healthy sources have 56.5 / 57.0 / 56.7 pA, so one wref fits all. Session 10, mean ± sd over seeds (session 1 in brackets):
 
 | s | EES | Force-E p95 | r(E,F) | stride (ms) | CUT→RG-E (pA) | s_eff |
 |---|---|---|---|---|---|---|
-| 0.5 fixed | no | 5.7 (5.5) | −0.24 (−0.10) | 1393 | 25 | 0.50 |
-| 0.5 recovering | no | 8.4 (5.6) | −0.42 (−0.15) | 1115 | 39 | 0.80 |
-| 0.5 recovering | 10 Hz | 6.0 (5.1) | −0.39 (−0.30) | 1270 | 26 | 0.65 |
-| 0.25 fixed | no | 2.9 (2.8) | −0.10 (−0.08) | 1590 | 21 | 0.25 |
-| 0.25 recovering | no | 4.0 (2.9) | −0.18 (−0.04) | 1523 | 20 | 0.39 |
-| 0.25 recovering | 10 Hz | 3.6 (2.5) | −0.39 (−0.30) | 1450 | 21 | 0.39 |
+| 0.5 | no | 8.1 ± 0.3 (5.6) | −0.42 ± 0.03 (−0.14) | 1097 ± 13 (1400) | 37.6 ± 2.4 (15.4) | 0.78 ± 0.03 (0.52) |
+| 0.5 | 10 Hz | 6.2 ± 0.1 (5.1) | −0.41 ± 0.02 (−0.31) | 1213 ± 54 (1447) | 27.7 ± 1.7 (14.2) | 0.66 ± 0.02 (0.50) |
+| 0.25 | no | 4.0 ± 0.2 (2.9) | −0.17 ± 0.06 (−0.09) | 1555 ± 64 (1583) | 20.3 ± 0.8 (14.2) | 0.36 ± 0.01 (0.25) |
+| 0.25 | 10 Hz | 3.8 ± 0.1 (2.6) | −0.38 ± 0.01 (−0.29) | 1461 ± 25 (1456) | 21.2 ± 0.5 (14.2) | 0.38 ± 0.01 (0.25) |
 
-- Force-E, stride and alternation recover with the weight; at s 0.5 the no-EES chain approaches the healthy chain (Force-E 10.7, stride 1.1 s). At s 0.25 the CUT weight stays near 20 pA, so strength recovers only to ~0.4.
-- EES helps alternation at once but slows the CUT weight growth (26 vs 39 pA at s 0.5), so strength recovers less (0.65 vs 0.80). Recovery is limited by the weight, not by EES itself.
-- Caveats: one seed; w0 and wref are debug-small values; the linear mapping from weight to strength is an assumption.
+- **Force-E, stride and alternation recover with the weight, and the seeds agree.** At s 0.5 without EES the chain approaches the healthy chain (Force-E 10.7, stride 1.1 s); at s 0.25 the CUT weight stays near 20 pA, so strength recovers only to ~0.36.
+- **EES slows the strength recovery at s 0.5 in every seed:** the CUT weight is lower by 4–13 pA and s_eff by 0.05–0.16 (paired, session 10; mean −0.12), so Force-E (6.2 vs 8.1) and stride (1213 vs 1097 ms) recover less. At s 0.25 EES does not change the weight (+0.9 ± 1.6 pA).
+- **EES alternation gain depends on s.** At s 0.25 it holds in all seeds (r(E,F) better by 0.13–0.30 at session 10, mean −0.21). At s 0.5 it is large early (−0.31 vs −0.14 at session 1) but gone by session 10, because the no-EES chain catches up (difference +0.01, within the seed spread). So the earlier single-seed statement that 10 Hz EES helps alternation holds for the weak extensor and for the early sessions, not for the end state at s 0.5.
+- Caveats: three seeds at debug-small; w0 and wref are debug-small values (check against the production source before `REC` is used on MN5); the linear weight-to-strength mapping is an assumption.
 
 Not done: serotonergic supply parameter, Ia→RG plasticity check, more seeds, production-size runs, and a check of w0/wref against the production source before `REC` is used on MN5.
 
