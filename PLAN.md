@@ -1681,7 +1681,7 @@ tonic EES.
 - **EES alternation gain depends on s.** At s 0.25 it holds in all seeds (r(E,F) better by 0.13–0.30 at session 10, mean −0.21). At s 0.5 it is large early (−0.31 vs −0.14 at session 1) but gone by session 10, because the no-EES chain catches up (difference +0.01, within the seed spread). So the earlier single-seed statement that 10 Hz EES helps alternation holds for the weak extensor and for the early sessions, not for the end state at s 0.5.
 - Caveats: three seeds at debug-small; w0 and wref are debug-small values (check against the production source before `REC` is used on MN5); the linear weight-to-strength mapping is an assumption.
 
-Not done: serotonergic supply parameter, Ia→RG plasticity check, more seeds, production-size runs, and a check of w0/wref against the production source before `REC` is used on MN5.
+Not done: serotonergic supply parameter, Ia→RG plasticity check, production-size runs, and a check of w0/wref against the production source before `REC` is used on MN5.
 
 ### Phase 8 — Validation against human data (M, plus data access)
 
