@@ -1789,6 +1789,27 @@ healthy, then incomplete SCI, then complete SCI.
 healthy dataset at each speed. SCI comparisons are qualitative until data is
 obtained.
 
+**Status (2026-10-14): SCI arm started, debug-small, seed 12345, the model after the architecture round.** Scripts: `scripts/p8_model_vs_patients.py` (gait timing, `plots/p8/model_vs_patients.png`), `scripts/p8_emg_model_vs_humans.py` (EMG envelopes, `plots/p8/emg_model_vs_humans.png`); data in `validation/p8_*.json`. Patient stance and double support are IMU estimates, biased high as in the controls (controls: stance 0.62–0.70, DS 0.26–0.40; model comfortable 0.59 / 0.18).
+
+*Gait timing* (patients: Exp01–04, both legs averaged, 6 conditions; model: strength × loading grid, one session, and the chains at session 10):
+
+| | stride (s) | stance | double support |
+|---|---|---|---|
+| patients | 1.40–2.62 | 0.74–0.84 | 0.50–0.70 |
+| model, healthy modes | 0.75–1.41 | 0.57–0.65 | 0.15–0.29 |
+| model, s ≤ 0.5 at loading ≥ 0.5, and the s 0.25 chains | 1.4–1.6 | 0.62–0.67 | 0.30–0.50 |
+
+- Weak extensor with support lengthens stride, stance and double support, in the patients' direction, and on the new wiring these cells still alternate (r(E,F) −0.3 to −0.5; before the architecture round the cells that reached DS 0.5 were degenerate, r(E,F) ≈ 0, with long flight phases).
+- Double support matches once the IMU bias is allowed for (patients 0.50–0.70 minus ~0.1–0.2 = 0.3–0.55; model 0.30–0.50). Stance stays at the lower end (patients minus the bias ≈ 0.65–0.80, model 0.62–0.67).
+- **Stride is not matched:** the model's longest stride is 1.6 s. Exp04 (1.40–1.47 s) is within reach; Exp01–03 (2.0–2.6 s) are not. Nothing in the grid reaches 2 s; a longer swing or slower flexor-side timing would be needed.
+
+*EMG* (GA = gastrocnemius ↔ model act_e, TA ↔ act_f; ensemble over the gait cycle, 25 % burst rule; controls n = 2, patients 4 × legs × conditions):
+- **Extensor timing:** the controls' GA peaks at 40–48 % of the cycle with a late-stance burst (25–62 %, duration 19–60 %). The model's act_e peaks at 43 % but is a broad stance plateau (burst 98 → 61 %, 63 % of the cycle): the right peak, the wrong shape (a saturated activation, not the loading-shaped EMG). Patients: GA peak 3–81 % (median 50 %), the bursts scatter and several are not single bursts.
+- **Flexor timing:** the controls' TA has a heel-strike burst (peak 0–5 %) and a swing burst (onset 57–65 %). The model's act_f has one swing burst (onset 47–52 %, ending at 3–4 %): about 10 % of the cycle earlier, no separate heel-strike burst.
+- **Co-activation (Falconer–Winter, TA vs GA):** controls 31–57 % (median 34), patients 42–86 % (median 56), model healthy 22–25 %, model BWS / weak-extensor chains 55–63 %. The model moves into the patients' range with support and weakness; its healthy value is below the controls'.
+- **Amplitude:** the patients' mean EMG is 0.42 (GA) and 0.54 (TA) of the controls' (µV; no MVC normalisation, different electrodes and subjects, so indicative). In the model act_e is 0.78–0.90 of healthy in the weak chains and act_f 1.2: the model does not reproduce a lower activation, because `--extensor-strength` scales the force after the activation. If the patients' weakness is partly neural (lower drive), the extensor strength coupling would also have to lower the activation.
+- **Not testable:** left–right asymmetry of the worse side (Exp02's left GA at 0.18 of the right): the model's weakness is symmetric.
+
 ### MN5 check B (after Phase 3b, alongside Phase 4) — scaling benchmark (M)
 
 **Goal:** turn the Phase 9 size estimate into data. This is a benchmark, not

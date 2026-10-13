@@ -4,16 +4,18 @@ p8_model_vs_patients.py
 PLAN.md P8, SCI arm: model gait timing against the four patients (validation/human_sci_metrics.json).
 
 Patients (per condition, both legs averaged): stride, stance fraction, double support, plus per-leg stance.
-Model (debug-small, seed 12345; metrics from cut_on via cpg_gait_phase_metrics):
-  grid   results/human_modes/p7/7b_wl/w<s>_l<L>/bws50.h5   one 60 s session, trained start, extensor strength s x loading L
-  chains results/human_modes/p7/chain/r<s>_<noees|ees10>/s10/bws50.h5   recovered state after 10 sessions
-Healthy references: model five modes (p7/7a) and the controls (validation/human_gait_reference.json).
+Model (debug-small, seed 12345; metrics from cut_on via cpg_gait_phase_metrics), results root --root (default arch2 = the
+architecture-round wiring; p7 = the earlier wiring, with grid dir 7b_wl):
+  grid   results/human_modes/<root>/7b/w<s>_l<L>/bws50.h5   one 60 s session, trained start, extensor strength s x loading L
+  chains results/human_modes/<root>/chain/r<s>_<noees|ees10>/s10/bws50.h5   recovered state after 10 sessions
+Healthy references: model five modes (<root>/7a) and the controls (validation/human_gait_reference.json).
 
 Both the patient and the control stance / double support are IMU estimates (biased 3-6 points high, see
 validation/human_data_sources.md), so the offset between patient and model is read together with the control offset
 (model comfortable vs controls). Writes validation/p8_model_vs_patients.json and plots/p8/model_vs_patients.png.
-Usage: python3 scripts/p8_model_vs_patients.py
+Usage: python3 scripts/p8_model_vs_patients.py [--root arch2] [--tag arch2]
 """
+import argparse
 import glob
 import json
 import os
@@ -46,17 +48,22 @@ def patients():
 
 
 def main():
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--root", default="arch2")
+    ap.add_argument("--tag", default="", help="suffix of the output files (default: none)")
+    args = ap.parse_args()
+    grid_dir = "7b_wl" if args.root == "p7" else "7b"
     pats = patients()
     grid = {}
-    for p in sorted(glob.glob(os.path.join(ROOT, "results/human_modes/p7/7b_wl/w*_l*/bws50.h5"))):
+    for p in sorted(glob.glob(os.path.join(ROOT, f"results/human_modes/{args.root}/{grid_dir}/w*_l*/bws50.h5"))):
         tag = os.path.basename(os.path.dirname(p))
         s, L = (float(x[1:]) for x in tag.split("_"))
         grid[(s, L)] = mrow(p)
     chains = {}
-    for p in sorted(glob.glob(os.path.join(ROOT, "results/human_modes/p7/chain/r*_*/s10/bws50.h5"))):
+    for p in sorted(glob.glob(os.path.join(ROOT, f"results/human_modes/{args.root}/chain/r*_*/s10/bws50.h5"))):
         tag = os.path.basename(os.path.dirname(os.path.dirname(p)))
         chains[tag] = mrow(p)
-    modes = {os.path.basename(p)[:-3]: mrow(p) for p in sorted(glob.glob(os.path.join(ROOT, "results/human_modes/p7/7a/*.h5")))}
+    modes = {os.path.basename(p)[:-3]: mrow(p) for p in sorted(glob.glob(os.path.join(ROOT, f"results/human_modes/{args.root}/7a/*.h5")))}
     ref = json.load(open(os.path.join(ROOT, "validation/human_gait_reference.json")))
 
     print("Patients (both legs averaged)")
@@ -99,12 +106,12 @@ def main():
         a.scatter([], [], c="#d1495b", marker="D", label="patients (IMU)")
         a.set_xlabel("stride (s)"); a.set_ylabel(lab); a.grid(alpha=.25)
     ax[0].legend(fontsize=7, loc="lower right")
-    fig.suptitle("Model vs the four SCI patients: gait timing (model debug-small seed 12345; patient stance and DS are IMU estimates)", fontsize=9)
+    fig.suptitle(f"Model ({args.root}) vs the four SCI patients: gait timing (debug-small, seed 12345; patient stance and DS are IMU estimates)", fontsize=9)
     fig.tight_layout()
-    out = os.path.join(ROOT, "plots/p8/model_vs_patients.png")
+    out = os.path.join(ROOT, f"plots/p8/model_vs_patients{args.tag}.png")
     fig.savefig(out, dpi=140)
     json.dump({"patients": pats, "grid": {f"s{k[0]}_L{k[1]}": v for k, v in grid.items()}, "chains": chains, "modes": modes,
-               "nearest": near}, open(os.path.join(ROOT, "validation/p8_model_vs_patients.json"), "w"), indent=1, default=float)
+               "nearest": near}, open(os.path.join(ROOT, f"validation/p8_model_vs_patients{args.tag}.json"), "w"), indent=1, default=float)
     print("wrote", out)
 
 
