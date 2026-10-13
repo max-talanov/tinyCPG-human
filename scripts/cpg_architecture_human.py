@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 """
 cpg_architecture_human.py
-Figure 1 for the human model: the circuit as built by cpg_2legs_fast.py --species human (afferent model 'split';
-plastic CUT->RG-E, BS->RG-E/F and Ia->RG-E/F; static Ib->RG; commissural inhibition between the rhythm generators).
+Figure 1 for the human model: the circuit as built by cpg_2legs_fast.py --species human after the architecture round
+(afferent model 'split'; plastic CUT->RG-E and Ia->RG-E/F; static BS->RG (the human runs freeze BS->RG); static Ib->RG and
+Ib->InE/InF; Ia -> RG, Ia interneurons and homonymous motoneurons; no CUT->InE; no separate swing afferent: the hip-flexor
+stretch signal at swing onset is part of the flexor Ia; commissural inhibition between the rhythm generators).
 Same palette as cpg_architecture_diagram.py (rat, one leg).
   (A) core circuit of both legs: descending drive, rhythm generators, reciprocal inhibition (6:1), motor pools, muscles,
       commissural inhibition between the legs.
-  (B) afferent wiring of one leg (the other is a mirror): Ia, Ib, cutaneous and the external flexor swing afferent.
+  (B) afferent wiring of one leg (the other is a mirror): Ia, Ib and cutaneous.
 Not drawn: the tonic base drive (same targets as BS) and rules rather than wiring (RG-E load gate, force-triggered
 stance/swing, ankle coupling of the muscle lengths, interlimb load transfer).
 Usage: python3 scripts/cpg_architecture_human.py   ->  paper/figures/fig1_architecture_human.png
@@ -78,8 +80,8 @@ for sgn, name in ((-1, "Left leg"), (+1, "Right leg")):
     ax.text(X(8.1), 1.6, "afferents:\nsee (B)", ha="center", fontsize=8.5, color=GREY, style="italic")
 node(ax, "box", (0, 9.7), "BS to E"); node(ax, "box", (0, -0.5), "BS to F")
 for sgn in (-1, 1):
-    edge(ax, (0, 9.7), core[sgn]["RGE"], ORANGE_D, lw=2.6, rad=0.12 * sgn, sa=12, sb=18)
-    edge(ax, (0, -0.5), core[sgn]["RGF"], ORANGE_D, lw=2.6, rad=-0.12 * sgn, sa=12, sb=18)
+    edge(ax, (0, 9.7), core[sgn]["RGE"], ORANGE_L, lw=2.2, rad=0.12 * sgn, sa=12, sb=18)
+    edge(ax, (0, -0.5), core[sgn]["RGF"], ORANGE_L, lw=2.2, rad=-0.12 * sgn, sa=12, sb=18)
 edge(ax, core[-1]["RGF"], core[1]["RGF"], BLUE, inhib=True, lw=2.6, rad=0.0, ra=0.62, rb=0.62)
 edge(ax, core[1]["RGF"], core[-1]["RGF"], BLUE, inhib=True, lw=2.6, rad=0.0, ra=0.62, rb=0.62)
 edge(ax, core[-1]["RGE"], core[1]["RGE"], BLUE, inhib=True, lw=1.3, rad=0.0, ra=0.62, rb=0.62)
@@ -90,14 +92,15 @@ ax.text(-10.3, 10.2, "A", fontsize=20, fontweight="bold")
 
 # ---------------- (B) afferent wiring of one leg ----------------
 ax = axB; ax.set_xlim(-1.4, 9.4); ax.set_ylim(-0.4, 10.4); ax.set_aspect("equal"); ax.axis("off")
-mus = dict(musE=(0.2, 7.9), musF=(0.2, 2.1))
-aff = dict(IaE=(3.1, 9.1), IbE=(3.1, 7.9), CUT=(3.1, 6.7), IaF=(3.1, 3.3), IbF=(3.1, 2.1), SW=(3.1, 0.9))
-tgt = dict(RGE=(8.3, 9.4), InE=(8.3, 8.2), IaIntE=(6.1, 6.6), MF=(8.3, 5.9), ME=(8.3, 4.1), IaIntF=(6.1, 3.4), InF=(8.3, 1.8), RGF=(8.3, 0.6))
+mus = dict(musE=(0.2, 7.6), musF=(0.2, 2.4))
+aff = dict(IaE=(3.1, 9.0), IbE=(3.1, 7.6), CUT=(3.1, 6.2), IaF=(3.1, 3.8), IbF=(3.1, 2.4))
+tgt = dict(RGE=(8.3, 9.5), InE=(8.3, 8.4), ME=(8.3, 7.3), IaIntE=(6.0, 6.1),
+           IaIntF=(6.0, 3.9), MF=(8.3, 2.7), InF=(8.3, 1.6), RGF=(8.3, 0.5))
 node(ax, "mus", mus["musE"], "mus-E"); node(ax, "mus", mus["musF"], "mus-F")
-for k, lab in (("IaE", "Ia"), ("IbE", "Ib"), ("CUT", "cut"), ("IaF", "Ia"), ("IbF", "Ib"), ("SW", "swing")):
+for k, lab in (("IaE", "Ia"), ("IbE", "Ib"), ("CUT", "cut"), ("IaF", "Ia"), ("IbF", "Ib")):
     node(ax, "box", aff[k], lab)
-for k, kind, lab in (("RGE", "rg", "RG-E"), ("InE", "in", "InE"), ("IaIntE", "in", "Ia-E"), ("MF", "mn", "M-F"),
-                     ("ME", "mn", "M-E"), ("IaIntF", "in", "Ia-F"), ("InF", "in", "InF"), ("RGF", "rg", "RG-F")):
+for k, kind, lab in (("RGE", "rg", "RG-E"), ("InE", "in", "InE"), ("ME", "mn", "M-E"), ("IaIntE", "in", "Ia-E"),
+                     ("IaIntF", "in", "Ia-F"), ("MF", "mn", "M-F"), ("InF", "in", "InF"), ("RGF", "rg", "RG-F")):
     node(ax, kind, tgt[k], lab)
 for k in ("IaE", "IbE", "CUT"):
     edge(ax, mus["musE"], aff[k], GREY, style="--", lw=1.1, sa=22, sb=12)
@@ -105,22 +108,24 @@ for k in ("IaF", "IbF"):
     edge(ax, mus["musF"], aff[k], GREY, style="--", lw=1.1, sa=22, sb=12)
 O = dict(sa=12, sb=18)
 edge(ax, aff["IaE"], tgt["RGE"], ORANGE_D, lw=2.4, **O); edge(ax, aff["IaE"], tgt["IaIntE"], ORANGE_L, **O)
+edge(ax, aff["IaE"], tgt["ME"], ORANGE_L, rad=-0.12, **O)
 edge(ax, aff["IbE"], tgt["RGE"], ORANGE_L, **O); edge(ax, aff["IbE"], tgt["InE"], ORANGE_L, **O)
-edge(ax, aff["CUT"], tgt["RGE"], ORANGE_D, lw=3.0, **O); edge(ax, aff["CUT"], tgt["InE"], ORANGE_L, **O)
+edge(ax, aff["CUT"], tgt["RGE"], ORANGE_D, lw=3.0, **O)
 edge(ax, aff["IaF"], tgt["RGF"], ORANGE_D, lw=2.4, **O); edge(ax, aff["IaF"], tgt["IaIntF"], ORANGE_L, **O)
+edge(ax, aff["IaF"], tgt["MF"], ORANGE_L, rad=0.12, **O)
 edge(ax, aff["IbF"], tgt["RGF"], ORANGE_L, **O); edge(ax, aff["IbF"], tgt["InF"], ORANGE_L, **O)
-edge(ax, aff["SW"], tgt["RGF"], ORANGE_L, style=":", lw=1.6, **O); edge(ax, aff["SW"], tgt["InF"], ORANGE_L, style=":", lw=1.6, **O)
-edge(ax, tgt["IaIntE"], tgt["MF"], BLUE, inhib=True, lw=1.6, ra=0.46, rb=0.62)
-edge(ax, tgt["IaIntF"], tgt["ME"], BLUE, inhib=True, lw=1.6, ra=0.46, rb=0.62)
+edge(ax, tgt["IaIntE"], tgt["MF"], BLUE, inhib=True, lw=1.6, rad=-0.1, ra=0.46, rb=0.62)
+edge(ax, tgt["IaIntF"], tgt["ME"], BLUE, inhib=True, lw=1.6, rad=-0.1, ra=0.46, rb=0.62)
 ax.text(3.1, 10.1, "afferents", ha="center", fontsize=10, color="#555"); ax.text(8.3, 10.35, "targets", ha="center", fontsize=10, color="#555")
+ax.text(3.1, 1.15, "Ia-F also carries the hip-flexor\nstretch signal at swing onset", ha="center", fontsize=8.5,
+        color=GREY, style="italic")
 ax.text(-1.3, 10.2, "B", fontsize=20, fontweight="bold")
 
 handles = [Patch(fc=ORANGE, ec="#7a4a12", label="rhythm generator / motoneuron pool (excitatory)"),
            Patch(fc=BLUE, ec="#2b6f8f", label="inhibitory interneuron"), Patch(fc=RED, ec="#7a1f10", label="muscle"),
            Patch(fc=INBOX, ec="#7a3810", label="afferent / descending input"),
-           Line2D([0], [0], color=ORANGE_D, lw=3, label="plastic excitatory (BS, CUT, Ia → RG)"),
+           Line2D([0], [0], color=ORANGE_D, lw=3, label="plastic excitatory (CUT → RG-E, Ia → RG)"),
            Line2D([0], [0], color=ORANGE_L, lw=2, label="static excitatory"),
-           Line2D([0], [0], color=ORANGE_L, lw=2, ls=":", label="external swing afferent"),
            Line2D([0], [0], color=BLUE, lw=2, marker="o", markersize=7, label="inhibitory (dot end)"),
            Line2D([0], [0], color=GREY, lw=1.5, ls="--", label="rate-coded from muscle force / length")]
 fig.legend(handles=handles, loc="lower center", ncol=5, fontsize=9.5, frameon=True, bbox_to_anchor=(0.5, 0.0))

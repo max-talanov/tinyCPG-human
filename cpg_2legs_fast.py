@@ -705,6 +705,18 @@ def main():
                          "stretch signal; Grillner & Rossignol 1978; Pearson 1995). "
                          "Mirrors the stance Ia-E ramp to clock the flexor. 0 = off "
                          "(legacy intrinsic-only flexor); 80 is a typical on value.")
+    ap.add_argument("--ia-mn-weight", type=float, default=0.0,
+                    help="MOD_IA_MN (PLAN.md P7/P8 architecture round): weight (pA) of the homonymous "
+                         "monosynaptic Ia -> motoneuron excitation (Ia-E -> M-E, Ia-F -> M-F, static, delay "
+                         "ia_path). 0 = none (rat, original wiring). Ia reaches the motoneurons directly "
+                         "as well as the rhythm generators and the Ia interneurons.")
+    ap.add_argument("--p-ia2mn", type=float, default=0.5,
+                    help="MOD_IA_MN: connection probability of Ia -> motoneuron (K = p x production Ia size).")
+    ap.add_argument("--swing-afferent-as-ia", action=argparse.BooleanOptionalAction, default=False,
+                    help="MOD_SWING_AS_IA: the flexor swing afferent (--ia-ext-f-hz, --swing-afferent-tau-ms) is "
+                         "not a separate Poisson group projecting to RG-F and InF: its phasic rate (hip-flexor "
+                         "stretch at swing onset) is added to the flexor Ia afferent rate and acts through "
+                         "the Ia projections (RG-F, Ia interneurons, M-F). Off = original separate group.")
     # ---- MOD_EES: epidural electrical stimulation (PLAN.md P7) ----
     ap.add_argument("--ees-hz", type=float, default=0.0,
                     help="MOD_EES (PLAN.md P7): epidural stimulation pulse rate (Hz), a regular "
@@ -1428,6 +1440,9 @@ def main():
     if EES_HZ < 0.0 or not all(0.0 <= a <= 1.0 for a in (EES_AMP, EES_AMP_IB, EES_AMP_CUT)):
         raise SystemExit("--ees-hz must be >= 0 and --ees-amp / --ees-amp-ib / --ees-amp-cut within 0..1")
 
+    IA_MN_W     = float(args.ia_mn_weight)  # MOD_IA_MN (0 = none)
+    P_IA2MN     = float(args.p_ia2mn)
+    SWING_AS_IA = bool(args.swing_afferent_as_ia)  # MOD_SWING_AS_IA
     # ---- MOD_PACED_GAIT: explicit 1-s trot cycle constants ----
     if PACED_GAIT:
         STEP_PERIOD_MS = q_ms(float(args.step_period_ms))   # full stride (both legs)
@@ -1774,7 +1789,7 @@ def main():
         # 1978; Pearson 1995). A single phasic group active during swing,
         # mirroring the stance Ia-E ramp; drives InF → reinforces the flexor.
         ia_ext_pg_f = None
-        if PACED_GAIT and IA_EXT_F_HZ > 0.0:
+        if PACED_GAIT and IA_EXT_F_HZ > 0.0 and not SWING_AS_IA:
             ia_ext_pg_f = nest.Create("poisson_generator", N_IA_F)
             nest.SetStatus(ia_ext_pg_f, {"rate": 0.0})
 
@@ -2054,8 +2069,9 @@ def main():
 
         # MOD_CUT_REFLEX: CUT → InE — cutaneous afferents reinforce the stance-phase
         # extensor reflex by exciting the flexor-suppressing interneuron.
-        connect("cut_in->in_e", "cut_in", L["cut_in"], L["in_e"], P_CUT2INE,
-                syn_spec={"synapse_model": "static_synapse", "weight": W_CUT2INE, "delay": delay["cut_to_rg"]})
+        if W_CUT2INE != 0.0:  # human: 0 (cutaneous reaches InE through CUT -> RG-E -> InE only)
+            connect("cut_in->in_e", "cut_in", L["cut_in"], L["in_e"], P_CUT2INE,
+                    syn_spec={"synapse_model": "static_synapse", "weight": W_CUT2INE, "delay": delay["cut_to_rg"]})
 
         if USE_STATIC_PARALLEL:
             connect("bs_in_e->rg_e:static_parallel", "bs_in_e", L["bs_in_e"], L["rg_e"], P_STATIC_IN,
@@ -2084,6 +2100,14 @@ def main():
                 syn_spec={"synapse_model": "static_synapse", "weight": W_COMM_E_INH, "delay": delay["commissural"]})
         connect("rg_e->rg_e:commissural", "rg_e", RR["rg_e"], LL["rg_e"], P_COMM_E,
                 syn_spec={"synapse_model": "static_synapse", "weight": W_COMM_E_INH, "delay": delay["commissural"]})
+
+    if IA_MN_W != 0.0:  # MOD_IA_MN: built after everything else (same RNG order for the rest of the network)
+        for side in LEGS:
+            L = leg[side]
+            connect("ia_in_e->m_e", "ia_in_e", L["ia_in_e"], L["m_e"], P_IA2MN,
+                    syn_spec={"synapse_model": "static_synapse", "weight": IA_MN_W, "delay": delay["ia_path"]})
+            connect("ia_in_f->m_f", "ia_in_f", L["ia_in_f"], L["m_f"], P_IA2MN,
+                    syn_spec={"synapse_model": "static_synapse", "weight": IA_MN_W, "delay": delay["ia_path"]})
 
     if unknown_ovr:
         raise ConfigError(f"connectivity.indegree_override has unknown projections {sorted(unknown_ovr)} "
@@ -2618,6 +2642,18 @@ def main():
             nest.SetStatus(rec, {"n_events": 0})
         return cur - last_n, 0
 
+    SWING_AFF_ACTIVE = bool(PACED_GAIT and IA_EXT_F_HZ > 0.0)
+    SWING_AFF_RATE = {"L": 0.0, "R": 0.0}  # MOD_SWING_AS_IA: current swing term added to the flexor Ia rate (Hz)
+
+    def swing_aff_set(side, rate):
+        """Flexor swing afferent rate. Original: a separate Poisson group. MOD_SWING_AS_IA: a term of the flexor Ia."""
+        if not SWING_AFF_ACTIVE:
+            return
+        if SWING_AS_IA:
+            SWING_AFF_RATE[side] = float(rate)
+        else:
+            nest.SetStatus(leg[side]["ia_ext_pg_f"], {"rate": rate})
+
     def update_leg(side: str, t_ms: float, dt_ms_actual: float, cut_active_frac: float, do_rate_update: bool):
         dt_s = float(dt_ms_actual) / 1000.0
         L = leg[side]
@@ -2773,7 +2809,7 @@ def main():
             vel_e = max(0.0, (S["len_e"] - len_e_prev) / dt_s_safe)
             vel_f = max(0.0, (S["len_f"] - len_f_prev) / dt_s_safe)
             ia_e = IA_BASE_HZ + IA_K_STRETCH * stretch_e + IA_K_VEL * vel_e
-            ia_f = IA_BASE_HZ + IA_K_STRETCH * stretch_f + IA_K_VEL * vel_f
+            ia_f = IA_BASE_HZ + IA_K_STRETCH * stretch_f + IA_K_VEL * vel_f + SWING_AFF_RATE[side]
             ib_e = clamp(IA_FEEDBACK_GAIN * (IB_BASE_HZ + IB_K_FORCE * S["force_e"]), 0.0, IB_RATE_MAX_HZ)
             ib_f = clamp(IA_FEEDBACK_GAIN_IB_F * (IB_BASE_HZ + IB_K_FORCE * S["force_f"]), 0.0, IB_RATE_MAX_HZ)
         else:
@@ -2972,8 +3008,7 @@ def main():
             if is_on:
                 # Stance: Ia-E heel->mid->toe sub-group sequenced by elapsed time
                 # since this leg's own stance onset (self-timed, not clock-scheduled).
-                if leg[side]["ia_ext_pg_f"] is not None:
-                    nest.SetStatus(leg[side]["ia_ext_pg_f"], {"rate": 0.0})
+                swing_aff_set(side, 0.0)
                 elapsed = max(0.0, t_now - stance_onset_ms[side])
                 g_idx = min(N_IA_GROUPS_PACED - 1, int(elapsed // max(1e-9, SUB_STANCE_MS)))
                 for gi, g in enumerate(leg[side]["ia_ext_pg_e"]):
@@ -2981,11 +3016,11 @@ def main():
             else:
                 for g in leg[side]["ia_ext_pg_e"]:
                     nest.SetStatus(g, {"rate": 0.0})
-                if leg[side]["ia_ext_pg_f"] is not None:
+                if SWING_AFF_ACTIVE:
                     rate_f = IA_EXT_F_HZ
                     if SWING_AFF_TAU_MS > 0.0:  # PLAN.md P5: phasic swing afferent
                         rate_f = IA_EXT_F_HZ * float(np.exp(-max(0.0, t_now - phase_onset_ms[side]) / SWING_AFF_TAU_MS))
-                    nest.SetStatus(leg[side]["ia_ext_pg_f"], {"rate": rate_f})
+                    swing_aff_set(side, rate_f)
 
         def cut_force_gate(side, t_now):
             # Reads force_e computed by THIS chunk's update_leg() call, which itself
@@ -3210,8 +3245,7 @@ def main():
                                {"rate": CUT_FEEDBACK_GAIN * CUT_RATE_ON_HZ if in_stance else CUT_RATE_OFF_HZ})
                 for gi, g in enumerate(leg[side]["ia_ext_pg_e"]):
                     nest.SetStatus(g, {"rate": IA_EXT_HZ[gi] if gi == g_idx else 0.0})
-                if leg[side]["ia_ext_pg_f"] is not None:
-                    nest.SetStatus(leg[side]["ia_ext_pg_f"], {"rate": 0.0 if in_stance else IA_EXT_F_HZ})
+                swing_aff_set(side, 0.0 if in_stance else IA_EXT_F_HZ)
                 _applied[side] = ph_state[side]
             on = {side: 1.0 if ph_state[side][0] else 0.0 for side in LEGS}
             run_window(min(b - a, SIM_MS - t_ms), cut_active_frac=on, log_cut_on=on)
@@ -3237,16 +3271,14 @@ def main():
             nest.SetStatus(leg[swing]["cut_pg"], {"rate": CUT_RATE_OFF_HZ})
             for g in leg[swing]["ia_ext_pg_e"]:
                 nest.SetStatus(g, {"rate": 0.0})
-            if leg[swing]["ia_ext_pg_f"] is not None:
-                nest.SetStatus(leg[swing]["ia_ext_pg_f"], {"rate": IA_EXT_F_HZ})
+            swing_aff_set(swing, IA_EXT_F_HZ)
 
             # Stance leg: CUT ON, scaled by loading-dependent cutaneous gain
             # (full at weight-bearing, attenuated at toe/air stepping); flexor
             # swing-afferent OFF (this leg is in stance).
             nest.SetStatus(leg[stance]["cut_pg"],
                            {"rate": CUT_FEEDBACK_GAIN * CUT_RATE_ON_HZ})
-            if leg[stance]["ia_ext_pg_f"] is not None:
-                nest.SetStatus(leg[stance]["ia_ext_pg_f"], {"rate": 0.0})
+            swing_aff_set(stance, 0.0)
 
             # Sequential Ia-E sub-groups: heel (60 Hz) → mid (80 Hz) → toe (100 Hz)
             for g_idx in range(N_IA_GROUPS_PACED):
@@ -3363,6 +3395,12 @@ def main():
         h5.attrs["paced_gait"] = bool(PACED_GAIT)
         if EXT_STRENGTH != 1.0:  # MOD_EXT_STRENGTH (absent = intact)
             h5.attrs["extensor_strength"] = float(EXT_STRENGTH)
+        if IA_MN_W != 0.0:  # MOD_IA_MN (absent = none)
+            h5.attrs["ia_mn_weight"] = float(IA_MN_W); h5.attrs["p_ia2mn"] = float(P_IA2MN)
+        if SWING_AS_IA:  # MOD_SWING_AS_IA (absent = separate swing group)
+            h5.attrs["swing_afferent_as_ia"] = True
+        if W_CUT2INE == 0.0:  # no cut -> InE (absent = rat wiring)
+            h5.attrs["cut_to_ine"] = False
         if SREC_W0 > 0.0:  # MOD_EXT_STRENGTH_RECOVERY (absent = fixed gain)
             h5.attrs["strength_recovery_w0"] = SREC_W0
             h5.attrs["strength_recovery_wref"] = SREC_WREF

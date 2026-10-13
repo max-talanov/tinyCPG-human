@@ -1681,6 +1681,20 @@ tonic EES.
 - **EES alternation gain depends on s.** At s 0.25 it holds in all seeds (r(E,F) better by 0.13–0.30 at session 10, mean −0.21). At s 0.5 it is large early (−0.31 vs −0.14 at session 1) but gone by session 10, because the no-EES chain catches up (difference +0.01, within the seed spread). So the earlier single-seed statement that 10 Hz EES helps alternation holds for the weak extensor and for the early sessions, not for the end state at s 0.5.
 - Caveats: three seeds at debug-small; w0 and wref are debug-small values (check against the production source before `REC` is used on MN5); the linear weight-to-strength mapping is an assumption.
 
+**Architecture round (2026-10-13, debug-small, seed 12345; `plots/p7/arch2_modes_chain_stages.png`, `paper/figures/fig1_architecture_human.png`).** Requested changes: keep the Ib projections; Ia reaches the motoneurons (new static Ia-E→M-E, Ia-F→M-F, 6 pA, p 0.5, not calibrated) and the rhythm generators; no CUT→InE (CUT reaches InE through CUT→RG-E→InE); the swing afferent (hip-flexor stretch at swing onset) is a term of the flexor Ia (80 Hz, τ 150 ms) instead of a separate group onto RG-F and InF; everything else kept. Compared with the model before (session 1 → 10 of the chains):
+
+| chain | r(E,F) before | r(E,F) after | stride (ms) before → after | CUT→RG-E (pA) after |
+|---|---|---|---|---|
+| walk slow | −0.78 → −0.78 | −0.75 → −0.77 | 1410 → 1410 | 58 → 64 |
+| walk comfortable | −0.73 → −0.74 | −0.72 → −0.72 | 1144 → 1170 | 58 → 63 |
+| walk fast | −0.78 → −0.79 | −0.79 → −0.79 | 984 → 935 | 56 → 62 |
+| BWS 50% | −0.36 → −0.47 | −0.06 → −0.36 | 1148 → 1064 (s1) | 17.5 → 41.5 |
+| BWS 90% | −0.19 (s1) → −0.25 | −0.18 → −0.22 | 787 → 752 (s1) | 39 → 46 |
+
+- The healthy modes are unchanged within a few percent. The injured start alternates less well than before (BWS 50% r(E,F) −0.06 vs −0.30 at the start) and recovers to −0.36 by session 10 (before −0.47). Reflex latency to the muscle: 28.8 ms (before 30.2).
+- Consequences: the wiring changed, so all earlier human sources and chains (local P7 and the MN5 `p6_spinal` sources) cannot be loaded and must be regenerated; the P7 EES / weak-extensor / recovery chains, the 7b grid and the P8 comparison are not rerun and predate this change. EES recruits Ia, so it now also evokes the direct Ia→MN reflex. The Ia→MN weight is an assumption.
+- Human runs freeze BS→RG (`--freeze-bs-rg`): BS→RG is static; the first version of Figure 1 drew it as plastic.
+
 Not done: serotonergic supply parameter, Ia→RG plasticity check, production-size runs, and a check of w0/wref against the production source before `REC` is used on MN5.
 
 ### Phase 8 — Validation against human data (M, plus data access)
