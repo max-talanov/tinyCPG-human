@@ -435,8 +435,9 @@ between threads and MPI ranks, which could affect run time. Measure it.
     draw differently in NEST (verified), which would have changed rat output.
 - Reflex-latency probe (`--probe-reflex-at-ms`,
   `scripts/probe_reflex_latency.py`).
-  - The model has no monosynaptic Ia → motoneuron connection, so the probe
-    measures the shortest causal Ia → muscle latency.
+  - At the time of P2 the model had no monosynaptic Ia → motoneuron connection, so the probe
+    measured the shortest causal Ia → muscle latency (the human model has had a monosynaptic Ia → motoneuron
+    connection since the architecture round of 2026-10-13: 28.8 ms).
   - Method: identical control and volley runs; the first diverging spike
     gives the latency. It uses 10 volleys across one stride.
 - **Result (rat-sh/debug.sh configuration):** human mus-E **30.2 ms** (median
@@ -1734,6 +1735,28 @@ tonic EES.
 - **For a strength that recovers with training (REC):** production healthy CUT→RG-E is 58.0 pA (all seeds); injured starts 14.5 pA (BWS 50%, ×0.25) and 37.7 pA (BWS 90%, ×0.65), so w0 must be set per support level.
 
 **The MN5 production chains above were run with the architecture before 2026-10-13** (no Ia→motoneuron connection, with CUT→InE, separate swing group); on the new wiring the sources and chains must be regenerated. Production numbers for REC: healthy CUT→RG-E 58.0 pA, so wref 58.0 (not the debug-small 56.5) and w0 per support level (14.5 / 37.7 pA).
+
+**EES and recovery chains on the new wiring (2026-10-13, debug-small, seed 12345 only, 10 × 60 s sessions, BWS 50% unless stated; `run_p7_arch_local.sh`; REC w0 14.4, wref 57.7 pA = the new healthy source).** Session 10 (session 1 in brackets); the same chains before the architecture round are in the earlier tables (3 seeds, different wiring):
+
+| condition | Force-E p95 | r(E,F) | stride (ms) | CUT→RG-E (pA) | s_eff |
+|---|---|---|---|---|---|
+| BWS 50%, control | 10.7 (10.9) | −0.36 (−0.06) | 1128 | 41.5 (17.5) | – |
+| BWS 50%, EES 10 Hz | 8.6 (9.5) | −0.46 (−0.25) | 1029 | 46.2 (17.7) | – |
+| BWS 90%, control | 10.5 (10.1) | −0.22 (−0.18) | 807 | 45.6 (38.6) | – |
+| BWS 90%, EES | 8.7 (9.2) | −0.32 (−0.32) | 848 | 53.5 (39.3) | – |
+| s 0.5 fixed | 5.7 (5.5) | −0.16 (+0.01) | 1331 | 24.6 (14.5) | 0.50 |
+| s 0.5 fixed + EES | 5.0 (5.0) | −0.33 (−0.23) | 1480 | 21.3 (14.5) | 0.50 |
+| s 0.25 fixed | 2.8 (2.7) | −0.05 (0.00) | 1573 | 18.7 (14.5) | 0.25 |
+| s 0.25 fixed + EES | 2.6 (2.5) | −0.29 (−0.18) | 1524 | 21.6 (14.5) | 0.25 |
+| s 0.5 REC | 6.9 (5.5) | −0.18 (−0.01) | 1108 | 27.2 (14.5) | 0.65 (0.51) |
+| s 0.5 REC + EES | 5.9 (5.0) | −0.31 (−0.18) | 1255 | 25.3 (14.5) | 0.63 (0.51) |
+| s 0.25 REC | 4.3 (2.9) | −0.13 (−0.04) | 1470 | 21.6 (14.5) | 0.38 (0.26) |
+| s 0.25 REC + EES | 3.6 (2.6) | −0.30 (−0.19) | 1548 | 21.0 (14.5) | 0.36 (0.26) |
+
+- **EES with a healthy extensor:** the same pattern as before: r(E,F) better by 0.10 (BWS 50% and 90%) at session 10 and by 0.19 / 0.14 at session 1, Force-E lower (8.6–8.7 vs 10.5–10.7), the CUT weight grows faster at BWS 90% (+14 vs +7 pA).
+- **Recovering strength is weaker than before the change:** at s 0.5 without EES the strength recovers to 0.65 (before 0.78), Force-E to 6.9 (before 8.1), r(E,F) −0.18 (before −0.42), because the CUT weight reaches 27 pA (before 38): the chains with a weak extensor learn more slowly on the new wiring. At s 0.25: 0.38 (before 0.36), unchanged.
+- **EES effect on the strength recovery** is much smaller than before at s 0.5 (CUT 25.3 vs 27.2 pA, s_eff 0.63 vs 0.65; before −10 pA and −0.12); at s 0.25 there is none. EES still improves alternation from session 1 (by 0.17–0.24 at s 0.5 and 0.25), and lowers extensor force.
+- One seed only: the before/after differences in the strength recovery are within what the seed spread allowed earlier (±0.03 in s_eff, ±2 pA); three seeds are needed before treating them as a change.
 
 Not done: serotonergic supply parameter, Ia→RG plasticity check, w0/wref per support level for REC on MN5, the P7 EES / weak-extensor / recovery chains and the P8 comparison on the new wiring (architecture round).
 

@@ -101,11 +101,12 @@ run is "human":
   from before 2026-09-26 are not comparable with new ones. `--n-scale s` scales every
   population for size checks (`run_p3b_local.sh`, `run_p3b_mn5.sh`).
 - **Reflex-latency probe:** `python3 scripts/probe_reflex_latency.py --species human`.
-  The model has no monosynaptic Ia → motoneuron connection (Ia reaches M-E through
-  RG-E), so it measures the shortest causal Ia → muscle latency. It uses
+  Since the architecture round (2026-10-13) the human model has a monosynaptic Ia → motoneuron
+  connection (`MOD_IA_MN`); the rat model does not (Ia reaches M-E through RG-E). The probe measures
+  the shortest causal Ia → muscle latency. It uses
   `--probe-reflex-at-ms` and determinism (identical control vs. volley runs; the first
-  diverging spike). Result, rat-sh/debug.sh configuration: **human 30.2 ms** (median 30.9;
-  RG-E 13.4 ms, M-E 14.8 ms), inside the 28–35 ms soleus reflex target; rat 5.0 ms.
+  diverging spike). Result, rat-sh/debug.sh configuration: **human 28.8 ms** (median 29.2; RG-E 13.4 ms,
+  M-E 13.2 ms; 30.2 ms with RG-E as the only route before 2026-10-13), inside the 28–35 ms soleus reflex target; rat 5.0 ms.
 - The Ia/CUT rates are recomputed from force/length in Python every `--rate-update-ms`
   (50 ms in `rat-sh/debug.sh`). That update lag is already larger than any synaptic delay.
   Account for it when matching the ~30 ms reflex latency.
@@ -2045,28 +2046,34 @@ mirrors `rat-sh/run_speed_stdp.sh` for a descending-vs-sensory paired contrast).
 
 ## Architecture
 
+Human model (`--species human`; Figure 1: `paper/figures/fig1_architecture_human.png`, drawn by
+`scripts/cpg_architecture_human.py`; caption and differences from the rat-era figure in
+`paper/figures/fig1_architecture_human_caption.md`). One leg, the other is a mirror image:
+
 ```
-              CUT (cutaneous, phasic)         BS (brainstem, tonic)
-               │ static + STDP                 │ STDP, Wmax=30
-               ▼                               ▼
-              RG-E ◄──── InF ◄───── RG-F   (asymmetric: F→E STRONG, E→F WEAK)
-               │          ▲          │
-               │          │          │
-               ▼     (Ia loop)       ▼
-              M-E                   M-F        (motor pools, reciprocal inhibition)
-               │                     │
-               ▼                     ▼
-              mus-E                 mus-F      (parrot relays → activation proxy)
-               │                     │
-               └───── force, length ─┘
-                          │
-                          ▼
-                         Ia-E, Ia-F  (rate-coded, force + stretch)
-                          │
-                          └──→ InE, InF, ia_int → motor antagonist
+   BS (tonic, static: the human runs freeze BS→RG)             CUT ──plastic──► RG-E only
+        │                    │
+        ▼                    ▼
+      RG-E ──► InE ⊣ RG-F ──► InF ⊣ RG-E     (reciprocal inhibition 6:1, F→E strong; both RGs excite themselves)
+       │                         │
+       ▼                         ▼
+      M-E ◄──────────────────── M-F            (motor pools; M-E ⊣ M-F both ways)
+       │                         │
+       ▼                         ▼
+     mus-E                     mus-F           (muscle proxies; force and length, rate-coded to the afferents)
+       │                         │
+       ├─► Ia-E  ─► RG-E (plastic), Ia interneuron ⊣ M-F, M-E (homonymous, static)
+       ├─► Ib-E  ─► RG-E (static), InE
+       │         Ia-F ─► RG-F (plastic), Ia interneuron ⊣ M-E, M-F (homonymous, static)
+       │         Ib-F ─► RG-F (static), InF
+       └─ Ia-F also carries the hip-flexor stretch signal at swing onset (80 Hz, τ 150 ms; MOD_SWING_AS_IA)
 ```
 
-Cross-leg: L↔R commissural inhibition on RG-F (strong) and RG-E (weak).
+Cross-leg: L↔R direct inhibition between the rhythm generators, RG-F strong (−20 pA) and RG-E weak (−8 pA); this
+abstracts the V0-type commissural pathway (no V2a / V0v / V0d / In1 / V3 populations, no Renshaw cells).
+Not wiring but rules: RG-E load gate, force-triggered stance/swing, ankle coupling of the muscle lengths, interlimb
+load transfer. Differences from the rat model (`--species rat`, original wiring): the rat has no Ia → motoneuron
+connection, has CUT → InE (`W_CUT2INE` 6) and a separate swing afferent group onto RG-F and InF, and pools Ia and Ib.
 
 ## Key constants in `cpg_2legs_fast.py`
 
@@ -2076,7 +2083,7 @@ Cross-leg: L↔R commissural inhibition on RG-F (strong) and RG-E (weak).
 | `CUT_RATE_ON_HZ = 100` | line ~66 | Rat Group-II/Aβ peak rate. Don't push >100 Hz. |
 | `W_INF2RGE = -48`, `W_INE2RGF = -8` | lines ~75-82 | **Asymmetric reciprocal inhibition (Zhang 2022). KEEP THIS RATIO.** F→E is 6× stronger (48:8). |
 | `WMAX_BS = 30` | line ~236 | BS STDP weight cap, prevents BS-alone runaway. |
-| `W_CUT2INE = 6`, `P_CUT2INE = 0.30` | line ~266 | Stance-phase cutaneous reflex. |
+| `W_CUT2INE = 6`, `P_CUT2INE = 0.30` | line ~266 | Stance-phase cutaneous reflex (rat). Human: `W_CUT2INE: 0`, the connection is not built. |
 | `W_IA2IN = 6`, `P_IA2IN = 0.25` | lines ~69-70 | Ia → RG reciprocal interneurons. Closed-loop knob. 5 too weak; 8 over-speeds cycle. |
 | `RGF_C = -55, RGF_D = 4` | line ~288 | Intrinsically bursting Izhikevich for RG-F. |
 | `rg_ref = 100` | line ~1190 | Activation gate reference Hz. 100 Hz calibrated for debug-mode burst peaks; clamps to 1 in production (300+ Hz). |

@@ -11,9 +11,10 @@ control (probe structure present, no volley: --probe-reflex-at-ms -1) and once
 per volley time. Up to the volley both runs are identical, so the first spike
 that differs afterwards is the earliest effect of the volley:
     latency = t(first differing spike) - t(volley)
-The model has no monosynaptic Ia -> motoneuron connection; Ia reaches the
-motoneurons through RG-E (and inhibits the antagonist through Ia interneurons),
-so this is the model's shortest Ia -> muscle loop, compared with the human
+The rat model has no monosynaptic Ia -> motoneuron connection: Ia reaches the
+motoneurons through RG-E (and inhibits the antagonist through Ia interneurons).
+The human model has one since the architecture round (MOD_IA_MN, 2026-10-13).
+Either way this is the model's shortest Ia -> muscle loop, compared with the human
 soleus stretch / H-reflex latency (~30-35 ms). Several volley times across the
 gait cycle are used because a volley that arrives while RG-E is inhibited acts
 later; the minimum over volleys is the reflex latency.
