@@ -136,50 +136,51 @@ python3 scripts/cpg_gait_phase_metrics.py results/modes_mn5/human/*.h5
 
 PLAN.md P7b: training chains (15 x 60 s, N = 100, 3 seeds) of the incomplete-SCI model with the extensor
 weakness (`--extensor-strength` 0.5 / 0.25) and cutaneous-like EES at 10 Hz, at BWS 50% and 90%: 10
-conditions per seed. The controls (healthy extensor, no EES) are the P6 spinal production chains already on
-MN5. One node-sized job per seed (`--array=0-2`, 80 CPUs = 5 chains x 16 threads, two waves), 8 h.
-It reuses the P6 spinal sources, `results/human_modes/p6_spinal/src/s<seed>/comfortable.h5` (made with 16
-threads; the chain must use the same seed, size and threads). Smoke-tested locally at production size.
+conditions per seed. The controls (healthy extensor, no EES) are the P6 spinal production chains
+(`results/2026-10-03`); they are compared locally and are not needed on MN5. One node-sized job per seed
+(`--array=0-2`, 80 CPUs = 5 chains x 16 threads, two waves), 8 h.
 
-**Upload** (from this repo root; `<user>@<mn5-login>` and the path are yours):
+**No earlier results are needed on MN5.** A chain needs only its seed's healthy source, the trained
+comfortable walk the injured start is made from (`results/human_modes/p7/src/s<seed>/comfortable.h5`).
+If it is not there, the job builds it first with the P6 recipe (120 s, `--spinal-eta 0.05`, PRP
+threshold 1; ~9 min at 16 threads). The source is deterministic for a seed, size and thread count, so it
+equals the P6 one (checked: two independent MN5 builds of seed 12345 give identical traces). To reuse
+sources that are already on MN5 instead, add `SRC_ROOT=p6_spinal`. Smoke-tested locally at production size.
+
+**Upload** (laptop, from this repo root; `<user>@<mn5-login>` is yours):
 
 ```bash
-rsync -av --relative cpg_2legs_fast.py species_config.py config/species/ config/modes/human.yaml \
-  run_human_modes.sh run_p6_sessions.sh run_p7_chain_mn5.sh scripts/mode_params.py \
-  <user>@<mn5-login>:/path/to/tinyCPG-human/
+rsync -av --relative cpg_2legs_fast.py species_config.py config/species/ config/modes/human.yaml run_human_modes.sh run_p6_sessions.sh run_p7_chain_mn5.sh scripts/mode_params.py <user>@<mn5-login>:/gpfs/projects/uab100/tinyCPG-human/
 ```
 
-**Check on MN5** (in the upload directory): environment, configs, and that the sources are there:
+**Check on MN5** (in `/gpfs/projects/uab100/tinyCPG-human`):
 
 ```bash
 python3 -c "import nest, yaml, h5py; print(nest.__version__)" && python3 species_config.py --check
-ls -la results/human_modes/p6_spinal/src/s{12345,54321,777}/comfortable.h5
 ```
 
-If the sources are missing, upload them from the laptop (or make them with `run_p6_chain_mn5.sh STAGE=src`):
+**Submit** (on MN5, same directory; one job per seed, fits the account job-submit limit):
 
 ```bash
-rsync -av --relative results/2026-10-03/p6/human_modes/p6_spinal/src/ <user>@<mn5-login>:/path/to/tinyCPG-human/
-# then, on MN5: mkdir -p results/human_modes && mv results/2026-10-03/p6/human_modes/p6_spinal results/human_modes/
+sbatch -A uab100 -q acc_resc run_p7_chain_mn5.sh
 ```
 
-**Submit** (on MN5, from the upload directory):
-
 ```bash
-sbatch --array=0 run_p7_chain_mn5.sh      # first: one seed, 12345
-sbatch run_p7_chain_mn5.sh                # then all three seeds (or only this, skipping the first)
 squeue -u $USER
 ```
 
-A weight-loader error in the first minutes (`synapses differ from this network`) means the sources do not
-match the code or the thread count: remake them (`run_p6_chain_mn5.sh STAGE=src`, 16 threads). A job cut
-by the time limit resumes at the first unfinished session when resubmitted with the same command.
+A weight-loader error (`synapses differ from this network`) means a source does not match the code or the
+thread count: delete `results/human_modes/p7/src/` and resubmit (the job rebuilds it). A job cut by the
+time limit resumes at the first unfinished session when resubmitted with the same command.
 
 **Bring back and plot** (laptop):
 
 ```bash
-rsync -av '<user>@<mn5-login>:/path/to/tinyCPG-human/results/human_modes/p7/' results/human_modes/p7_mn5/
-python3 scripts/p7_chain_compare.py --root results/human_modes/p7_mn5/chain/s12345 --fig plots/p7/mn5_s12345.png
+rsync -av '<user>@<mn5-login>:/gpfs/projects/uab100/tinyCPG-human/results/human_modes/p7/' results/2026-10-08/p7/
+```
+
+```bash
+python3 scripts/p7_chain_compare.py --root results/2026-10-08/p7/chain/s12345 --fig plots/p7/mn5_s12345.png
 ```
 
 ## 0b. Human Phase 3b — size sweep at 3× and 10× (`run_p3b_mn5.sh`)

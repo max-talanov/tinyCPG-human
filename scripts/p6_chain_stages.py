@@ -107,7 +107,8 @@ def main():
                 ax.text(0.0, 1.2, f"{name} SESSION (last {args.window_ms / 1000:.0f} s)", transform=ax.transAxes,
                         fontsize=10.5, fontweight="bold", color=INK)
             if c == 0:
-                ax.set_ylabel(f"{runs[0]['mode']}  seed {runs[0]['seed']}\n(loading {runs[0]['loading']:g}, {n} sessions)\n\n"
+                name = os.path.basename(os.path.normpath(cdir))  # P7: condition name (e.g. s0.5_bws50_ees10)
+                ax.set_ylabel(f"{name if name != runs[0]['mode'] else runs[0]['mode']}  seed {runs[0]['seed']}\n(loading {runs[0]['loading']:g}, {n} sessions)\n\n"
                               "Force (a.u.)",
                               fontsize=8.5, color=INK_2)
             if row == len(chains) - 1:

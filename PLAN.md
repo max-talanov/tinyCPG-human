@@ -1538,8 +1538,25 @@ are shorter. Swing-end sweep, production (naive 120 s, seed 12345) / debug-small
 
 No value fits both sizes within 5%; **fast uses 0.55 (set for production)**: stride 902
 (+1.3%), stance 0.57, r(E,F) −0.81, r(E_L,E_R) −0.95. Debug-small fast runs ~8% long.
-To confirm at production with 3 seeds: `run_p6_modes_mn5.sh` (five modes × 3 seeds,
-spinal rule, trained starts; local production-size smoke test passed).
+**Five modes, production, 3 seeds (MN5, 2026-10-07; `run_p6_modes_mn5.sh` packed per seed;
+`results/2026-10-07/p6/p6_modes/`, `plots/modes/p6_prod/s<seed>_human_modes_stages.png`).**
+Spinal plasticity, trained starts, 120 s, t > 60 s, mean ± sd over seeds:
+
+| Mode | Stride (target) | Stance (target) | r(E,F) | r(E_L,E_R) | R phase |
+|---|---|---|---|---|---|
+| slow | 1394 ± 3 (1410) | 0.64 (0.63) | −0.80 | −0.90 | 0.50 |
+| comfortable | 1129 ± 8 (1110) | 0.59 (0.60) | −0.76 | −0.90 | 0.50 |
+| fast | **892 ± 18 (890)** | 0.58 (0.57) | −0.80 | −0.95 | 0.51 |
+| BWS 50% (injured start) | 1030 ± 4 (1110, −7%) | 0.59 (0.60) | −0.36 | −0.90 | 0.48 |
+| BWS 90% (injured start) | 698 ± 15 (1110, −37%) | 0.63 (0.60) | −0.19 | −0.83 | 0.47 |
+
+- **Fast-stride fix confirmed at production size across seeds** (seeds 884 / 917 / 877).
+  All three walking modes pass stride and stance within 5% with r(E,F) −0.76 to −0.80;
+  their weights stay flat at the trained level (CUT→RG-E ~57–60 pA).
+- BWS 50% (one session from the injured start, CUT→RG-E 14.5 → 23.7 pA) has a 7% short
+  stride (P5 STDP: 1111); it walks with the weakened weights, and the session chains
+  carry its recovery. BWS 90% stays short, as before (P7c).
+- Healthy sources (naive, η 0.05): 9 runs, 8–15 min each at 16 threads.
 
 **Production chains, spinal rule (MN5, 2026-10-03; `results/2026-10-03/p6/human_modes/p6_spinal/`,
 `plots/p6/spinal_prod_recovery.png`, `plots/p6/spinal_prod_chain_stages.png`).** All 3 sources
@@ -1695,7 +1712,30 @@ tonic EES.
 - Consequences: the wiring changed, so all earlier human sources and chains (local P7 and the MN5 `p6_spinal` sources) cannot be loaded and must be regenerated; the P7 EES / weak-extensor / recovery chains, the 7b grid and the P8 comparison are not rerun and predate this change. EES recruits Ia, so it now also evokes the direct Ia→MN reflex. The Ia→MN weight is an assumption.
 - Human runs freeze BS→RG (`--freeze-bs-rg`): BS→RG is static; the first version of Figure 1 drew it as plastic.
 
-Not done: serotonergic supply parameter, Ia→RG plasticity check, production-size runs, and a check of w0/wref against the production source before `REC` is used on MN5.
+**Production chains (MN5, 2026-10-12; `run_p7_chain_mn5.sh`, N = 100, 3 seeds, 15 × 60 s sessions, 10 conditions; controls = P6 spinal chains 2026-10-07; `scripts/p7_chain_seeds.py`, `plots/p7/mn5_recovery.png`, stage figures `plots/p7/mn5_s12345_bws{50,90}_stages.png`).** The sources built in the job are bit-identical to the P6 ones (all seeds), so the P6 chains are valid controls. Mean over seeds; r(E,F) last 20 s of the session; criterion r(E,F) ≤ −0.5:
+
+| condition | r(E,F) s1 → s15 | training (s15 − s1) | sessions to criterion | captured CUT→RG-E s1 → s15 (pA) | stride s15 (ms) |
+|---|---|---|---|---|---|
+| BWS 50%, control | −0.34 → −0.66 | −0.33 | 7, 7, 8 | 17.5 → 53.8 | 1087 |
+| BWS 50%, EES | −0.51 → −0.70 | −0.19 | 1, 1, 1 | 18.4 → 57.5 | 995 |
+| BWS 50%, s 0.5 | −0.19 → −0.35 | −0.16 | none | 14.8 → 30.6 | 1284 |
+| BWS 50%, s 0.5 + EES | −0.31 → −0.44 | −0.13 | 14, –, – | 14.5 → 27.4 | 1402 |
+| BWS 50%, s 0.25 | −0.11 → −0.27 | −0.15 | none | 14.5 → 24.2 | 1465 |
+| BWS 50%, s 0.25 + EES | −0.35 → −0.41 | −0.06 | –, 13, – | 14.5 → 26.5 | 1441 |
+| BWS 90%, control | −0.17 → −0.27 | −0.10 | none | 38.6 → 49.4 | 757 |
+| BWS 90%, EES | −0.41 → −0.51 | −0.10 | 7, 3, 5 | 39.5 → 62.3 | 815 |
+| BWS 90%, s 0.5 | −0.08 → −0.18 | −0.11 | none | 38.1 → 46.3 | 778 |
+| BWS 90%, s 0.5 + EES | −0.36 → −0.40 | −0.03 | none | 39.2 → 54.4 | 1001 |
+| BWS 90%, s 0.25 | −0.13 → −0.13 | 0.00 | none | 37.8 → 39.5 | 1357 |
+| BWS 90%, s 0.25 + EES | −0.32 → −0.41 | −0.09 | none | 37.8 → 42.8 | 1284 |
+
+- **EES with a healthy extensor:** an immediate gain (session 1 better by 0.17–0.24) plus faster learning at BWS 90% (CUT +23 vs +11 pA); BWS 90% reaches the criterion only with EES (sessions 3–7). At BWS 50% the training gain is smaller only because EES starts near the end level (both end at about −0.7). Same direction as debug-small, and as the clinical picture (stimulation helps at once, training adds).
+- **The weakness dominates:** no weak chain reaches the criterion reliably. EES lifts r(E,F) by 0.1–0.25, almost all in session 1; training adds −0.03 to −0.13. At BWS 50% the CUT weight grows about half as much as the control. All weak + EES chains level off at r(E,F) ≈ −0.41 to −0.44, whatever the strength or support: with a fixed muscle gain the force cannot recover (Force-E ≈ 5 at s 0.5, ≈ 2.5 at s 0.25), and the flexor keeps firing in short bursts. Stride lengthens to 1.3–1.5 s at BWS 50% (stance 0.68–0.71).
+- **For a strength that recovers with training (REC):** production healthy CUT→RG-E is 58.0 pA (all seeds); injured starts 14.5 pA (BWS 50%, ×0.25) and 37.7 pA (BWS 90%, ×0.65), so w0 must be set per support level.
+
+**The MN5 production chains above were run with the architecture before 2026-10-13** (no Ia→motoneuron connection, with CUT→InE, separate swing group); on the new wiring the sources and chains must be regenerated. Production numbers for REC: healthy CUT→RG-E 58.0 pA, so wref 58.0 (not the debug-small 56.5) and w0 per support level (14.5 / 37.7 pA).
+
+Not done: serotonergic supply parameter, Ia→RG plasticity check, w0/wref per support level for REC on MN5, the P7 EES / weak-extensor / recovery chains and the P8 comparison on the new wiring (architecture round).
 
 ### Phase 8 — Validation against human data (M, plus data access)
 
