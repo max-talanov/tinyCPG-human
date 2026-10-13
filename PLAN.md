@@ -1736,29 +1736,30 @@ tonic EES.
 
 **The MN5 production chains above were run with the architecture before 2026-10-13** (no Ia→motoneuron connection, with CUT→InE, separate swing group); on the new wiring the sources and chains must be regenerated. Production numbers for REC: healthy CUT→RG-E 58.0 pA, so wref 58.0 (not the debug-small 56.5) and w0 per support level (14.5 / 37.7 pA).
 
-**EES and recovery chains on the new wiring (2026-10-13, debug-small, seed 12345 only, 10 × 60 s sessions, BWS 50% unless stated; `run_p7_arch_local.sh`; REC w0 14.4, wref 57.7 pA = the new healthy source).** Session 10 (session 1 in brackets); the same chains before the architecture round are in the earlier tables (3 seeds, different wiring):
+**EES and recovery chains on the new wiring (2026-10-13/14, debug-small, 3 seeds 12345 / 54321 / 777, 10 × 60 s sessions, BWS 50% unless stated; `run_p7_arch_local.sh`, `scripts/p7_arch_seed_summary.py`; REC w0 14.4, wref 57.7 pA = the new healthy source).** Session 10, mean ± sd over seeds (session 1 in brackets); "before" = the same chains on the earlier wiring, 3 seeds:
 
 | condition | Force-E p95 | r(E,F) | stride (ms) | CUT→RG-E (pA) | s_eff |
 |---|---|---|---|---|---|
-| BWS 50%, control | 10.7 (10.9) | −0.36 (−0.06) | 1128 | 41.5 (17.5) | – |
-| BWS 50%, EES 10 Hz | 8.6 (9.5) | −0.46 (−0.25) | 1029 | 46.2 (17.7) | – |
-| BWS 90%, control | 10.5 (10.1) | −0.22 (−0.18) | 807 | 45.6 (38.6) | – |
-| BWS 90%, EES | 8.7 (9.2) | −0.32 (−0.32) | 848 | 53.5 (39.3) | – |
-| s 0.5 fixed | 5.7 (5.5) | −0.16 (+0.01) | 1331 | 24.6 (14.5) | 0.50 |
-| s 0.5 fixed + EES | 5.0 (5.0) | −0.33 (−0.23) | 1480 | 21.3 (14.5) | 0.50 |
-| s 0.25 fixed | 2.8 (2.7) | −0.05 (0.00) | 1573 | 18.7 (14.5) | 0.25 |
-| s 0.25 fixed + EES | 2.6 (2.5) | −0.29 (−0.18) | 1524 | 21.6 (14.5) | 0.25 |
-| s 0.5 REC | 6.9 (5.5) | −0.18 (−0.01) | 1108 | 27.2 (14.5) | 0.65 (0.51) |
-| s 0.5 REC + EES | 5.9 (5.0) | −0.31 (−0.18) | 1255 | 25.3 (14.5) | 0.63 (0.51) |
-| s 0.25 REC | 4.3 (2.9) | −0.13 (−0.04) | 1470 | 21.6 (14.5) | 0.38 (0.26) |
-| s 0.25 REC + EES | 3.6 (2.6) | −0.30 (−0.19) | 1548 | 21.0 (14.5) | 0.36 (0.26) |
+| BWS 50%, control | 10.8 ± 0.04 (11.0) | −0.37 ± 0.01 (−0.06) | 1109 ± 20 | 41.6 ± 0.6 (17.7) | – |
+| BWS 50%, EES 10 Hz | 8.6 ± 0.11 (9.5) | −0.46 ± 0.01 (−0.23) | 1046 ± 12 | 45.7 ± 0.4 (18.0) | – |
+| BWS 90%, control | 10.6 ± 0.08 (10.3) | −0.24 ± 0.02 (−0.16) | 830 ± 17 | 45.5 ± 0.2 (38.7) | – |
+| BWS 90%, EES | 8.7 ± 0.02 (9.0) | −0.35 ± 0.02 (−0.32) | 867 ± 13 | 53.6 ± 0.05 (39.6) | – |
+| s 0.5 fixed | 5.7 ± 0.06 (5.5) | −0.17 ± 0.02 (−0.01) | 1385 ± 62 | 24.3 ± 1.2 (14.6) | 0.50 |
+| s 0.5 fixed + EES | 5.0 ± 0.06 (5.0) | −0.29 ± 0.03 (−0.20) | 1483 ± 8 | 21.6 ± 0.3 (14.6) | 0.50 |
+| s 0.25 fixed | 2.8 ± 0.05 (2.7) | −0.07 ± 0.02 (+0.02) | 1588 ± 13 | 18.7 ± 0.6 (14.6) | 0.25 |
+| s 0.25 fixed + EES | 2.6 ± 0.00 (2.5) | −0.30 ± 0.02 (−0.19) | 1526 ± 23 | 20.9 ± 0.9 (14.6) | 0.25 |
+| s 0.5 REC | 7.4 ± 0.31 (5.5) | −0.23 ± 0.04 (−0.02) | 1140 ± 23 | 30.5 ± 2.4 (14.6) | 0.69 ± 0.03 (0.51) |
+| s 0.5 REC + EES | 6.0 ± 0.04 (5.0) | −0.29 ± 0.02 (−0.16) | 1198 ± 87 | 26.7 ± 1.0 (14.6) | 0.64 ± 0.01 (0.51) |
+| s 0.25 REC | 4.1 ± 0.13 (2.9) | −0.12 ± 0.01 (−0.03) | 1545 ± 63 | 20.7 ± 0.7 (14.6) | 0.36 ± 0.01 (0.26) |
+| s 0.25 REC + EES | 3.6 ± 0.06 (2.6) | −0.28 ± 0.03 (−0.16) | 1529 ± 27 | 20.9 ± 0.1 (14.6) | 0.36 ± 0.00 (0.26) |
 
-- **EES with a healthy extensor:** the same pattern as before: r(E,F) better by 0.10 (BWS 50% and 90%) at session 10 and by 0.19 / 0.14 at session 1, Force-E lower (8.6–8.7 vs 10.5–10.7), the CUT weight grows faster at BWS 90% (+14 vs +7 pA).
-- **Recovering strength is weaker than before the change:** at s 0.5 without EES the strength recovers to 0.65 (before 0.78), Force-E to 6.9 (before 8.1), r(E,F) −0.18 (before −0.42), because the CUT weight reaches 27 pA (before 38): the chains with a weak extensor learn more slowly on the new wiring. At s 0.25: 0.38 (before 0.36), unchanged.
-- **EES effect on the strength recovery** is much smaller than before at s 0.5 (CUT 25.3 vs 27.2 pA, s_eff 0.63 vs 0.65; before −10 pA and −0.12); at s 0.25 there is none. EES still improves alternation from session 1 (by 0.17–0.24 at s 0.5 and 0.25), and lowers extensor force.
-- One seed only: the before/after differences in the strength recovery are within what the seed spread allowed earlier (±0.03 in s_eff, ±2 pA); three seeds are needed before treating them as a change.
+- **EES with a healthy extensor** (paired, all seeds agree): r(E,F) better by 0.09 (BWS 50%) and 0.12 (BWS 90%) at session 10, and by 0.17 / 0.16 at session 1; Force-E lower by 2.2 / 1.9; the CUT weight grows faster (+4.2 pA at BWS 50%, +8.1 at BWS 90%). Same pattern as on the earlier wiring (0.14 / 0.13).
+- **Recovering strength is weaker than on the earlier wiring**, in every seed: s 0.5 without EES reaches s_eff 0.69 ± 0.03 (before 0.78 ± 0.03), Force-E 7.4 (before 8.1), r(E,F) −0.23 (before −0.42), CUT 30.5 pA (before 37.6). The cause is slower CUT→RG-E learning with the weak extensor on the new wiring (more Ia input to the motoneurons, no CUT→InE). At s 0.25 it is unchanged (0.36, as before).
+- **REC against a fixed strength** (paired): Force-E +1.7 (s 0.5) and +1.3 (s 0.25), CUT +6.2 and +2.0 pA, r(E,F) not different (−0.05 ± 0.04): the recovering strength restores force, not alternation.
+- **EES effect on the strength recovery** is smaller than before: at s 0.5 CUT −3.8 pA and s_eff −0.04 (negative in all seeds; before −9.9 pA and −0.12), at s 0.25 none (+0.2 pA, s_eff 0.00). EES still improves alternation from session 1 (r(E,F) better by 0.16 at s 0.25 REC, 0.07 at s 0.5 REC at session 10; 0.16–0.20 at session 1) and lowers extensor force by 0.5–1.4.
+- Caveats: debug-small, 3 seeds; w0 and wref debug-small values (production: healthy 58.0 pA, injured starts 14.5 / 37.7 pA); the linear weight-to-strength mapping is an assumption; Ia→motoneuron weight (6 pA) not calibrated.
 
-Not done: serotonergic supply parameter, Ia→RG plasticity check, w0/wref per support level for REC on MN5, the P7 EES / weak-extensor / recovery chains and the P8 comparison on the new wiring (architecture round).
+Not done: serotonergic supply parameter, Ia→RG plasticity check, w0/wref per support level for REC on MN5, the 7b strength × loading grid and the P8 patient comparison on the new wiring (the EES, fixed-weakness and recovery chains are rerun, 3 seeds, above), calibration of the Ia→motoneuron weight, production-size chains on the new wiring.
 
 ### Phase 8 — Validation against human data (M, plus data access)
 
