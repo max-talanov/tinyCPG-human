@@ -1759,6 +1759,8 @@ tonic EES.
 - **EES effect on the strength recovery** is smaller than before: at s 0.5 CUT −3.8 pA and s_eff −0.04 (negative in all seeds; before −9.9 pA and −0.12), at s 0.25 none (+0.2 pA, s_eff 0.00). EES still improves alternation from session 1 (r(E,F) better by 0.16 at s 0.25 REC, 0.07 at s 0.5 REC at session 10; 0.16–0.20 at session 1) and lowers extensor force by 0.5–1.4.
 - Caveats: debug-small, 3 seeds; w0 and wref debug-small values (production: healthy 58.0 pA, injured starts 14.5 / 37.7 pA); the linear weight-to-strength mapping is an assumption; Ia→motoneuron weight (6 pA) not calibrated.
 
+**MN5 preparation (2026-10-14).** `run_p7_chain_mn5.sh` now targets the new wiring: root `p7_arch`, refuses sources without it, 20 conditions per seed (plain BWS controls, EES, fixed weakness, recovery REC ± EES), REC `w0`/`wref` read from each seed's source (`wref` × the mode's init_scale), 12 h. Smoke-tested at production size (3 s sessions). Ia→motoneuron weight sweep 0/3/6/12 pA (five modes, debug-small, seed 12345): stride, stance, double support and r(E,F) do not change with the weight (≤0.07 s, ≤0.02, ≤0.03, ≤0.05), so 6 pA stays; the weight is not calibrated and probably acts on the motoneuron/EMG side, which the sweep did not test.
+
 Not done: serotonergic supply parameter, Ia→RG plasticity check, w0/wref per support level for REC on MN5, the 7b strength × loading grid and the P8 patient comparison on the new wiring (the EES, fixed-weakness and recovery chains are rerun, 3 seeds, above), calibration of the Ia→motoneuron weight, production-size chains on the new wiring.
 
 ### Phase 8 — Validation against human data (M, plus data access)

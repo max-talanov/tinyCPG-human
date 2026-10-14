@@ -132,20 +132,27 @@ python3 scripts/cpg_modes_stages.py --species rat --indir results/modes_mn5/rat 
 python3 scripts/cpg_gait_phase_metrics.py results/modes_mn5/human/*.h5
 ```
 
-## 0c. Human Phase 7b — extensor weakness and EES chains at production size (`run_p7_chain_mn5.sh`)
+## 0c. Human Phase 7b — extensor weakness, strength recovery and EES chains at production size (`run_p7_chain_mn5.sh`)
 
-PLAN.md P7b: training chains (15 x 60 s, N = 100, 3 seeds) of the incomplete-SCI model with the extensor
-weakness (`--extensor-strength` 0.5 / 0.25) and cutaneous-like EES at 10 Hz, at BWS 50% and 90%: 10
-conditions per seed. The controls (healthy extensor, no EES) are the P6 spinal production chains
-(`results/2026-10-03`); they are compared locally and are not needed on MN5. One node-sized job per seed
-(`--array=0-2`, 80 CPUs = 5 chains x 16 threads, two waves), 8 h.
+PLAN.md P7b on the **architecture-round wiring** (2026-10-13: Ia→MN, swing afferent folded into Ia-F, no
+CUT→InE). Training chains (15 x 60 s, N = 100, 3 seeds) of the incomplete-SCI model at BWS 50% and 90%:
+20 conditions per seed, in 4 waves of 5 chains x 16 threads (`--array=0-2`, 80 CPUs, 12 h):
 
-**No earlier results are needed on MN5.** A chain needs only its seed's healthy source, the trained
-comfortable walk the injured start is made from (`results/human_modes/p7/src/s<seed>/comfortable.h5`).
-If it is not there, the job builds it first with the P6 recipe (120 s, `--spinal-eta 0.05`, PRP
-threshold 1; ~9 min at 16 threads). The source is deterministic for a seed, size and thread count, so it
-equals the P6 one (checked: two independent MN5 builds of seed 12345 give identical traces). To reuse
-sources that are already on MN5 instead, add `SRC_ROOT=p6_spinal`. Smoke-tested locally at production size.
+- controls: plain BWS (`bws50`, `bws90`);
+- EES only (`*_ees10`, cutaneous-like 10 Hz);
+- fixed extensor weakness `--extensor-strength` 0.5 / 0.25 (`s0.5_*`, `s0.25_*`) with and without EES;
+- recovering strength (`r0.5_*`, `r0.25_*`): `s_eff` follows the captured CUT→RG-E weight between
+  `w0` (injured start = wref x the mode's init_scale) and `wref` (the healthy trained weight); both are read from
+  the seed's healthy source by the script, with and without EES.
+
+Output root `results/human_modes/p7_arch/`. The earlier P6/P7 production chains (roots `p7`, `p6_spinal`,
+folder `results/2026-10-03`) are on the old wiring: **not valid controls and their sources cannot be
+loaded**. The script refuses a source whose h5 lacks the new wiring.
+
+**No earlier results are needed on MN5.** A chain needs only its seed's healthy source
+(`results/human_modes/p7_arch/src/s<seed>/comfortable.h5`); if it is not there, the job builds it first
+(120 s, `--spinal-eta 0.05`, PRP threshold 1; ~9 min at 16 threads). It is deterministic for a seed, size and
+thread count. Smoke-tested locally at production size (2 conditions, 3 s sessions).
 
 **Upload** (laptop, from this repo root; `<user>@<mn5-login>` is yours):
 
@@ -170,17 +177,17 @@ squeue -u $USER
 ```
 
 A weight-loader error (`synapses differ from this network`) means a source does not match the code or the
-thread count: delete `results/human_modes/p7/src/` and resubmit (the job rebuilds it). A job cut by the
+thread count: delete `results/human_modes/p7_arch/src/` and resubmit (the job rebuilds it). A job cut by the
 time limit resumes at the first unfinished session when resubmitted with the same command.
 
 **Bring back and plot** (laptop):
 
 ```bash
-rsync -av '<user>@<mn5-login>:/gpfs/projects/uab100/tinyCPG-human/results/human_modes/p7/' results/2026-10-08/p7/
+rsync -av '<user>@<mn5-login>:/gpfs/projects/uab100/tinyCPG-human/results/human_modes/p7_arch/' results/2026-10-14/p7_arch/
 ```
 
 ```bash
-python3 scripts/p7_chain_compare.py --root results/2026-10-08/p7/chain/s12345 --fig plots/p7/mn5_s12345.png
+python3 scripts/p7_chain_compare.py --root results/2026-10-14/p7_arch/chain/s12345 --fig plots/p7/mn5_arch_s12345.png
 ```
 
 ## 0b. Human Phase 3b — size sweep at 3× and 10× (`run_p3b_mn5.sh`)
