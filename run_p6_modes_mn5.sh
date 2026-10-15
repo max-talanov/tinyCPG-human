@@ -44,13 +44,13 @@
 #   STAGE=src   SLURM_ARRAY_TASK_ID=2 THREADS=2 SIM_MS=2000 ROOT=p6_modes_smoke bash run_p6_modes_mn5.sh
 #   STAGE=modes SLURM_ARRAY_TASK_ID=2 THREADS=2 SIM_MS=2000 ROOT=p6_modes_smoke bash run_p6_modes_mn5.sh
 #
-# Env: SEEDS ("12345 54321 777"), SIM_MS (120000), ROOT (p6_modes), THREADS
+# Env: SEEDS ("12345 54321 777"), SIM_MS (120000), ROOT (p6_modes_arch), THREADS
 #      (SLURM_CPUS_PER_TASK), EXTRA.
 # Summary and figures:
 #   python3 scripts/p5_seed_summary.py --modes-config config/modes/human.yaml --from-ms 60000 \
-#       results/human_modes/p6_modes/modes/s*
+#       results/human_modes/p6_modes_arch/modes/s*
 #   python3 scripts/cpg_modes_stages.py --modes-config config/modes/human.yaml \
-#       --indir results/human_modes/p6_modes/modes/s12345 --out plots/modes/p6_prod/s12345_human_modes_stages.png
+#       --indir results/human_modes/p6_modes_arch/modes/s12345 --out plots/modes/p6_prod/s12345_human_modes_stages.png
 set -euo pipefail
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 [ -f "$REPO/cpg_2legs_fast.py" ] || REPO="$(pwd)"   # sbatch copies the script elsewhere
@@ -59,7 +59,7 @@ STAGE=${STAGE:-seed}
 read -r -a SEEDS <<< "${SEEDS:-12345 54321 777}"
 WALKS=(slow comfortable fast)
 MODES=($(python3 -c "import yaml; print(' '.join(yaml.safe_load(open('$REPO/config/modes/human.yaml'))['modes']))"))
-ROOT=${ROOT:-p6_modes}
+ROOT=${ROOT:-p6_modes_arch}
 T=${SLURM_ARRAY_TASK_ID:-0}
 if [ "$STAGE" = "seed" ]; then
   export THREADS=${THREADS:-16} NO_SRUN=1
