@@ -3,7 +3,7 @@
 # reuses results/human_modes/arch2/src), then 10 chains of N sessions: EES (10 Hz cutaneous-like) at BWS 50% / 90%; fixed
 # extensor weakness s 0.5 / 0.25 (BWS 50%) +- EES; recovering strength (REC: s_eff follows the captured CUT->RG-E weight,
 # w0 = injured-start weight 14.4 pA = 0.25 x healthy, wref = healthy 57.7 pA) +- EES.
-#   SEEDS="12345" bash run_p7_arch_local.sh      (resumable; WAVE chains at a time, THREADS threads each)
+#   SEEDS="12345" bash run_chains_local.sh      (resumable; WAVE chains at a time, THREADS threads each)
 # Output: seed 12345 -> results/human_modes/arch2/chain/<cond>; other seeds -> results/human_modes/arch2_seeds/s<seed>/chain/<cond>
 set -euo pipefail
 cd "$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
@@ -20,7 +20,7 @@ for sd in "${SEEDS[@]}"; do
   fi
   i=0
   while read -r name mode fl; do
-    ( SEED=$sd SIM_MS=60000 MODE=$mode N=$N SRC=$src TAG=$base/chain/$name TRIGGER=force EXTRA="$fl" bash run_p6_sessions.sh >/dev/null 2>&1 ) &
+    ( SEED=$sd SIM_MS=60000 MODE=$mode N=$N SRC=$src TAG=$base/chain/$name TRIGGER=force EXTRA="$fl" bash run_sessions.sh >/dev/null 2>&1 ) &
     i=$((i + 1)); if [ $((i % WAVE)) -eq 0 ]; then wait; fi
   done <<EOF
 ees10_bws50 bws50 $EES

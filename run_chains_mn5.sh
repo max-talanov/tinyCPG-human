@@ -44,12 +44,12 @@
 # skips saved sessions; a chain cut by the time limit continues where it stopped).
 #
 # Submit from the repo root:
-#   sbatch run_p7_chain_mn5.sh
-#   sbatch --array=0 run_p7_chain_mn5.sh          # one seed only
+#   sbatch run_chains_mn5.sh
+#   sbatch --array=0 run_chains_mn5.sh          # one seed only
 #
 # Local smoke test (production size, tiny times; builds its own source):
 #   SLURM_ARRAY_TASK_ID=0 THREADS=2 SRC_SIM_MS=2000 SESSION_MS=2000 N=2 ROOT=p7_smoke \
-#     CONDS="bws50_ees10:bws50:EES s0.5_bws50:bws50:EXT05" bash run_p7_chain_mn5.sh
+#     CONDS="bws50_ees10:bws50:EES s0.5_bws50:bws50:EXT05" bash run_chains_mn5.sh
 #
 # Env: SEEDS ("12345 54321 777"), N (15), SESSION_MS (60000), ROOT (p7_arch), SRC_ROOT (= ROOT; p6_spinal reuses
 #      existing P6 sources), SRC_SIM_MS (120000), THREADS (16),
@@ -136,7 +136,7 @@ for c in "${CONDS[@]}"; do
   fl=$(flags_of "$fs" "$mode")
   echo "[p7-mn5]   $name: mode=$mode flags:$fl"
   SEED="$SEED" SIM_MS="$SESSION_MS" MODE="$mode" N="$N" SRC="$SRC" \
-    TAG="$ROOT/chain/s$SEED/$name" EXTRA="$fl $EXTRA" bash "$REPO/run_p6_sessions.sh" &
+    TAG="$ROOT/chain/s$SEED/$name" EXTRA="$fl $EXTRA" bash "$REPO/run_sessions.sh" &
   i=$((i + 1))
   if [ $((i % WAVE)) -eq 0 ]; then wait; fi
 done

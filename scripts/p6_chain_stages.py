@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 p6_chain_stages.py
-PLAN.md Phase 6: force and plastic weights of session chains (run_p6_sessions.sh) at
+PLAN.md Phase 6: force and plastic weights of session chains (run_sessions.sh) at
 three states -- the first, a middle and the last session.
 
 Layout: one row per chain (e.g. BWS 50%, BWS 90%), 4 columns:

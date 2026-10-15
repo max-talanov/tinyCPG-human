@@ -1385,7 +1385,7 @@ Done:
 - Session chains (`MOD_SESSIONS`): each consolidation run saves per-synapse final
   baselines and final PRP pools; `--init-weights-state baseline` starts the next
   session from them. Round-trip checked: session 2 loads session 1's baselines exactly
-  (CUT→RG-E 63.20, vs the live 66.86) and its PRP pools. `run_p6_sessions.sh` runs a
+  (CUT→RG-E 63.20, vs the live 66.86) and its PRP pools. `run_sessions.sh` runs a
   chain; `scripts/p6_session_metrics.py` summarises each session.
 
 Capture calibration (debug-small, BWS 50% from the injured start, 60 s sessions):
@@ -1451,7 +1451,7 @@ seeds 12345 / 54321 / 777, BWS 50% and BWS 90%, 15 × 60 s sessions, 16 threads)
 - `STAGE=src` (array 0–2): per seed, the healthy source, a naive 120 s comfortable walk
   at the P5 capture setting (PRP threshold 1), as the P5 seed runs. It is re-run on
   MN5 because the chain must match the source's seed, size and thread count.
-- `STAGE=chain` (array 0–5, after the sources): `run_p6_sessions.sh`, session 1 the
+- `STAGE=chain` (array 0–5, after the sources): `run_sessions.sh`, session 1 the
   injured start (source × init_scale), then captured baselines. Chains are resumable:
   a resubmitted job skips saved sessions.
 - Local smoke test at production size (2 s source, 3 × 2 s sessions) passed: seed and
@@ -1539,7 +1539,7 @@ are shorter. Swing-end sweep, production (naive 120 s, seed 12345) / debug-small
 
 No value fits both sizes within 5%; **fast uses 0.55 (set for production)**: stride 902
 (+1.3%), stance 0.57, r(E,F) −0.81, r(E_L,E_R) −0.95. Debug-small fast runs ~8% long.
-**Five modes, production, 3 seeds (MN5, 2026-10-07; `run_p6_modes_mn5.sh` packed per seed;
+**Five modes, production, 3 seeds (MN5, 2026-10-07; `run_human_modes_mn5.sh` packed per seed;
 `results/2026-10-07/p6/p6_modes/`, `plots/modes/p6_prod/s<seed>_human_modes_stages.png`).**
 Spinal plasticity, trained starts, 120 s, t > 60 s, mean ± sd over seeds:
 
@@ -1621,7 +1621,7 @@ tonic EES.
   dependence. EES at ~5–15 Hz gives tonic extensor activity; ~25–50 Hz gives
   rhythmic E/F alternation (Minassian et al. 2004).
 
-**Status (2026-10-05): started, debug-small.** Done: `--ees-hz/--ees-amp` (tonic pulse train on Ia-E/Ia-F, both legs; off = unchanged, `./regress.sh` ALL PASS), `--bs-drive-scale` (descending-drive loss for 7b/7c), `scripts/p7_ees_summary.py`. First 7c sweep (complete SCI, no loading, no external ramps, EES 0–50 Hz, amp 0.5/1.0): the extensor never activates, because the RG-E load gate needs contact and Ia alone stays subthreshold by design (P5). The flexor goes tonic at 40–50 Hz. Added Ib and CUT-like recruitment (`--ees-amp-ib`, `--ees-amp-cut`), which lets EES reach the gate: the extensor activates and is tonic and co-active with the flexor at CUT 1.0, 40–50 Hz. At 5–25 Hz it is weak with no E/F alternation, so the frequency dependence is the reverse of the 7c target (5–15 Hz tonic extension, 25–50 Hz rhythmic E/F). Open: untrained weights and 30 s runs so far; trained or injured-start weights and longer runs are next. 7a/7b at debug-small (2026-10-06, `run_p7_local.sh`, seed 12345, 60 s runs from trained spinal-rule sources):
+**Status (2026-10-05): started, debug-small.** Done: `--ees-hz/--ees-amp` (tonic pulse train on Ia-E/Ia-F, both legs; off = unchanged, `./regress.sh` ALL PASS), `--bs-drive-scale` (descending-drive loss for 7b/7c), `scripts/p7_ees_summary.py`. First 7c sweep (complete SCI, no loading, no external ramps, EES 0–50 Hz, amp 0.5/1.0): the extensor never activates, because the RG-E load gate needs contact and Ia alone stays subthreshold by design (P5). The flexor goes tonic at 40–50 Hz. Added Ib and CUT-like recruitment (`--ees-amp-ib`, `--ees-amp-cut`), which lets EES reach the gate: the extensor activates and is tonic and co-active with the flexor at CUT 1.0, 40–50 Hz. At 5–25 Hz it is weak with no E/F alternation, so the frequency dependence is the reverse of the 7c target (5–15 Hz tonic extension, 25–50 Hz rhythmic E/F). Open: untrained weights and 30 s runs so far; trained or injured-start weights and longer runs are next. 7a/7b at debug-small (2026-10-06, `run_wl_local.sh`, seed 12345, 60 s runs from trained spinal-rule sources):
 - **7a (intact drive, trained starts):** slow / comfortable / fast r(E,F) −0.76 / −0.74 / −0.77, stride 1411 / 1141 / 978 ms, stance 0.64 / 0.60 / 0.57; BWS 50% injured start −0.29, BWS 90% −0.18: the P5/P6 pattern, the reference.
 - **7b scan (descending drive scale S × pathway weights W, BWS 50%, one session):** lowering S does **not** degrade stepping, it sharpens it. With the healthy trained weights r(E,F) goes −0.73 (S 1) → −0.81 (S 0) at full loading and −0.53 → −0.81 at BWS 50%; weakened weights W 0.25: −0.29 → −0.81. Stride and stance do not move (stride 1.0–1.2 s, stance 0.55–0.63). What S changes is the flexor: mean act_f 0.73 → 0.37 (W 0.25) and 0.60 → 0.49 (full loading). Reason: stance is carried by CUT and Ia, the descending drive feeds the flexor (and its overlap with the extensor in stance), and swing ends on a fraction of the flexor's own peak, so a weaker flexor does not lengthen swing.
 - **Correction (investigator, 2026-10-06): the injury is extensor weakness, not descending drive or the flexor.** Incomplete-SCI patients cannot carry their weight (weak extensor) and use walkers, crutches or side support to do it; the flexor is secondary (foot drop aside, and Exp03 has locked ankles). So the support level is the **loading** L (the walker takes weight off the leg), and the injury is the **extensor strength**. The descending-drive scan above is therefore not the 7b axis (`--bs-drive-scale` stays for 7c).
@@ -1638,7 +1638,7 @@ tonic EES.
   Weakness lengthens the stride (1.26 → 1.5–1.65 s) and the stance (0.57 → 0.63–0.66), the direction of the patients (stride 1.4–2.6 s, stance 0.7–0.86). r(E,F) is set mainly by the loading: it falls from about −0.7 at L = 1 to −0.1 at L = 0.1 for every s. The extensor-active fraction of stance falls with s (0.93 → 0.56–0.8).
 - **Reading:** weakness changes the timing and the force; the support (low L) removes the loading drive that keeps the E/F alternation, and P6 showed the same loading drives recovery. Next: training chains from an injured start (s ≈ 0.25–0.5, L = 0.5 and 0.25 as walker levels) and ± EES.
 
-**7b training chains ± EES (debug-small, 2026-10-06; `run_p6_sessions.sh`, 10 × 60 s sessions, seed 12345, P6 injured starts, `scripts/p7_chain_compare.py`, `plots/p7/chain_compare.png`).** Support level: BWS 50% (L 0.5, weights ×0.25) and BWS 90% (L 0.1, weights ×0.65). EES: Ia, Ib and CUT recruitment 0.5 each, 10 or 30 Hz.
+**7b training chains ± EES (debug-small, 2026-10-06; `run_sessions.sh`, 10 × 60 s sessions, seed 12345, P6 injured starts, `scripts/p7_chain_compare.py`, `plots/p7/chain_compare.png`).** Support level: BWS 50% (L 0.5, weights ×0.25) and BWS 90% (L 0.1, weights ×0.65). EES: Ia, Ib and CUT recruitment 0.5 each, 10 or 30 Hz.
 
 | Chain (session 1 → 10) | r(E,F) | Force-E p95 | captured CUT→RG-E (pA) |
 |---|---|---|---|
@@ -1685,7 +1685,7 @@ tonic EES.
 - **EES (10 Hz, cutaneous-like) changes the alternation at once and does not restore the strength:** r(E,F) is better in every session of every weak chain (e.g. s 0.25, BWS 50%: −0.31 → −0.41 vs −0.06 → −0.08), but extensor force falls a further 10–20% (3.0 → 2.4), the stance gets longer (0.61 → 0.69), and at BWS 50% the CUT weight does not grow faster (s 0.5: 22 vs 25 pA). At BWS 90% the weight still grows slightly faster (47 vs 44 pA; 40 vs 38 pA).
 - **Reading:** EES helps alternation, not force. The strength weakness here is a fixed muscle gain, so it cannot recover; if the patients' weakness is largely neural and recovers with training, strength would have to depend on the trained state (extensor strength growing with the captured CUT→RG-E weight or the extensor activity). That is a modelling choice not made yet.
 
-**Strength that recovers with training (debug-small, 2026-10-08/09, 3 seeds 12345 / 54321 / 777, 10 × 60 s sessions, BWS 50%; `--strength-recovery-w0 14.1 --strength-recovery-wref 56.5`; `run_p7_seeds_local.sh`, `scripts/p7_seed_summary.py`; figure `plots/p7/recovery_chain_stages.png`, seed 12345).** `s_eff = s + (1 − s) · clamp((w − w0)/(wref − w0), 0, 1)`, w = mean captured CUT→RG-E weight of the leg, w0 the injured-start weight (14.1 pA = healthy 56.5 × 0.25), wref the healthy trained weight. The three healthy sources have 56.5 / 57.0 / 56.7 pA, so one wref fits all. Session 10, mean ± sd over seeds (session 1 in brackets):
+**Strength that recovers with training (debug-small, 2026-10-08/09, 3 seeds 12345 / 54321 / 777, 10 × 60 s sessions, BWS 50%; `--strength-recovery-w0 14.1 --strength-recovery-wref 56.5`; `run_chains_seeds_local.sh`, `scripts/p7_seed_summary.py`; figure `plots/p7/recovery_chain_stages.png`, seed 12345).** `s_eff = s + (1 − s) · clamp((w − w0)/(wref − w0), 0, 1)`, w = mean captured CUT→RG-E weight of the leg, w0 the injured-start weight (14.1 pA = healthy 56.5 × 0.25), wref the healthy trained weight. The three healthy sources have 56.5 / 57.0 / 56.7 pA, so one wref fits all. Session 10, mean ± sd over seeds (session 1 in brackets):
 
 | s | EES | Force-E p95 | r(E,F) | stride (ms) | CUT→RG-E (pA) | s_eff |
 |---|---|---|---|---|---|---|
@@ -1713,7 +1713,7 @@ tonic EES.
 - Consequences: the wiring changed, so all earlier human sources and chains (local P7 and the MN5 `p6_spinal` sources) cannot be loaded and must be regenerated; the P7 EES / weak-extensor / recovery chains, the 7b grid and the P8 comparison are not rerun and predate this change. EES recruits Ia, so it now also evokes the direct Ia→MN reflex. The Ia→MN weight is an assumption.
 - Human runs freeze BS→RG (`--freeze-bs-rg`): BS→RG is static; the first version of Figure 1 drew it as plastic.
 
-**Production chains (MN5, 2026-10-12; `run_p7_chain_mn5.sh`, N = 100, 3 seeds, 15 × 60 s sessions, 10 conditions; controls = P6 spinal chains 2026-10-07; `scripts/p7_chain_seeds.py`, `plots/p7/mn5_recovery.png`, stage figures `plots/p7/mn5_s12345_bws{50,90}_stages.png`).** The sources built in the job are bit-identical to the P6 ones (all seeds), so the P6 chains are valid controls. Mean over seeds; r(E,F) last 20 s of the session; criterion r(E,F) ≤ −0.5:
+**Production chains (MN5, 2026-10-12; `run_chains_mn5.sh`, N = 100, 3 seeds, 15 × 60 s sessions, 10 conditions; controls = P6 spinal chains 2026-10-07; `scripts/p7_chain_seeds.py`, `plots/p7/mn5_recovery.png`, stage figures `plots/p7/mn5_s12345_bws{50,90}_stages.png`).** The sources built in the job are bit-identical to the P6 ones (all seeds), so the P6 chains are valid controls. Mean over seeds; r(E,F) last 20 s of the session; criterion r(E,F) ≤ −0.5:
 
 | condition | r(E,F) s1 → s15 | training (s15 − s1) | sessions to criterion | captured CUT→RG-E s1 → s15 (pA) | stride s15 (ms) |
 |---|---|---|---|---|---|
@@ -1736,7 +1736,7 @@ tonic EES.
 
 **The MN5 production chains above were run with the architecture before 2026-10-13** (no Ia→motoneuron connection, with CUT→InE, separate swing group); on the new wiring the sources and chains must be regenerated. Production numbers for REC: healthy CUT→RG-E 58.0 pA, so wref 58.0 (not the debug-small 56.5) and w0 per support level (14.5 / 37.7 pA).
 
-**EES and recovery chains on the new wiring (2026-10-13/14, debug-small, 3 seeds 12345 / 54321 / 777, 10 × 60 s sessions, BWS 50% unless stated; `run_p7_arch_local.sh`, `scripts/p7_arch_seed_summary.py`; REC w0 14.4, wref 57.7 pA = the new healthy source).** Session 10, mean ± sd over seeds (session 1 in brackets); "before" = the same chains on the earlier wiring, 3 seeds:
+**EES and recovery chains on the new wiring (2026-10-13/14, debug-small, 3 seeds 12345 / 54321 / 777, 10 × 60 s sessions, BWS 50% unless stated; `run_chains_local.sh`, `scripts/p7_arch_seed_summary.py`; REC w0 14.4, wref 57.7 pA = the new healthy source).** Session 10, mean ± sd over seeds (session 1 in brackets); "before" = the same chains on the earlier wiring, 3 seeds:
 
 | condition | Force-E p95 | r(E,F) | stride (ms) | CUT→RG-E (pA) | s_eff |
 |---|---|---|---|---|---|
@@ -1759,7 +1759,9 @@ tonic EES.
 - **EES effect on the strength recovery** is smaller than before: at s 0.5 CUT −3.8 pA and s_eff −0.04 (negative in all seeds; before −9.9 pA and −0.12), at s 0.25 none (+0.2 pA, s_eff 0.00). EES still improves alternation from session 1 (r(E,F) better by 0.16 at s 0.25 REC, 0.07 at s 0.5 REC at session 10; 0.16–0.20 at session 1) and lowers extensor force by 0.5–1.4.
 - Caveats: debug-small, 3 seeds; w0 and wref debug-small values (production: healthy 58.0 pA, injured starts 14.5 / 37.7 pA); the linear weight-to-strength mapping is an assumption; Ia→motoneuron weight (6 pA) not calibrated.
 
-**MN5 preparation (2026-10-14).** `run_p7_chain_mn5.sh` now targets the new wiring: root `p7_arch`, refuses sources without it, 20 conditions per seed (plain BWS controls, EES, fixed weakness, recovery REC ± EES), REC `w0`/`wref` read from each seed's source (`wref` × the mode's init_scale), 12 h. Smoke-tested at production size (3 s sessions). Ia→motoneuron weight sweep 0/3/6/12 pA (five modes, debug-small, seed 12345): stride, stance, double support and r(E,F) do not change with the weight (≤0.07 s, ≤0.02, ≤0.03, ≤0.05), so 6 pA stays; the weight is not calibrated and probably acts on the motoneuron/EMG side, which the sweep did not test.
+**Script renames (2026-10-15).** The run scripts now have phase-independent names: `run_p6_sessions.sh` → `run_sessions.sh`, `run_p6_modes_mn5.sh` → `run_human_modes_mn5.sh`, `run_p7_chain_mn5.sh` → `run_chains_mn5.sh`, `run_p7_arch_local.sh` → `run_chains_local.sh`, `run_p7_seeds_local.sh` → `run_chains_seeds_local.sh`, `run_p7_local.sh` → `run_wl_local.sh` (old names in the text below were replaced; `git log --follow` keeps the history). Output roots keep their names (`p7_arch`, `p6_modes_arch`) because the MN5 results already use them; `run_p6_chain_mn5.sh` and the `run_p3b_*` scripts (earlier, superseded or phase-specific experiments) keep theirs. New scripts get names by what they do, not by the phase.
+
+**MN5 preparation (2026-10-14).** `run_chains_mn5.sh` now targets the new wiring: root `p7_arch`, refuses sources without it, 20 conditions per seed (plain BWS controls, EES, fixed weakness, recovery REC ± EES), REC `w0`/`wref` read from each seed's source (`wref` × the mode's init_scale), 12 h. Smoke-tested at production size (3 s sessions). Ia→motoneuron weight sweep 0/3/6/12 pA (five modes, debug-small, seed 12345): stride, stance, double support and r(E,F) do not change with the weight (≤0.07 s, ≤0.02, ≤0.03, ≤0.05), so 6 pA stays; the weight is not calibrated and probably acts on the motoneuron/EMG side, which the sweep did not test.
 
 **MN5 production chains on the new wiring (2026-10-15; `results/2026-10-15/p7/human_modes/p7_arch`, job 47275918, 3 seeds x 20 conditions x 15 sessions of 60 s, N = 100; `scripts/p7_mn5_summary.py`, `plots/p7/mn5_arch_s12345_stages.png`).** All 900 sessions finished. Healthy sources: captured CUT→RG-E 58.1 / 59.0 / 58.7 pA (seeds 12345 / 54321 / 777), so REC used w0 14.5 (BWS 50%) and 38 (BWS 90%). Seed-to-seed sd is at most 0.05 on r(E,F) and at most 1.6 pA on the weight (4.4 pA for BWS 50% s 0.5 REC + EES, the least consistent cell), so the effects below are not seed noise. The five modes themselves were not rerun at production size (only the chains); the stage figure shows chains of seed 12345 (first / middle / last session). A stray partial copy of 4 conditions sits in `results/2026-10-15/p7/p7_arch` and is not used.
 

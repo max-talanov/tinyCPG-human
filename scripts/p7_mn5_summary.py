@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 p7_mn5_summary.py
-PLAN.md P7b at production size on the architecture-round wiring (run_p7_chain_mn5.sh, MN5, 3 seeds x 20 conditions x 15 sessions).
+PLAN.md P7b at production size on the architecture-round wiring (run_chains_mn5.sh, MN5, 3 seeds x 20 conditions x 15 sessions).
 Per condition and session (first / last), mean +- sd over seeds of Force-E p95, r(E,F), stride, captured CUT->RG-E weight and s_eff;
 then paired per-seed effects on the last session: EES (with - without) and REC (recovering - fixed weakness), plus fixed weakness vs control.
 Usage: python3 scripts/p7_mn5_summary.py [--root results/2026-10-15/p7/human_modes/p7_arch] [--sessions 1 15]

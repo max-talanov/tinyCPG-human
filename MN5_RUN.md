@@ -132,7 +132,7 @@ python3 scripts/cpg_modes_stages.py --species rat --indir results/modes_mn5/rat 
 python3 scripts/cpg_gait_phase_metrics.py results/modes_mn5/human/*.h5
 ```
 
-## 0c. Human Phase 7b — extensor weakness, strength recovery and EES chains at production size (`run_p7_chain_mn5.sh`)
+## 0c. Human Phase 7b — extensor weakness, strength recovery and EES chains at production size (`run_chains_mn5.sh`)
 
 PLAN.md P7b on the **architecture-round wiring** (2026-10-13: Ia→MN, swing afferent folded into Ia-F, no
 CUT→InE). Training chains (15 x 60 s, N = 100, 3 seeds) of the incomplete-SCI model at BWS 50% and 90%:
@@ -157,7 +157,7 @@ thread count. Smoke-tested locally at production size (2 conditions, 3 s session
 **Upload** (laptop, from this repo root; `<user>@<mn5-login>` is yours):
 
 ```bash
-rsync -av --relative cpg_2legs_fast.py species_config.py config/species/ config/modes/human.yaml run_human_modes.sh run_p6_sessions.sh run_p7_chain_mn5.sh scripts/mode_params.py <user>@<mn5-login>:/gpfs/projects/uab100/tinyCPG-human/
+rsync -av --relative cpg_2legs_fast.py species_config.py config/species/ config/modes/human.yaml run_human_modes.sh run_sessions.sh run_chains_mn5.sh scripts/mode_params.py <user>@<mn5-login>:/gpfs/projects/uab100/tinyCPG-human/
 ```
 
 **Check on MN5** (in `/gpfs/projects/uab100/tinyCPG-human`):
@@ -169,7 +169,7 @@ python3 -c "import nest, yaml, h5py; print(nest.__version__)" && python3 species
 **Submit** (on MN5, same directory; one job per seed, fits the account job-submit limit):
 
 ```bash
-sbatch -A uab100 -q acc_resc run_p7_chain_mn5.sh
+sbatch -A uab100 -q acc_resc run_chains_mn5.sh
 ```
 
 ```bash

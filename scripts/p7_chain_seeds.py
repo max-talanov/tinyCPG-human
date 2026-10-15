@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 p7_chain_seeds.py
-PLAN.md P7b: recovery curves of the MN5 production chains (run_p7_chain_mn5.sh layout
+PLAN.md P7b: recovery curves of the MN5 production chains (run_chains_mn5.sh layout
 <root>/chain/s<seed>/<condition>/s<k>/<mode>.h5) across seeds, with the P6 spinal chains as the
 controls (healthy extensor, no EES; <control>/chain/s<seed>/<mode>/s<k>/<mode>.h5).
 One row per support level (BWS 50%, BWS 90%), against session number:

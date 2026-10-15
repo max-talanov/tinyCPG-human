@@ -2,7 +2,7 @@
 """
 p7_arch_seed_summary.py
 PLAN.md P7 on the architecture-round wiring: the EES, fixed-weakness and recovering-strength (REC) chains across seeds
-(run_p7_arch_local.sh). Per condition and session (first / last), mean +- sd over seeds of Force-E p95, r(E,F) (t > --from-ms),
+(run_chains_local.sh). Per condition and session (first / last), mean +- sd over seeds of Force-E p95, r(E,F) (t > --from-ms),
 stride, captured CUT->RG-E weight and s_eff; then paired effects per seed on the last session: EES (ees10 - noees) and
 REC (recovering - fixed).
 

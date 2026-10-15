@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 p8_mn5_vs_humans.py
-PLAN.md P8 on the MN5 production chains (run_p7_chain_mn5.sh, architecture-round wiring): gait timing (stride, stance, double support) and
+PLAN.md P8 on the MN5 production chains (run_chains_mn5.sh, architecture-round wiring): gait timing (stride, stance, double support) and
 EMG-envelope timing / co-activation of every chain condition at session 15 (mean over the seeds), against the four SCI patients
 (validation/human_sci_metrics.json) and the two healthy controls (validation/human_gait_reference.json). The healthy model reference is the
 seed's trained comfortable source (<root>/src/s<seed>/comfortable.h5). Same measures as p8_model_vs_patients.py / p8_emg_model_vs_humans.py.

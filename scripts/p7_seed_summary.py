@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 p7_seed_summary.py
-PLAN.md P7 step 1: the recovering-strength chains across seeds (run_p7_seeds_local.sh). Per condition
+PLAN.md P7 step 1: the recovering-strength chains across seeds (run_chains_seeds_local.sh). Per condition
 (strength s x EES) and session (first / middle / last), mean +- sd over seeds of Force-E p95, r(E,F) (mean of the
 legs, t > --from-ms), stride, captured CUT->RG-E weight and the effective strength s_eff. Also the paired EES effect
 (ees10 - noees) per seed on the last session, to separate it from the seed spread.

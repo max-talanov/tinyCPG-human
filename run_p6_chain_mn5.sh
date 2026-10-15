@@ -20,7 +20,7 @@
 #                (PRP threshold 1), as results/human_modes/p5_seeds/*/comfortable.h5.
 #                Output: results/human_modes/$ROOT/src/s<seed>/comfortable.h5
 #   STAGE=chain  array 0..(#SEEDS x #MODES - 1), task = seed_index x #MODES + mode_index:
-#                N sessions of SESSION_MS each (run_p6_sessions.sh, calibrated capture:
+#                N sessions of SESSION_MS each (run_sessions.sh, calibrated capture:
 #                species defaults), session 1 = injured start from that seed's source.
 #                Output: results/human_modes/$ROOT/chain/s<seed>/<mode>/s<k>/<mode>.h5
 #
@@ -75,7 +75,7 @@ case "$STAGE" in
     [ -f "$SRC/comfortable.h5" ] || { echo "[p6-mn5] missing source $SRC/comfortable.h5 (run STAGE=src first)" >&2; exit 1; }
     echo "[p6-mn5] chain seed=$SEED mode=$MODE N=$N session=${SESSION_MS}ms threads=$THREADS"
     SEED="$SEED" SIM_MS="$SESSION_MS" MODE="$MODE" N="$N" SRC="$SRC" \
-      TAG="$ROOT/chain/s$SEED/$MODE" EXTRA="$EXTRA" bash "$REPO/run_p6_sessions.sh"
+      TAG="$ROOT/chain/s$SEED/$MODE" EXTRA="$EXTRA" bash "$REPO/run_sessions.sh"
     ;;
   *) echo "[p6-mn5] STAGE must be src or chain" >&2; exit 1 ;;
 esac

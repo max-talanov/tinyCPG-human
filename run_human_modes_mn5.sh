@@ -34,15 +34,15 @@
 # every synapse), so both stages use the same thread count (THREADS).
 #
 # Submit from the repo root, packed (3 jobs):
-#   sbatch run_p6_modes_mn5.sh
+#   sbatch run_human_modes_mn5.sh
 # Unpacked (24 jobs; the modes wait for all nine sources):
-#   jid=$(sbatch --parsable --array=0-8 --cpus-per-task=16 --export=ALL,STAGE=src run_p6_modes_mn5.sh)
-#   sbatch --array=0-14 --cpus-per-task=16 --dependency=afterok:$jid --export=ALL,STAGE=modes run_p6_modes_mn5.sh
+#   jid=$(sbatch --parsable --array=0-8 --cpus-per-task=16 --export=ALL,STAGE=src run_human_modes_mn5.sh)
+#   sbatch --array=0-14 --cpus-per-task=16 --dependency=afterok:$jid --export=ALL,STAGE=modes run_human_modes_mn5.sh
 #
 # Local smoke test (production size, tiny times; plain bash):
-#   SLURM_ARRAY_TASK_ID=0 THREADS=2 SIM_MS=2000 ROOT=p6_modes_smoke bash run_p6_modes_mn5.sh
-#   STAGE=src   SLURM_ARRAY_TASK_ID=2 THREADS=2 SIM_MS=2000 ROOT=p6_modes_smoke bash run_p6_modes_mn5.sh
-#   STAGE=modes SLURM_ARRAY_TASK_ID=2 THREADS=2 SIM_MS=2000 ROOT=p6_modes_smoke bash run_p6_modes_mn5.sh
+#   SLURM_ARRAY_TASK_ID=0 THREADS=2 SIM_MS=2000 ROOT=p6_modes_smoke bash run_human_modes_mn5.sh
+#   STAGE=src   SLURM_ARRAY_TASK_ID=2 THREADS=2 SIM_MS=2000 ROOT=p6_modes_smoke bash run_human_modes_mn5.sh
+#   STAGE=modes SLURM_ARRAY_TASK_ID=2 THREADS=2 SIM_MS=2000 ROOT=p6_modes_smoke bash run_human_modes_mn5.sh
 #
 # Env: SEEDS ("12345 54321 777"), SIM_MS (120000), ROOT (p6_modes_arch), THREADS
 #      (SLURM_CPUS_PER_TASK), EXTRA.

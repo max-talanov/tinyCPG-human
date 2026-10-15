@@ -2,7 +2,7 @@
 # PLAN.md P7 step 1 (more seeds), debug-small: per seed, the healthy comfortable source, then the
 # recovering-strength chains (--extensor-strength s + --strength-recovery-w0/wref) at BWS 50%, s 0.5 / 0.25, +-10 Hz
 # cutaneous-like EES. Chains must use the source's seed and THREADS.
-#   SEEDS="54321 777" bash run_p7_seeds_local.sh        (stage src, then chains; resumable)
+#   SEEDS="54321 777" bash run_chains_seeds_local.sh        (stage src, then chains; resumable)
 # Output: results/human_modes/p7_seeds/s<seed>/{src,chain/r<s>_<noees|ees10>}. Summary: scripts/p7_seed_summary.py
 set -euo pipefail
 cd "$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
@@ -21,7 +21,7 @@ for sd in "${SEEDS[@]}"; do   # chains of one seed at a time (4 runs x 2 threads
   for s in 0.5 0.25; do for e in noees ees10; do
     fl="--extensor-strength $s $REC"; [ $e = ees10 ] && fl="$fl $EES"
     ( SEED=$sd SIM_MS=60000 MODE=bws50 N=$N SRC=results/human_modes/p7_seeds/s$sd/src \
-        TAG=p7_seeds/s$sd/chain/r${s}_$e EXTRA="$fl" bash run_p6_sessions.sh >/dev/null 2>&1 ) &
+        TAG=p7_seeds/s$sd/chain/r${s}_$e EXTRA="$fl" bash run_sessions.sh >/dev/null 2>&1 ) &
   done; done
   wait
 done

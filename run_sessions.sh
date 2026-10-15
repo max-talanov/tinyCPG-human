@@ -6,7 +6,7 @@
 # comfortable run x init_scale, an injured start), so SRC must hold that run.
 #
 #   MODE=bws50 N=5 SIM_MS=60000 SIZE=debug SRC=results/human_modes/inj_base \
-#   TAG=p6_chain/bws50 EXTRA="--consolidate-prp-threshold 10" bash run_p6_sessions.sh
+#   TAG=p6_chain/bws50 EXTRA="--consolidate-prp-threshold 10" bash run_sessions.sh
 #
 # Output: results/human_modes/<TAG>/s<k>/<MODE>.h5, k = 1..N.
 # Resumable: a session whose log says the HDF5 was saved is skipped (RESUME=0 reruns it),

@@ -3,7 +3,7 @@
 p7_wl_grid.py
 PLAN.md P7b: grid of one-session runs over extensor weakness (--init-weights-scale W, pathway weights x W)
 and loading (L = --ia-feedback-gain = --cut-feedback-gain; walker / body-weight support).
-Reads results/human_modes/p7/7b_wl/w<W>_l<L>/bws50.h5 (run_p7_local.sh style) and prints one grid per metric:
+Reads results/human_modes/p7/7b_wl/w<W>_l<L>/bws50.h5 (run_wl_local.sh style) and prints one grid per metric:
   rEF     mean r(Force-E, Force-F)         E_force  95th percentile of Force-E (a.u., 17 = healthy full load)
   stance  mean stance fraction            stride   measured stride (ms)
   Eact    extensor-active fraction of stance

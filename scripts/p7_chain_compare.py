@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 p7_chain_compare.py
-PLAN.md P7b: recovery curves of session chains (run_p6_sessions.sh, TAG p7/chain/<name>/s<k>/<mode>.h5)
+PLAN.md P7b: recovery curves of session chains (run_sessions.sh, TAG p7/chain/<name>/s<k>/<mode>.h5)
 compared across conditions (support level, EES). Per session, last --last-ms of the run:
   rEF     r(Force-E, Force-F), mean of the legs
   FE      95th percentile of Force-E (a.u.)

@@ -8,7 +8,7 @@
 #                loading (walker / support level L = both feedback gains, $LOADS), trained start;
 #                read with scripts/p7_wl_grid.py --root results/human_modes/p7/7b
 #
-#   bash run_p7_local.sh src && bash run_p7_local.sh 7a && bash run_p7_local.sh 7b
+#   bash run_wl_local.sh src && bash run_wl_local.sh 7a && bash run_wl_local.sh 7b
 #   extra flags (e.g. EES): EXTRA="--ees-hz 30 --ees-amp 0.5 --ees-amp-ib 0.5 --ees-amp-cut 0.5"
 # Output: results/human_modes/$P7ROOT/{src,7a,7b/...} (P7ROOT default p7). Summaries: scripts/cpg_gait_phase_metrics.py,
 #   scripts/p7_ees_summary.py.

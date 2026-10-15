@@ -28,7 +28,7 @@
 #                  --long-run preset (which forces >= 100 ms) is replaced by its other
 #                  settings, given explicitly.
 #   NO_SRUN=1      run python directly inside a SLURM job (several runs packed into one
-#                  allocation, e.g. run_p6_modes_mn5.sh STAGE=seed)
+#                  allocation, e.g. run_human_modes_mn5.sh STAGE=seed)
 #   SRC_DIR        directory of the init_from runs (default: the output directory)
 #   SIM_MS, SEED, EXTRA (extra model flags, appended last)
 # Plasticity: the species default (human: spinal induction + consolidation, P6), not STDP.
