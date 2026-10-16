@@ -1763,6 +1763,21 @@ tonic EES.
 
 **MN5 preparation (2026-10-14).** `run_chains_mn5.sh` now targets the new wiring: root `p7_arch`, refuses sources without it, 20 conditions per seed (plain BWS controls, EES, fixed weakness, recovery REC ± EES), REC `w0`/`wref` read from each seed's source (`wref` × the mode's init_scale), 12 h. Smoke-tested at production size (3 s sessions). Ia→motoneuron weight sweep 0/3/6/12 pA (five modes, debug-small, seed 12345): stride, stance, double support and r(E,F) do not change with the weight (≤0.07 s, ≤0.02, ≤0.03, ≤0.05), so 6 pA stays; the weight is not calibrated and probably acts on the motoneuron/EMG side, which the sweep did not test.
 
+**MN5 five modes at production size on the new wiring (2026-10-16; `results/2026-10-16/modes6/p6_modes_arch`, `run_human_modes_mn5.sh`, 3 seeds, 120 s, N = 100; `plots/modes/arch_prod/s<seed>_human_modes_stages.png`).** All 15 runs finished (healthy sources trained first, then the five modes from trained starts). Mean ± sd over seeds, t > 60 s:
+
+| mode | stride (ms) | target | stance | target | DS | r(E,F) | r(E_L,E_R) | capped stance |
+|---|---|---|---|---|---|---|---|---|
+| slow | 1395 ± 4 | 1410 | 0.64 | 0.63 | 0.29 | −0.80 | −0.90 | 0.00 |
+| comfortable | 1143 ± 5 | 1110 | 0.59 | 0.60 | 0.18 | −0.77 | −0.90 | 0.00 |
+| fast | 870 ± 8 | 890 | 0.58 | 0.57 | 0.17 | −0.81 | −0.95 | 0.00 |
+| BWS 50% | 1063 ± 9 | 1110 | 0.59 | 0.60 | 0.18 | −0.04 | −0.87 | 0.07 |
+| BWS 90% | 619 ± 1 | 1110 | 0.65 | 0.60 | 0.30 | −0.09 | −0.80 | 0.00 |
+
+- The three walks meet their stride and stance targets within 5 % in every seed (sd of stride at most 8 ms) and match the debug-small results of the architecture round (stride 1410 / 1170 / 935 ms, r(E,F) −0.75…−0.79): the wiring change carries over to production size.
+- The injured starts behave as in the chains: BWS 50% r(E,F) −0.04 (session 1 of the chain −0.04; debug-small −0.06), stride 1063 ms, 7 % of stance bouts at the cap, CUT→RG-E 14 → 23 pA over the 120 s; BWS 90% r(E,F) −0.09, CUT→RG-E 36 → 38 pA. L/R alternation stays clear (r(E_L,E_R) −0.80 to −0.87).
+- **BWS 90% stride is 619 ms (the debug-small value was 752 ms, the mode target 1110 ms, −44 %).** The flexor burst at 10 % loading is short (known trade-off, `MOD_FLEXOR_AFF_UNLOADED`); at production size it is shorter still. It is the main departure from the targets and matters only if BWS 90% is compared with patient timing (not done: the patients walk at 1.4–2.6 s).
+- EMG (same method as P8; burst rule 25 %): GA-like peak slow / comfortable 47 / 45 % of the cycle (controls 42 %), fast 36 %, BWS 50 / 90 % 22 / 16 %; TA–GA co-activation 14–18 % for the walks (controls median 34 %, so the model is cleaner than the controls), 63 / 67 % in BWS 50 / 90 % (patients median 56 %). Mean activation: GA-like 0.65 / 0.66 / 0.61 for the walks, 0.53 / 0.30 in BWS; TA-like 0.59 / 0.59 / 0.31, 0.69 / 0.70.
+
 **MN5 production chains on the new wiring (2026-10-15; `results/2026-10-15/p7/human_modes/p7_arch`, job 47275918, 3 seeds x 20 conditions x 15 sessions of 60 s, N = 100; `scripts/p7_mn5_summary.py`, `plots/p7/mn5_arch_s12345_stages.png`).** All 900 sessions finished. Healthy sources: captured CUT→RG-E 58.1 / 59.0 / 58.7 pA (seeds 12345 / 54321 / 777), so REC used w0 14.5 (BWS 50%) and 38 (BWS 90%). Seed-to-seed sd is at most 0.05 on r(E,F) and at most 1.6 pA on the weight (4.4 pA for BWS 50% s 0.5 REC + EES, the least consistent cell), so the effects below are not seed noise. The five modes themselves were not rerun at production size (only the chains); the stage figure shows chains of seed 12345 (first / middle / last session). A stray partial copy of 4 conditions sits in `results/2026-10-15/p7/p7_arch` and is not used.
 
 | session 15 (mean of 3 seeds) | r(E,F) | Force-E p95 | stride (ms) | CUT→RG-E (pA) | s_eff |
